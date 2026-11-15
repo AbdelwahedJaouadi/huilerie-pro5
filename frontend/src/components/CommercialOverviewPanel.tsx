@@ -246,18 +246,23 @@ export default function CommercialOverviewPanel() {
                     const capacity = Number(tank.capacity_kg ?? 0);
                     const fillPercent = Math.max(0, Math.min(100, capacity > 0 ? quantity / capacity * 100 : 0));
                     const tankLabel = String(tank.code ?? tank.name ?? `T${String(index + 1).padStart(2, "0")}`);
+                    const isSelected = selectedTankId === String(tank.id);
                     return (
-                      <div key={tank.id} className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-[#D8E7D5] bg-white/55 px-2 pb-3 pt-4">
-                        <div className="flex h-44 w-full max-w-[84px] items-end overflow-hidden rounded-xl border border-sky-200 bg-white shadow-inner">
-                          <div className="w-full rounded-t-lg bg-gradient-to-t from-cyan-600 via-cyan-500 to-cyan-300 transition-[height] duration-700 ease-out" style={{ height: `${fillPercent}%`, minHeight: quantity > 0 ? "5px" : "0" }} />
+                      <button
+                        type="button"
+                        key={tank.id}
+                        onClick={() => setSelectedTankId((current) => current === String(tank.id) ? "" : String(tank.id))}
+                        aria-pressed={isSelected}
+                        aria-label={`${ar ? "اختيار الخزان" : "Sélectionner la cuve"} ${tankLabel}`}
+                        className={`flex min-w-0 flex-col items-center gap-2 rounded-2xl border px-2 pb-3 pt-4 text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 ${isSelected ? "border-green-500 bg-green-100 shadow-md ring-2 ring-green-300" : "border-[#D8E7D5] bg-white/55 hover:border-green-300 hover:bg-green-50/60"}`}
+                      >
+                        <div className={`flex h-44 w-full max-w-[84px] items-end overflow-hidden rounded-xl border bg-white shadow-inner ${isSelected ? "border-green-400" : "border-sky-200"}`}>
+                          <div className={`w-full rounded-t-lg transition-[height] duration-700 ease-out ${isSelected ? "bg-gradient-to-t from-green-700 via-green-500 to-lime-300" : "bg-gradient-to-t from-cyan-600 via-cyan-500 to-cyan-300"}`} style={{ height: `${fillPercent}%`, minHeight: quantity > 0 ? "5px" : "0" }} />
                         </div>
-                        <div className="w-full truncate text-center text-base font-extrabold text-slate-800">{ar ? "خزان" : "Cuve"} {tankLabel}</div>
-                        <div className="text-sm font-bold tabular-nums text-sky-800">{quantity.toLocaleString("fr-FR")} L</div>
+                        <div className={`w-full truncate text-base font-extrabold ${isSelected ? "text-green-950" : "text-slate-800"}`}>{ar ? "خزان" : "Cuve"} {tankLabel}</div>
+                        <div className={`text-sm font-bold tabular-nums ${isSelected ? "text-green-800" : "text-sky-800"}`}>{quantity.toLocaleString("fr-FR")} L</div>
                         {capacity > 0 && <div className="text-xs font-semibold tabular-nums text-stone-600">{Math.round(fillPercent)}%</div>}
-                        <button type="button" onClick={() => setSelectedTankId((current) => current === String(tank.id) ? "" : String(tank.id))} aria-expanded={selectedTankId === String(tank.id)} className="mt-1 text-xs font-bold text-sky-700 hover:text-sky-900 hover:underline">
-                          {selectedTankId === String(tank.id) ? (ar ? "إخفاء العمليات" : "Masquer opérations") : (ar ? "عرض العمليات" : "Voir opérations")}
-                        </button>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
