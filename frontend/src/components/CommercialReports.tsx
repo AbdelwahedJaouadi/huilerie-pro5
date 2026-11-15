@@ -39,6 +39,7 @@ export default function CommercialReports({ lang }: Props) {
   const suppliers = useQuery({ queryKey: ["commercial", "report", "suppliers"], queryFn: () => list("/commercial/v1/suppliers") });
   const buyers = useQuery({ queryKey: ["commercial", "report", "buyers"], queryFn: () => list("/commercial/v1/buyers") });
   const locations = useQuery({ queryKey: ["commercial", "report", "locations"], queryFn: () => list("/commercial/v1/locations") });
+  const tanks = useQuery({ queryKey: ["commercial", "report", "tanks"], queryFn: () => list("/commercial/v1/tanks") });
   const oliveLots = useQuery({ queryKey: ["commercial", "report", "olive-lots"], queryFn: () => list("/commercial/v1/lots?product_kind=OLIVE") });
 
   const filtered = useMemo(() => {
@@ -48,7 +49,7 @@ export default function CommercialReports({ lang }: Props) {
     };
     const supplierById = new Map((suppliers.data ?? []).map(item => [String(item.id), item]));
     const buyerById = new Map((buyers.data ?? []).map(item => [String(item.id), item]));
-    const locationById = new Map((locations.data ?? []).map(item => [String(item.id), item]));
+    const locationById = new Map([...(locations.data ?? []), ...(tanks.data ?? [])].map(item => [String(item.id), item]));
     const purchaseById = new Map((purchases.data ?? []).map(item => [String(item.id), item]));
     const oliveLotById = new Map((oliveLots.data ?? []).map(item => [String(item.id), item]));
     const supplierName = (purchase: Row | undefined) => {
@@ -94,7 +95,7 @@ export default function CommercialReports({ lang }: Props) {
       }),
     ];
     return groups.sort((a, b) => b.date.localeCompare(a.date));
-  }, [purchases.data, production.data, transfers.data, sales.data, suppliers.data, buyers.data, locations.data, oliveLots.data, start, end]);
+  }, [purchases.data, production.data, transfers.data, sales.data, suppliers.data, buyers.data, locations.data, tanks.data, oliveLots.data, start, end]);
 
   const totalPurchaseKg = filtered.filter(x => x.kind === "Achat").reduce((s, x) => s + x.qty, 0);
   const totalProductionL = filtered.filter(x => x.kind === "Production").reduce((s, x) => s + x.qty, 0);
@@ -112,8 +113,8 @@ export default function CommercialReports({ lang }: Props) {
     });
     return [...buckets.values()].sort((a, b) => a.period.localeCompare(b.period));
   }, [filtered]);
-  const loading = purchases.isLoading || production.isLoading || transfers.isLoading || sales.isLoading || suppliers.isLoading || buyers.isLoading || locations.isLoading || oliveLots.isLoading;
-  const error = purchases.error || production.error || transfers.error || sales.error || suppliers.error || buyers.error || locations.error || oliveLots.error;
+  const loading = purchases.isLoading || production.isLoading || transfers.isLoading || sales.isLoading || suppliers.isLoading || buyers.isLoading || locations.isLoading || tanks.isLoading || oliveLots.isLoading;
+  const error = purchases.error || production.error || transfers.error || sales.error || suppliers.error || buyers.error || locations.error || tanks.error || oliveLots.error;
 
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
     <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
@@ -121,7 +122,7 @@ export default function CommercialReports({ lang }: Props) {
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "من" : "Du"}<input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "إلى" : "Au"}<input type="date" value={end} onChange={e => setEnd(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
       <button className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { setStart(""); setEnd(""); }}>{ar ? "كل الفترات" : "Toute la période"}</button>
-      <button className="ml-auto flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
+      <button className="ml-auto flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void tanks.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
     </div>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar ? "تعذر تحميل جزء من بيانات التقرير. تحقق من الاتصال ثم حدّث الصفحة." : "Impossible de charger une partie des données du rapport. Vérifiez la connexion puis actualisez."}</div>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
