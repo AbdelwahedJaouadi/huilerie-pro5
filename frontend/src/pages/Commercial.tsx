@@ -189,8 +189,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<TabKey>(initialTab);
-  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView === "movements" || requestedTab === "movements" ? "movements" : "lots");
+  const [tab, setTab] = useState<TabKey>(embeddedStockView ? "stock" : initialTab);
+  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" ? "movements" : "lots"));
   const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
   const [salesView, setSalesView] = useState<"buyers" | "sales">("buyers");
   const selectTab = (nextTab: TabKey) => {
