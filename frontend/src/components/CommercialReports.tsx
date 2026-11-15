@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw, FileSpreadsheet, FileText } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { API_ORIGIN, apiGet } from "@/lib/api";
 import { CodeBadge, StatCard } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -142,18 +142,53 @@ export default function CommercialReports({ lang }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const exportPdf = () => {
-    const popup = window.open("", "_blank");
-    if (!popup) {
-      alert(ar ? "يرجى السماح بفتح النوافذ المنبثقة لتصدير PDF." : "Autorisez les fenêtres contextuelles pour exporter le PDF.");
-      return;
+  const exportPdf = async () => {
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/commercial/v1/reports/export.pdf`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: ar ? "تقرير التسيير التجاري" : "Rapport de gestion commerciale",
+          period: `${ar ? "الفترة" : "Période"} : ${start || (ar ? "البداية" : "Début")} — ${end || (ar ? "النهاية" : "Fin")} · ${ar ? "العمليات" : "Opérations"} : ${displayedRows.length}`,
+          headers: exportHeaders,
+          rows: displayedRows.map(x => [
+            x.date || "",
+            ar ? x.kindAr : x.kind,
+            x.code ?? "",
+            x.party ?? "",
+            fmt(x.qty, 3),
+            x.unit,
+            x.amount ? fmt(x.amount, 3) : "—",
+            x.status ?? "",
+          ]),
+          summary: [
+            [ar ? "الزيتون المشتَرى" : "Olives achetées", `${fmt(totalPurchaseKg, 3)} kg`],
+            [ar ? "الإنتاج" : "Production d'huile", `${fmt(totalProductionL, 3)} L`],
+            [ar ? "المبيعات" : "Volume vendu", `${fmt(totalSalesL, 3)} L`],
+            [ar ? "قيمة المبيعات" : "Valeur des ventes", `${fmt(totalSalesAmount, 3)} TND`],
+          ],
+        }),
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        throw new Error(detail || `Erreur serveur (${response.status})`);
+      }
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("Le fichier PDF reçu est vide.");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${exportBaseName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (error) {
+      alert(ar
+        ? `تعذر تنزيل ملف PDF: ${error instanceof Error ? error.message : "خطأ غير معروف"}`
+        : `Impossible de télécharger le PDF : ${error instanceof Error ? error.message : "erreur inconnue"}`);
     }
-    const esc = (value: unknown) => String(value ?? "—").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
-    const rowsHtml = displayedRows.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(ar ? x.kindAr : x.kind)}</td><td>${esc(x.code)}</td><td>${esc(x.party)}</td><td class="num">${esc(fmt(x.qty, 3))} ${esc(x.unit)}</td><td class="num">${esc(x.amount ? fmt(x.amount, 3) : "—")}</td><td>${esc(x.status)}</td></tr>`).join("");
-    popup.document.write(`<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>${esc(ar ? "تقرير التسيير التجاري" : "Rapport de gestion commerciale")}</title><style>
-      body{font-family:Arial,sans-serif;color:#1f2937;margin:28px}h1{font-size:22px;margin:0 0 8px;color:#312e81}.meta{color:#64748b;font-size:12px;margin-bottom:18px}.stats{display:flex;gap:12px;margin:16px 0 22px}.stat{border:1px solid #dbeafe;border-radius:8px;padding:10px 14px;min-width:130px}.stat b{display:block;font-size:17px;margin-top:5px}table{border-collapse:collapse;width:100%;font-size:10px}th{background:#eef2ff;color:#312e81;text-align:start}th,td{border:1px solid #cbd5e1;padding:7px 6px}tr:nth-child(even){background:#f8fafc}.num{text-align:end;white-space:nowrap}.foot{margin-top:16px;color:#64748b;font-size:10px}@media print{body{margin:12mm}thead{display:table-header-group}tr{break-inside:avoid}}
-      </style></head><body><h1>${esc(ar ? "تقرير التسيير التجاري" : "Rapport de gestion commerciale")}</h1><div class="meta">${esc(ar ? "الفترة" : "Période")} : ${esc(start || (ar ? "البداية" : "Début"))} — ${esc(end || (ar ? "النهاية" : "Fin"))} · ${esc(ar ? "عدد العمليات" : "Opérations affichées")} : ${displayedRows.length}</div><div class="stats"><div class="stat">${esc(ar ? "الزيتون المشتَرى" : "Olives achetées")}<b>${esc(fmt(totalPurchaseKg, 3))} kg</b></div><div class="stat">${esc(ar ? "الإنتاج" : "Production d'huile")}<b>${esc(fmt(totalProductionL, 3))} L</b></div><div class="stat">${esc(ar ? "المبيعات" : "Volume vendu")}<b>${esc(fmt(totalSalesL, 3))} L</b></div><div class="stat">${esc(ar ? "قيمة المبيعات" : "Valeur des ventes")}<b>${esc(fmt(totalSalesAmount, 3))} TND</b></div></div><table><thead><tr>${exportHeaders.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rowsHtml || `<tr><td colspan="7">${esc(ar ? "لا توجد عمليات" : "Aucune opération")}</td></tr>`}</tbody></table><div class="foot">${esc(ar ? "تقرير مستخرج من Oro Verde — GS" : "Rapport extrait de Oro Verde — GS")}</div><script>window.onload=()=>{window.print();};<\\/script></body></html>`);
-    popup.document.close();
   };
 
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
