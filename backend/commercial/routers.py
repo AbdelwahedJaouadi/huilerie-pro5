@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pymongo.errors import DuplicateKeyError
 
 from commercial.inventory_bootstrap import (
@@ -3088,3 +3089,86 @@ async def list_commercial_audit_events(
         actor_id = item.get("actor_user_id")
         item["actor_name"] = actor_names.get(actor_id, actor_id or "system")
     return _safe(docs)
+
+
+@router.post("/reports/export.pdf")
+async def export_commercial_report_pdf(
+    payload: dict[str, Any],
+    user: dict = Depends(current_user),
+):
+    """Create a downloadable PDF from the exact filtered GS report currently displayed."""
+    _authorize(user, "commercial.read")
+    rows = payload.get("rows")
+    headers = payload.get("headers")
+    summary = payload.get("summary") or []
+    if not isinstance(rows, list) or len(rows) > 5000 or not isinstance(headers, list) or len(headers) != 7:
+        raise HTTPException(422, "invalid_commercial_report_export")
+    if any(not isinstance(row, list) or len(row) != 7 for row in rows):
+        raise HTTPException(422, "invalid_commercial_report_rows")
+
+    import io
+    from html import escape
+    from pathlib import Path
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    font_dir = Path(__file__).resolve().parent.parent / "fonts"
+    regular, bold = "CommercialReportAmiri", "CommercialReportAmiriBold"
+    if regular not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(regular, str(font_dir / "Amiri-Regular.ttf")))
+    if bold not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(bold, str(font_dir / "Amiri-Bold.ttf")))
+
+    def shape(value: Any) -> str:
+        text = str(value if value is not None else "—")
+        if any("\\u0600" <= char <= "\\u06ff" for char in text):
+            import arabic_reshaper
+            from bidi.algorithm import get_display
+            return get_display(arabic_reshaper.reshape(text))
+        return text
+
+    def cell(value: Any, style: ParagraphStyle) -> Paragraph:
+        return Paragraph(escape(shape(value)).replace("\\n", "<br/>"), style)
+
+    buf = io.BytesIO()
+    page = landscape(A4)
+    doc = SimpleDocTemplate(buf, pagesize=page, rightMargin=9*mm, leftMargin=9*mm, topMargin=10*mm, bottomMargin=12*mm,
+                            title="Rapport de gestion commerciale — Oro Verde GS")
+    title_style = ParagraphStyle("CommercialTitle", fontName=bold, fontSize=17, leading=22, alignment=TA_CENTER, textColor=colors.HexColor("#312e81"), spaceAfter=5)
+    meta_style = ParagraphStyle("CommercialMeta", fontName=regular, fontSize=8.5, leading=12, alignment=TA_CENTER, textColor=colors.HexColor("#57534e"), spaceAfter=9)
+    head_style = ParagraphStyle("CommercialHead", fontName=bold, fontSize=7.5, leading=9, alignment=TA_CENTER, textColor=colors.white)
+    body_style = ParagraphStyle("CommercialBody", fontName=regular, fontSize=7.2, leading=9, wordWrap="CJK")
+    story = [
+        Paragraph(shape(payload.get("title") or "Rapport de gestion commerciale"), title_style),
+        Paragraph(shape(payload.get("period") or ""), meta_style),
+    ]
+    if summary:
+        summary_text = "   |   ".join(f"{shape(item[0])} : {shape(item[1])}" for item in summary if isinstance(item, list) and len(item) == 2)
+        story.append(Paragraph(summary_text, meta_style))
+    data = [[cell(value, head_style) for value in headers]]
+    data.extend([[cell(value, body_style) for value in row] for row in rows])
+    if len(data) == 1:
+        data.append([cell("Aucune opération", body_style)] + [cell("", body_style) for _ in range(6)])
+    table = Table(data, colWidths=[22*mm, 24*mm, 30*mm, 70*mm, 28*mm, 25*mm, 40*mm], repeatRows=1, hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#312e81")),
+        ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f8fafc")]),
+        ("LEFTPADDING", (0,0), (-1,-1), 4), ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+    ]))
+    story.append(table)
+    doc.build(story)
+    buf.seek(0)
+    from datetime import datetime, timezone
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    filename = f"rapport-gestion-commerciale-{stamp}.pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
