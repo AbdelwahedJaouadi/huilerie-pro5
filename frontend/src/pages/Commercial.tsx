@@ -1863,14 +1863,13 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                 const fillPercent = Math.max(0, Math.min(100, capacity > 0 ? quantity / capacity * 100 : quantity / maxFlexibleTankStock * 100));
                 const tankLabel = String(tank.code ?? tank.name ?? (index + 1));
                 return (
-                  <button type="button" key={tank.id} onClick={() => setSelectedOverviewTankId((current) => current === tank.id ? "" : tank.id)} aria-pressed={selectedOverviewTankId === tank.id} className={`flex min-w-0 flex-col items-center gap-2 rounded-xl border px-2 pt-3 pb-2 text-left transition-all ${selectedOverviewTankId === tank.id ? "border-sky-500 bg-sky-100 shadow-md ring-2 ring-sky-300" : "border-sky-100 bg-sky-50/70 hover:border-sky-300 dark:border-sky-900/60 dark:bg-slate-900/50"}` } title={`${tankLabel}: ${number(quantity)} L${capacity > 0 ? ` / ${number(capacity)} L` : ""}`}>
+                  <button type="button" key={tank.id} onClick={() => setSelectedOverviewTankId((current) => current === tank.id ? "" : tank.id)} aria-pressed={selectedOverviewTankId === tank.id} className={`flex min-w-0 flex-col items-center gap-2 rounded-xl border px-2 pt-3 pb-2 text-left transition-all ${selectedOverviewTankId === tank.id ? "border-green-500 bg-green-100 shadow-md ring-2 ring-green-300 dark:border-green-400 dark:bg-green-950/40" : "border-sky-100 bg-sky-50/70 hover:border-sky-300 dark:border-sky-900/60 dark:bg-slate-900/50"}` } title={`${tankLabel}: ${number(quantity)} L${capacity > 0 ? ` / ${number(capacity)} L` : ""}`}>
                     <div className="flex h-36 w-full max-w-16 items-end overflow-hidden rounded-t-lg rounded-b-md border border-sky-200 bg-white shadow-inner dark:border-slate-700 dark:bg-slate-950">
-                      <div className="w-full rounded-t-sm bg-gradient-to-t from-sky-700 via-cyan-500 to-cyan-300 transition-[height] duration-700 ease-out" style={{ height: `${fillPercent}%`, minHeight: quantity > 0 ? "4px" : "0" }} />
+                      <div className="w-full rounded-t-sm ${selectedOverviewTankId === tank.id ? "bg-gradient-to-t from-green-700 via-green-500 to-lime-300" : "bg-gradient-to-t from-sky-700 via-cyan-500 to-cyan-300"} transition-[height] duration-700 ease-out" style={{ height: `${fillPercent}%`, minHeight: quantity > 0 ? "4px" : "0" }} />
                     </div>
                     <span className="w-full truncate text-center text-sm font-bold text-slate-800 dark:text-slate-100">{lang === "ar" ? "خزان" : "Cuve"} {tankLabel}</span>
                     <span className="text-xs font-semibold tabular-nums text-sky-800 dark:text-sky-300">{number(quantity)} L</span>
                     {capacity > 0 && <span className="text-[10px] tabular-nums text-muted-foreground">{Math.round(fillPercent)}%</span>}
-                    <span className="text-[10px] font-semibold text-sky-700">{lang === "ar" ? "عرض العمليات" : "Voir opérations"}</span>
                   </button>
                 );
               })}
