@@ -417,9 +417,11 @@ export default function AppShell() {
         <div className={cn("group fixed inset-x-0 top-0 z-50", navRevealEnabled ? "h-3" : "")}>
         <header className={cn("app-topbar-header border-b border-stone-200/70 bg-[#F9F8F3]/95 shadow-sm backdrop-blur-none transition-opacity duration-700 ease-in-out motion-reduce:transition-none", navRevealEnabled ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto" : "opacity-100")}>
           <div className="relative mx-auto flex max-w-7xl items-center gap-2 px-3 py-1 md:px-6">
-            <div dir="ltr" className="flex shrink-0 items-center gap-2">
-              <HeaderAppearanceMenu />
-              <Brand />
+            <div dir="ltr" className="flex shrink-0 flex-col items-start gap-1">
+              <div className="flex items-center gap-2">
+                <HeaderAppearanceMenu />
+                <Brand />
+              </div>
               {isCommercialWorkspace && <CommercialHeaderMenu lang={lang} />}
             </div>
             <div
