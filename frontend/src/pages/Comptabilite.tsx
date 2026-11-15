@@ -23,6 +23,7 @@ type Overview = {
   active_season: string;
   season_code: string;
   traditional_invoices: Row[];
+  traditional_invoice_payments: Row[];
   supplier_olive_purchases: Row[];
   supplier_olive_purchase_payments: Row[];
   customer_ownership_transfers: Row[];
@@ -364,7 +365,7 @@ export default function Comptabilite() {
     ]} />
 
     <DataTable title={ar ? "مقبوضات الحرفاء" : "Encaissements des clients"} description="Règlements reçus sur les factures de trituration et les ventes GS. Les montants encaissés règlent les créances clients; ils ne sont pas ajoutés une seconde fois aux revenus." rows={[
-      ...(serviceRows.filter(r=>n(r.paid_amount)>0).map(r=>({...r,_receipt_kind: ar ? "خدمة عصر" : "Prestation",_receipt_amount:r.paid_amount,_receipt_document:r.number,_receipt_customer:r.client_name,_receipt_date:r.payment_date || r.day || r.created_at}))),
+      ...(data.traditional_invoice_payments || []).map(r=>({...r,_receipt_kind: ar ? "خدمة عصر" : "Prestation",_receipt_amount:r.amount,_receipt_document:r.invoice_number,_receipt_customer:r.client_name,_receipt_date:r.payment_date})),
       ...(data.commercial_sale_payments || []).map(r=>({...r,_receipt_kind: ar ? "بيع GS" : "Vente GS",_receipt_amount:r.amount_dt || r.amount_tnd || r.amount,_receipt_document:r.invoice_number || r.document_number || r.invoice_id,_receipt_customer:r.buyer_name || r.customer_name || r.buyer_id,_receipt_date:r.payment_date || r.paid_at || r.created_at}))
     ]} empty={ar ? "لا توجد مقبوضات من الحرفاء مسجلة لهذا الموسم." : "Aucun encaissement client enregistré sur la saison active."} columns={[
       {label: ar ? "التاريخ" : "Date",render:r=>String(r._receipt_date || "—").slice(0,10)}, {label: ar ? "المصدر" : "Origine",render:r=>r._receipt_kind}, {label: ar ? "الفاتورة" : "Facture",render:r=>r._receipt_document || "—"}, {label: ar ? "الحريف" : "Client",render:r=>r._receipt_customer || "—"}, {label: ar ? "الطريقة" : "Mode",render:r=>(ar ? paymentLabelsAr[r.payment_method] : paymentLabels[r.payment_method]) || r.payment_method || "—"}, {label: ar ? "المبلغ المقبوض" : "Montant encaissé",render:r=>fmt(r._receipt_amount)}
