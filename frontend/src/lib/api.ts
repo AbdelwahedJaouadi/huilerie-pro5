@@ -1,6 +1,6 @@
 // Typed fetch layer over the FastAPI backend.
 // Use the deployed Render API directly when the frontend is hosted on Emergent.
-export const API_ORIGIN = "https://huilerie-pro3.onrender.com";
+export const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || "https://oroverde-pro5-api.onrender.com").replace(/\/+$/, "");
 const BASE = `${API_ORIGIN}/api`;
 
 // Fields are declared, not constructor parameter properties: tsconfig sets
