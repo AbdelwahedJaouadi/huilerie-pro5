@@ -2644,7 +2644,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             <TableCell>{purchase.status === "DRAFT" ? <div className="flex flex-wrap gap-2">{isAdmin && <Button size="sm" disabled={approvePurchase.isPending || !receivingLocationId} onClick={() => approvePurchase.mutate(purchase)}>{l.approve}</Button>}{canDeleteRecords && <Button size="sm" variant="destructive" disabled={cancelPurchase.isPending} onClick={() => { if (!window.confirm(lang === "ar" ? "سيتم إلغاء مسودة الشراء مع الاحتفاظ بها في سجل التدقيق. هل تؤكد؟" : "Annuler ce brouillon en conservant sa trace d’audit ?")) return; const reason = window.prompt(lang === "ar" ? "سبب الإلغاء (5 أحرف على الأقل):" : "Motif de l’annulation (5 caractères minimum) :"); if (reason && reason.trim().length >= 5) cancelPurchase.mutate({ purchase, reason: reason.trim() }); }}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button>}</div> : purchase.status === "APPROVED" ? <Button size="sm" variant="outline" onClick={() => setSelectedPurchaseReceipt(purchase)}><Printer className="mr-1 size-4" />{lang === "ar" ? "طباعة / إعادة الطباعة" : "Imprimer / Réimprimer"}</Button> : "—"}</TableCell>
           </TableRow>)}
           {(!purchases.isLoading && !(purchases.data?.length)) && <EmptyRow colSpan={8} text={l.noRows} />}
-        </TableBody></Table></CardContent></Card>
+        </TableBody></Table></div></CardContent></Card>
       </div>}
 
       {tab === "production" && <div className="space-y-4">
