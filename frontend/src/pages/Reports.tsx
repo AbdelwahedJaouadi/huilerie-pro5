@@ -20,6 +20,7 @@ export default function Reports() {
   const { t, lang } = useI18n();
   const ar = lang === "ar";
   const me = useMe();
+  const [activeReportTab, setActiveReportTab] = useState("normal");
   const [period, setPeriod] = useState<"daily" | "monthly">("daily");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -107,7 +108,7 @@ export default function Reports() {
         title={t("reports")}
         sub={t("reports_sub")}
         accent="bg-violet-500"
-        right={
+        right={activeReportTab === "normal" ? (
           <div className="flex gap-2">
             <a href={`https://huilerie-pro3.onrender.com/api/reports/revenue.xlsx?${qs}`} download data-testid="report-export-excel" className={cn(buttonVariants(), "rounded-xl bg-green-700 hover:bg-green-800")}>
               <FileSpreadsheet className="size-4" /> {t("export_excel")}
@@ -116,9 +117,9 @@ export default function Reports() {
               <FileText className="size-4" /> {t("export_pdf")}
             </a>
           </div>
-        }
+        ) : undefined}
       />
-      <Tabs defaultValue="normal" className="w-full">
+      <Tabs value={activeReportTab} onValueChange={setActiveReportTab} className="w-full">
         <TabsList className="mb-5 flex h-auto w-fit flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
           <TabsTrigger value="normal" className="rounded-xl border border-transparent px-5 py-2.5 font-semibold text-slate-600 transition-all data-[state=active]:border-amber-300 data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-md">{ar ? "التقرير العادي" : "Rapport de trituration"}</TabsTrigger>
           <TabsTrigger value="commercial" className="rounded-xl border border-transparent px-5 py-2.5 font-semibold text-slate-600 transition-all data-[state=active]:border-emerald-300 data-[state=active]:bg-emerald-700 data-[state=active]:text-white data-[state=active]:shadow-md">{ar ? "تقرير التسيير التجاري" : "Rapport gestion commerciale"}</TabsTrigger>
