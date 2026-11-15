@@ -217,7 +217,7 @@ export default function Comptabilite() {
         <div className="flex items-center gap-2"><ReceiptText className="size-6 text-emerald-700" /><h1 className="text-2xl font-bold text-stone-900">{ar ? "المحاسبة" : "Comptabilité"}</h1></div>
         <p className="mt-1 text-sm text-stone-500">{ar ? "عرض موحّد لـ Oro Verde والتسيير التجاري · الموسم الحالي:" : "Vue consolidée Oro Verde et Gestion Commerciale · saison active :"} {data.active_season} · {ar ? "للقراءة فقط" : "lecture seule"}</p>
       </div>
-      <button onClick={() => void query.refetch()} className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50"><RefreshCw className="size-4" /> {ar ? "تحديث" : "Actualiser"}</button>
+
     </div>
 
     <div className="flex flex-wrap gap-2 border-b border-stone-200 pb-3 no-print">
