@@ -701,6 +701,25 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     setPurchaseNotes("");
     setPurchaseLines([{ variety_id: "", quantity_kg: "", unit_price_dt: "" }]);
   };
+  useEffect(() => {
+    const purchaseId = searchParams.get("purchase_id");
+    const action = searchParams.get("purchase_action");
+    if (!purchaseId || !action || !purchases.data) return;
+    const purchase = purchases.data.find((item: AnyRecord) => String(item.id) === purchaseId);
+    if (!purchase) return;
+    setProcurementView("purchases");
+    if (action === "edit" && purchase.status === "DRAFT" && canEditRecords) {
+      setSelectedPurchaseReceipt(null);
+      startPurchaseEdit(purchase);
+    } else if (action === "receipt" && purchase.status === "APPROVED") {
+      setEditingPurchase(null);
+      setSelectedPurchaseReceipt(purchase);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("purchase_id");
+    next.delete("purchase_action");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, purchases.data, canEditRecords]);
   const approvePurchase = useMutation({
     mutationFn: (purchase: AnyRecord) => apiPost<AnyRecord>(`/commercial/v1/olive-purchases/${encodeURIComponent(purchase.id)}/approve`, {
       expected_version: purchase.version,
@@ -2518,7 +2537,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                     <TableCell className="whitespace-nowrap"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${purchase.status === "APPROVED" ? "bg-emerald-100 text-emerald-800" : purchase.status === "CANCELLED" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>{purchaseStatus}</span></TableCell>
                     <TableCell className="whitespace-nowrap text-end">{averagePricePerKg > 0 ? money(averagePricePerKg) : "—"}</TableCell>
                     <TableCell className="whitespace-nowrap text-end font-semibold">{money(purchase.total_amount_dt)}</TableCell>
-                    <TableCell className="text-center"><Button type="button" size="sm" variant="outline" data-testid={`gs-chargement-open-purchase-${purchase.id}`} onClick={() => { selectTab("purchases"); setSelectedPurchaseReceipt(null); if (purchase.status === "DRAFT") { setEditingPurchase(null); if (canEditRecords) startPurchaseEdit(purchase); } else { setEditingPurchase(null); if (purchase.status === "APPROVED") setSelectedPurchaseReceipt(purchase); } }}>{lang === "ar" ? "فتح" : "Ouvrir"}</Button></TableCell>
+                    <TableCell className="text-center"><Button type="button" size="sm" variant="outline" data-testid={`gs-chargement-open-purchase-${purchase.id}`} onClick={() => { if (embeddedStockView === "chargement") { const params = new URLSearchParams(); params.set("tab", "purchases"); params.set("purchase_id", String(purchase.id)); params.set("purchase_action", purchase.status === "DRAFT" ? "edit" : purchase.status === "APPROVED" ? "receipt" : "view"); navigate(`/commercial?${params.toString()}`); return; } selectTab("purchases"); setSelectedPurchaseReceipt(null); if (purchase.status === "DRAFT") { setEditingPurchase(null); if (canEditRecords) startPurchaseEdit(purchase); } else { setEditingPurchase(null); if (purchase.status === "APPROVED") setSelectedPurchaseReceipt(purchase); } }}>{lang === "ar" ? "فتح" : "Ouvrir"}</Button></TableCell>
                     <TableCell className="min-w-40 max-w-64 truncate text-xs text-stone-600" title={String(purchase.notes ?? "")}>{value(purchase.notes, "—")}</TableCell>
                   </TableRow>;
                 });
