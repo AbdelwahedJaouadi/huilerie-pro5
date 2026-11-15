@@ -65,7 +65,7 @@ export default function Loads() {
   return (
     <div className="space-y-4">
       <div role="tablist" aria-label={ar ? "أقسام الحمولة" : "Sections du chargement"} className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-sm">
-        <Button type="button" role="tab" aria-selected={activeTab === "loads"} variant={activeTab === "loads" ? "default" : "outline"} onClick={() => setActiveTab("loads")}>{ar ? "الحمولة" : "الحمولة"}</Button>
+        <Button type="button" role="tab" aria-selected={activeTab === "loads"} variant={activeTab === "loads" ? "default" : "outline"} onClick={() => setActiveTab("loads")}>Chargement</Button>
         <Button type="button" role="tab" aria-selected={activeTab === "chargement"} variant={activeTab === "chargement" ? "default" : "outline"} onClick={() => setActiveTab("chargement")}>Chargement</Button>
         <Button type="button" role="tab" aria-selected={activeTab === "lots"} variant={activeTab === "lots" ? "default" : "outline"} onClick={() => setActiveTab("lots")}>Lots</Button>
         <Button type="button" role="tab" aria-selected={activeTab === "movements"} variant={activeTab === "movements" ? "default" : "outline"} onClick={() => setActiveTab("movements")}>Mouvements</Button>
