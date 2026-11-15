@@ -86,9 +86,21 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
         return { row, kind: "Production", kindAr: "إنتاج", date: dateOf(row), code: first(row, ["document_number", "production_number"]), party: [supplier, tank].filter(Boolean).join(" · ") || "—", qty: num(row, ["output_quantity_liters", "output_liters", "oil_quantity_liters", "actual_oil_output_kg"]), unit: "L", amount: 0, status: first(row, ["status"]) };
       }),
       ...(transfers.data ?? []).filter(within).map(row => {
+        const ownershipChange = row.movement_kind === "OWNERSHIP_TRANSFER";
         const from = locationName(row.source_location_id, first(row, ["source_location_name", "source_location"]));
         const to = locationName(row.destination_location_id, first(row, ["destination_location_name", "destination_location"]));
-        return { row, kind: "Transfert", kindAr: "تحويل", date: dateOf(row), code: first(row, ["document_number", "movement_number"]), party: [from, to].filter(Boolean).join(" → ") || "—", qty: num(row, ["quantity", "quantity_kg", "quantity_liters"]), unit: first(row, ["product_kind"]) === "OIL" ? "L" : "kg", amount: 0, status: first(row, ["status", "movement_kind"]) };
+        return {
+          row,
+          kind: ownershipChange ? "Changement de propriété" : "Transfert",
+          kindAr: ownershipChange ? "تغيير الملكية" : "تحويل",
+          date: dateOf(row),
+          code: first(row, ["document_number", "movement_number"]),
+          party: ownershipChange ? (from || to || "—") : ([from, to].filter(Boolean).join(" → ") || "—"),
+          qty: num(row, ["quantity", "quantity_kg", "quantity_liters"]),
+          unit: first(row, ["product_kind"]) === "OIL" ? "L" : "kg",
+          amount: 0,
+          status: first(row, ["status", "movement_kind"]),
+        };
       }),
       ...(sales.data ?? []).filter(within).map(row => {
         const buyer = buyerById.get(String(row.buyer_id ?? ""));
@@ -100,7 +112,7 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
     return groups.sort((a, b) => b.date.localeCompare(a.date));
   }, [purchases.data, production.data, transfers.data, sales.data, suppliers.data, buyers.data, locations.data, tanks.data, oliveLots.data, start, end]);
 
-  const operationKinds = ["Achat", "Production", "Transfert", "Vente"];
+  const operationKinds = ["Achat", "Production", "Transfert", "Changement de propriété", "Vente"];
   const availableStatuses = [...new Set(filtered.map(x => String(x.status ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const displayedRows = filtered.filter(x => (!selectedKinds.length || selectedKinds.includes(x.kind)) && (!selectedStatus || String(x.status ?? "") === selectedStatus));
   const toggleKind = (kind: string) => setSelectedKinds(current => current.length === 0 ? [kind] : current.includes(kind) ? current.filter(value => value !== kind) : [...current, kind]);
@@ -180,9 +192,9 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
             const quantity = items.reduce((total, item) => total + Number(item.qty || 0), 0);
             const amount = items.reduce((total, item) => total + Number(item.amount || 0), 0);
             return {
-              kind: ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind,
+              kind: ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", "Changement de propriété": "تغيير الملكية", Vente: "بيع" } as Record<string, string>)[kind] : kind,
               count: items.length,
-              quantity: `${fmt(quantity, 3)} ${kind === "Achat" ? "kg" : "L"}`,
+              quantity: `${fmt(quantity, 3)} ${items[0]?.unit || (kind === "Achat" ? "kg" : "L")}`,
               amount: `${fmt(amount, 3)} TND`,
             };
           }),
@@ -241,9 +253,9 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
           <button type="button" onClick={() => setSelectedKinds([])} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedKinds.length === 0 ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{ar ? "الكل" : "Toutes"}</button>
           {operationKinds.map(kind => {
             const active = selectedKinds.length === 0 || selectedKinds.includes(kind);
-            const tones: Record<string, string> = { Achat: active ? "border-amber-500 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-400", Production: active ? "border-emerald-500 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-400", Transfert: active ? "border-violet-500 bg-violet-100 text-violet-900" : "border-slate-200 bg-white text-slate-400", Vente: active ? "border-sky-500 bg-sky-100 text-sky-900" : "border-slate-200 bg-white text-slate-400" };
-            const OperationIcon = ({ Achat: ShoppingBasket, Production: Factory, Transfert: ArrowLeftRight, Vente: ShoppingCart } as Record<string, typeof ShoppingBasket>)[kind];
-            return <button key={kind} type="button" aria-pressed={active} onClick={() => toggleKind(kind)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-95 ${tones[kind]}`}><OperationIcon className="size-3.5" />{ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind}</button>;
+            const tones: Record<string, string> = { Achat: active ? "border-amber-500 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-400", Production: active ? "border-emerald-500 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-400", Transfert: active ? "border-violet-500 bg-violet-100 text-violet-900" : "border-slate-200 bg-white text-slate-400", "Changement de propriété": active ? "border-orange-500 bg-orange-100 text-orange-900" : "border-slate-200 bg-white text-slate-400", Vente: active ? "border-sky-500 bg-sky-100 text-sky-900" : "border-slate-200 bg-white text-slate-400" };
+            const OperationIcon = ({ Achat: ShoppingBasket, Production: Factory, Transfert: ArrowLeftRight, "Changement de propriété": ArrowLeftRight, Vente: ShoppingCart } as Record<string, typeof ShoppingBasket>)[kind];
+            return <button key={kind} type="button" aria-pressed={active} onClick={() => toggleKind(kind)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-95 ${tones[kind]}`}><OperationIcon className="size-3.5" />{ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", "Changement de propriété": "تغيير الملكية", Vente: "بيع" } as Record<string, string>)[kind] : kind}</button>;
           })}
         </div>
       </div>
@@ -276,7 +288,7 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
       <CardHeader><CardTitle>{ar ? "سجل جميع عمليات GS" : "Journal des opérations GS"}</CardTitle></CardHeader>
       <CardContent className="p-0 sm:p-6">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ar ? "التاريخ" : "Date"}</TableHead><TableHead>{ar ? "العملية" : "Opération"}</TableHead><TableHead>{ar ? "المرجع" : "Document / Code"}</TableHead><TableHead>{ar ? "المزوّد / الحريف / الموقع" : "Fournisseur / Client / Emplacement"}</TableHead><TableHead className="text-end">{ar ? "الكمية" : "Quantité"}</TableHead><TableHead>{ar ? "الحالة" : "Statut"}</TableHead></TableRow></TableHeader><TableBody>
-          {displayedRows.map((x, i) => { const rowTone = x.kind === "Achat" ? "bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-l-amber-500" : x.kind === "Production" ? "bg-emerald-50/80 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500" : x.kind === "Transfert" ? "bg-violet-50/80 hover:bg-violet-100/80 border-l-4 border-l-violet-500" : "bg-sky-50/80 hover:bg-sky-100/80 border-l-4 border-l-sky-500"; const operationTone = x.kind === "Achat" ? "text-amber-900" : x.kind === "Production" ? "text-emerald-900" : x.kind === "Transfert" ? "text-violet-900" : "text-sky-900"; return <TableRow key={String(x.code ?? i) + x.kind} className={rowTone}><TableCell className="whitespace-nowrap">{labelDate(x.date)}</TableCell><TableCell className={`font-bold ${operationTone}`}>{ar ? x.kindAr : x.kind}</TableCell><TableCell className="font-mono text-xs">{x.code ? <CodeBadge code={String(x.code)} /> : "—"}</TableCell><TableCell>{String(x.party ?? "—")}</TableCell><TableCell className="text-end tabular-nums">{fmt(x.qty, 3)} {x.unit}</TableCell><TableCell>{String(x.status ?? "—")}</TableCell></TableRow>; })}
+          {displayedRows.map((x, i) => { const rowTone = x.kind === "Achat" ? "bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-l-amber-500" : x.kind === "Production" ? "bg-emerald-50/80 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500" : x.kind === "Transfert" ? "bg-violet-50/80 hover:bg-violet-100/80 border-l-4 border-l-violet-500" : x.kind === "Changement de propriété" ? "bg-orange-50/80 hover:bg-orange-100/80 border-l-4 border-l-orange-500" : "bg-sky-50/80 hover:bg-sky-100/80 border-l-4 border-l-sky-500"; const operationTone = x.kind === "Achat" ? "text-amber-900" : x.kind === "Production" ? "text-emerald-900" : x.kind === "Transfert" ? "text-violet-900" : x.kind === "Changement de propriété" ? "text-orange-900" : "text-sky-900"; return <TableRow key={String(x.code ?? i) + x.kind} className={rowTone}><TableCell className="whitespace-nowrap">{labelDate(x.date)}</TableCell><TableCell className={`font-bold ${operationTone}`}>{ar ? x.kindAr : x.kind}</TableCell><TableCell className="font-mono text-xs">{x.code ? <CodeBadge code={String(x.code)} /> : "—"}</TableCell><TableCell>{String(x.party ?? "—")}</TableCell><TableCell className="text-end tabular-nums">{fmt(x.qty, 3)} {x.unit}</TableCell><TableCell>{String(x.status ?? "—")}</TableCell></TableRow>; })}
           {!displayedRows.length && <TableRow><TableCell colSpan={6} className="py-10 text-center text-stone-500">{loading ? (ar ? "جار تحميل البيانات…" : "Chargement…") : (ar ? "لا توجد عمليات مسجلة" : "Aucune opération enregistrée")}</TableCell></TableRow>}
         </TableBody></Table></div>
       </CardContent>
