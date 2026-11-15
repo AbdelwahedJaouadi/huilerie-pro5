@@ -125,8 +125,6 @@ function BottomNav({ isAdmin, revealEnabled, pendingLabCount, premium }: { isAdm
 }
 
 function CommercialHeaderMenu({ lang }: { lang: string }) {
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const ar = lang === "ar";
   const items = [
     { label: ar ? "المشتريات" : "Achats", tab: "procurement" },
@@ -137,50 +135,21 @@ function CommercialHeaderMenu({ lang }: { lang: string }) {
     { label: ar ? "المحاسبة" : "Comptabilité", tab: "accounting" },
   ];
   return (
-    <div className="relative shrink-0" data-testid="commercial-header-menu">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={ar ? "قائمة صفحات الإدارة التجارية" : "Menu Gestion commerciale"}
-        data-testid="commercial-header-menu-trigger"
-        onClick={() => setOpen((value) => !value)}
-        className="flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-sm font-bold text-emerald-950 shadow-sm transition-colors hover:bg-emerald-100"
-      >
-        <span>GS</span>
-        <Menu className="size-4" />
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-label={ar ? "إغلاق القائمة" : "Fermer le menu"} className="fixed inset-0 z-30 cursor-default" onClick={() => setOpen(false)} />
-          <div role="menu" aria-label={ar ? "صفحات الإدارة التجارية" : "Pages Gestion commerciale"} className="absolute left-0 top-full z-40 mt-2 min-w-52 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl shadow-stone-900/10">
-            {items.map((item) => (
-              <button
-                key={item.tab}
-                type="button"
-                role="menuitem"
-                data-testid={`commercial-menu-${item.tab}`}
-                onClick={() => { navigate(`/commercial?tab=${item.tab}`); setOpen(false); }}
-                className="flex w-full items-center rounded-lg px-3 py-2.5 text-start text-sm font-medium text-stone-700 transition-colors hover:bg-emerald-50 hover:text-emerald-900"
-              >
-                {item.label}
-              </button>
-            ))}
-            <div className="my-1 border-t border-stone-100" />
-            <button
-              type="button"
-              role="menuitem"
-              data-testid="commercial-menu-home"
-              onClick={() => { navigate("/"); setOpen(false); }}
-              className="flex w-full items-center rounded-lg px-3 py-2.5 text-start text-sm font-semibold text-stone-600 transition-colors hover:bg-stone-100"
-            >
-              {ar ? "العودة إلى Oro Verde" : "Retour à Oro Verde"}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+    <nav aria-label={ar ? "صفحات الإدارة التجارية" : "Navigation Gestion commerciale"} data-testid="commercial-header-menu" className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-emerald-200 bg-emerald-50 p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {items.map((item) => (
+        <NavLink
+          key={item.tab}
+          to={`/commercial?tab=${item.tab}`}
+          data-testid={`commercial-menu-${item.tab}`}
+          className={({ isActive }) => cn(
+            "shrink-0 whitespace-nowrap rounded-md px-2.5 py-2 text-xs font-bold transition-colors sm:px-3 sm:text-sm",
+            isActive ? "bg-emerald-800 text-white shadow-sm" : "text-emerald-950 hover:bg-emerald-100"
+          )}
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
@@ -449,7 +418,7 @@ export default function AppShell() {
                 <LogOut className="size-4" />
               </Button>
             <div className="ms-auto flex items-center gap-2 pr-10">
-              {user && <SeasonSwitcher isAdmin={isAdmin} />}
+              <HeaderAppearanceMenu />\n              {user && <SeasonSwitcher isAdmin={isAdmin} />}
               {user && (
                 <Button
                   type="button"
@@ -484,7 +453,7 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-      {!isCommercialWorkspace && <BottomNav isAdmin={isAdmin} revealEnabled={navRevealEnabled} pendingLabCount={pendingLabLots.data} premium={location.pathname === "/" && dashboardPremium} />}
+      <BottomNav isAdmin={isAdmin} revealEnabled={navRevealEnabled} pendingLabCount={pendingLabLots.data} premium={location.pathname === "/" && dashboardPremium} />
     </div>
     </ThemeProvider>
   );
