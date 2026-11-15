@@ -186,12 +186,12 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "stock", "lots", "movements", "procurement", "suppliers", "purchases", "customer-purchases", "chargement", "production", "transfers", "buyers", "sales", "reports", "accounting"];
-  const initialTab: TabKey = qrBatchCode ? "stock" : requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
+  const validTabs: TabKey[] = ["factures", "stock", "lots", "movements", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "reports", "accounting"];
+  const initialTab: TabKey = qrBatchCode ? "stock" : requestedTab && (validTabs.includes(requestedTab as TabKey) || requestedTab === "chargement") ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(initialTab);
-  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" || requestedTab === "lots" ? requestedTab : "chargement"));
+  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView === "movements" || requestedTab === "movements" ? "movements" : "lots");
   const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
   const [salesView, setSalesView] = useState<"buyers" | "sales">("buyers");
   const selectTab = (nextTab: TabKey) => {
@@ -1787,7 +1787,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     { id: "procurement", label: lang === "ar" ? "المشتريات" : "Achats", icon: ShoppingBasket },
 
     { id: "production", label: l.productionTab, icon: Factory },
-    { id: "stock", label: "Chargement", icon: Truck },
+    { id: "stock", label: lang === "ar" ? "المخزون" : "Stocks", icon: Warehouse },
     { id: "transfers", label: l.internalMovementsTab, icon: RefreshCw },
     { id: "reports", label: "Rapport", icon: FileText },
     { id: "sales", label: salesText.sales, icon: ShoppingCart },
@@ -1967,7 +1967,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
 
       {tab === "stock" && (!embeddedStockView || embeddedStockView === "lots") && <div data-embedded-stock-section className="space-y-4">
         {!embeddedStockView && <div role="tablist" aria-label={lang === "ar" ? "أقسام المخزون" : "Sections du stock"} className="inline-flex flex-wrap gap-2 rounded-xl border bg-muted/40 p-1">
-          <Button type="button" size="sm" variant={stockView === "chargement" ? "default" : "ghost"} role="tab" aria-selected={stockView === "chargement"} onClick={() => setStockView("chargement")}>{lang === "ar" ? "الاستلام" : "Chargement"}</Button>
+          
           <Button type="button" size="sm" variant={stockView === "lots" ? "default" : "ghost"} role="tab" aria-selected={stockView === "lots"} onClick={() => setStockView("lots")}>{l.lots}</Button>
           <Button type="button" size="sm" variant={stockView === "movements" ? "default" : "ghost"} role="tab" aria-selected={stockView === "movements"} onClick={() => setStockView("movements")}>{l.movements}</Button>
         </div>}
