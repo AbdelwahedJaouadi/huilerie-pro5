@@ -2547,7 +2547,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         </div>
       </div>}
 
-      {tab === "procurement" && procurementView === "purchases" && <div className="gs-purchases-compact space-y-2 text-sm">
+      {tab === "procurement" && procurementView === "purchases" && <div className="space-y-4">
         {(isAdmin || (editingPurchase && canEditRecords)) && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{editingPurchase ? `${l.editPurchase} · ${value(editingPurchase.batch_codes?.join(", ") || editingPurchase.batch_code, editingPurchase.document_number)}` : l.newPurchase}</CardTitle><CardDescription className="text-xs">{l.bootstrapHint}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
           {(suppliers.data?.length ?? 0) === 0 || (varieties.data?.length ?? 0) === 0 ? <p className="mb-3 text-sm text-amber-700">{(suppliers.data?.length ?? 0) === 0 ? l.noSuppliers : l.noVarieties}</p> : null}
           <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); editingPurchase ? updatePurchase.mutate() : createPurchase.mutate(); }}>
@@ -3051,34 +3051,26 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       </div>}
 
       {tab === "laboratory" && <QrScanDialog open={qualityQrScanOpen} onClose={() => setQualityQrScanOpen(false)} onScan={handleQualityQrScan} />}
-      <style>{`.gs-purchases-compact { font-size: 10px !important; line-height: 1.2 !important; }
-        .gs-purchases-compact .shadow-sm > [data-slot="card-header"], .gs-purchases-compact .shadow-sm > div:first-child { padding: 5px 7px 3px !important; }
-        .gs-purchases-compact .shadow-sm > [data-slot="card-content"], .gs-purchases-compact .shadow-sm > div:last-child { padding: 0 7px 6px !important; }
-        .gs-purchases-compact h2, .gs-purchases-compact [data-slot="card-title"] { font-size: 11px !important; line-height: 1.2 !important; }
-        .gs-purchases-compact [data-slot="card-description"] { font-size: 9px !important; line-height: 1.2 !important; }
-        .gs-purchases-compact label { font-size: 9px !important; line-height: 1.15 !important; gap: 2px !important; }
-        .gs-purchases-compact input:not([type="checkbox"]), .gs-purchases-compact select, .gs-purchases-compact textarea { height: 26px !important; min-height: 26px !important; padding: 2px 5px !important; font-size: 10px !important; border-radius: 5px !important; }
-        .gs-purchases-compact button:not([data-slot="dropdown-menu-trigger"]) { min-height: 25px !important; height: auto !important; font-size: 9px !important; line-height: 1.15 !important; padding: 3px 6px !important; border-radius: 5px !important; }
-        .gs-purchases-compact table { font-size: 9px !important; }
-        .gs-purchases-compact th, .gs-purchases-compact td { height: auto !important; padding: 3px 5px !important; line-height: 1.15 !important; white-space: nowrap; }
-        .gs-purchases-compact .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 5px !important; }
-        .gs-purchases-compact .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 5px !important; }
-        .gs-purchases-compact .gap-3 { gap: 5px !important; }
-        .gs-purchases-compact .gap-2 { gap: 4px !important; }
-        .gs-purchases-compact .rounded-xl.border { border-radius: 6px !important; padding: 5px !important; }
-        .gs-purchases-compact .mb-3 { margin-bottom: 5px !important; }
-        .gs-purchases-compact .p-3 { padding: 5px !important; }
-        .gs-purchases-compact .p-2 { padding: 4px !important; }
-        .gs-purchases-compact .text-sm { font-size: 10px !important; }
-        .gs-purchases-compact .text-xs { font-size: 9px !important; }
-        @media (max-width: 640px) { .gs-purchases-compact { font-size: 9px !important; } .gs-purchases-compact th, .gs-purchases-compact td { padding: 3px 4px !important; } }
-        .commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
+      <style>{`.commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
         .commercial-embedded-stock [data-embedded-stock-section] { display: block; }
         @media print {
         body * { visibility: hidden !important; }
         .oil-purchase-statement-print, .oil-purchase-statement-print * { visibility: visible !important; }
         .oil-purchase-statement-print { position: absolute !important; inset: 0 !important; width: 100% !important; margin: 0 !important; padding: 8mm !important; background: #fff !important; color: #111 !important; }
-        .oil-purchase-statement-no-print { display: none !important; }`}</style>
+        .oil-purchase-statement-no-print { display: none !important; }
+        .oil-purchase-statement-print table { width: 100% !important; min-width: 0 !important; table-layout: fixed !important; font-size: 8pt !important; border-collapse: collapse !important; }
+        .oil-purchase-statement-print th, .oil-purchase-statement-print td { padding: 5px !important; border: 1px solid #d6d3d1 !important; color: #111 !important; }
+        .oil-purchase-statement-print tr { break-inside: avoid !important; }
+        .oil-purchase-statement-print .rounded-lg { border: 1px solid #d6d3d1 !important; background: #f8fafc !important; }
+        @page { size: A4 portrait; margin: 10mm; }
+      body:has(.oil-purchase-receipt-print) * { visibility: hidden !important; }
+      body:has(.oil-purchase-receipt-print) .oil-purchase-receipt-print,
+      body:has(.oil-purchase-receipt-print) .oil-purchase-receipt-print * { visibility: visible !important; }
+      body:has(.oil-purchase-receipt-print) .oil-purchase-receipt-print { position: absolute !important; inset: 0 !important; width: 100% !important; margin: 0 !important; padding: 8mm !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: #fff !important; color: #111 !important; }
+      body:has(.oil-purchase-receipt-print) .oil-purchase-receipt-print .no-print { display: none !important; }
+      body:has(.oil-purchase-receipt-print) .oil-purchase-statement-print,
+      body:has(.oil-purchase-receipt-print) .oil-purchase-statement-print * { visibility: hidden !important; }
+      }`}</style>
 
     </div>
   );
