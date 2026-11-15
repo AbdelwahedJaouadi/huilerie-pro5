@@ -3101,9 +3101,9 @@ async def export_commercial_report_pdf(
     rows = payload.get("rows")
     headers = payload.get("headers")
     summary = payload.get("summary") or []
-    if not isinstance(rows, list) or len(rows) > 5000 or not isinstance(headers, list) or len(headers) != 7:
+    if not isinstance(rows, list) or len(rows) > 5000 or not isinstance(headers, list) or len(headers) != 8:
         raise HTTPException(422, "invalid_commercial_report_export")
-    if any(not isinstance(row, list) or len(row) != 7 for row in rows):
+    if any(not isinstance(row, list) or len(row) != 8 for row in rows):
         raise HTTPException(422, "invalid_commercial_report_rows")
 
     import io
@@ -3154,8 +3154,8 @@ async def export_commercial_report_pdf(
     data = [[cell(value, head_style) for value in headers]]
     data.extend([[cell(value, body_style) for value in row] for row in rows])
     if len(data) == 1:
-        data.append([cell("Aucune opération", body_style)] + [cell("", body_style) for _ in range(6)])
-    table = Table(data, colWidths=[22*mm, 24*mm, 30*mm, 70*mm, 28*mm, 25*mm, 40*mm], repeatRows=1, hAlign="LEFT")
+        data.append([cell("Aucune opération", body_style)] + [cell("", body_style) for _ in range(7)])
+    table = Table(data, colWidths=[18*mm, 20*mm, 24*mm, 65*mm, 24*mm, 14*mm, 24*mm, 20*mm], repeatRows=1, hAlign="LEFT")
     table.setStyle(TableStyle([
         ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#312e81")),
         ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
