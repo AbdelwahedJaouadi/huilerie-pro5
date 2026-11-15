@@ -3051,7 +3051,22 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       </div>}
 
       {tab === "laboratory" && <QrScanDialog open={qualityQrScanOpen} onClose={() => setQualityQrScanOpen(false)} onScan={handleQualityQrScan} />}
-      <style>{`.commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
+      <style>{`.gs-purchases-compact { font-size: 12px; line-height: 1.35; }
+        .gs-purchases-compact > .rounded-xl, .gs-purchases-compact > [class*="rounded-"] { margin-bottom: 0; }
+        .gs-purchases-compact .shadow-sm > [data-slot="card-header"], .gs-purchases-compact .shadow-sm > div:first-child { padding: 8px 10px 6px !important; }
+        .gs-purchases-compact .shadow-sm > [data-slot="card-content"], .gs-purchases-compact .shadow-sm > div:last-child { padding: 0 10px 9px !important; }
+        .gs-purchases-compact h2, .gs-purchases-compact [data-slot="card-title"] { font-size: 13px !important; line-height: 1.25 !important; }
+        .gs-purchases-compact [data-slot="card-description"] { font-size: 11px !important; line-height: 1.3 !important; }
+        .gs-purchases-compact label { font-size: 11px !important; line-height: 1.25 !important; gap: 3px !important; }
+        .gs-purchases-compact input:not([type="checkbox"]), .gs-purchases-compact select, .gs-purchases-compact textarea { height: 32px !important; min-height: 32px !important; padding: 4px 8px !important; font-size: 12px !important; }
+        .gs-purchases-compact button:not([data-slot="dropdown-menu-trigger"]) { min-height: 30px; font-size: 11px; padding: 4px 9px; }
+        .gs-purchases-compact table { font-size: 11px !important; }
+        .gs-purchases-compact th, .gs-purchases-compact td { height: auto !important; padding: 6px 8px !important; line-height: 1.3 !important; white-space: nowrap; }
+        .gs-purchases-compact .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 8px !important; }
+        .gs-purchases-compact .gap-3 { gap: 8px !important; }
+        .gs-purchases-compact .rounded-xl.border { border-radius: 8px !important; padding: 8px !important; }
+        @media (max-width: 640px) { .gs-purchases-compact { font-size: 11px; } .gs-purchases-compact th, .gs-purchases-compact td { padding: 5px 6px !important; } }
+        .commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
         .commercial-embedded-stock [data-embedded-stock-section] { display: block; }
         @media print {
         body * { visibility: hidden !important; }
