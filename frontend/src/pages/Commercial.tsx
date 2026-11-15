@@ -1894,7 +1894,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       })()}
 
       {!ready && (
-        <Card className="border-amber-300 bg-amber-50/70">
+        <Card data-embedded-stock-section className="border-amber-300 bg-amber-50/70">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-amber-950"><AlertTriangle className="size-5" />{l.notReady}</CardTitle>
             <CardDescription className="text-amber-900">{l.bootstrapHint}</CardDescription>
