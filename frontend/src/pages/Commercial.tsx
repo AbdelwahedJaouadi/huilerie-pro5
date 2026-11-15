@@ -187,7 +187,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
   const validTabs: TabKey[] = ["factures", "stock", "lots", "movements", "procurement", "suppliers", "purchases", "customer-purchases", "chargement", "production", "transfers", "buyers", "sales", "reports", "accounting"];
-  const initialTab: TabKey = embeddedStockView ? "stock" : qrBatchCode ? "stock" : requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
+  const initialTab: TabKey = qrBatchCode ? "stock" : requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(initialTab);
@@ -202,7 +202,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     setTab(targetTab);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      next.set("tab", targetTab);
+      next.set("tab", ["suppliers", "purchases", "customer-purchases", "buyers"].includes(nextTab) ? nextTab : targetTab);
       return next;
     }, { replace: true });
   };
