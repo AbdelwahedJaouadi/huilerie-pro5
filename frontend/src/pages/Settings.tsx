@@ -700,7 +700,35 @@ export default function SettingsPage() {
   }
   return (
     <div>
-      <PageHeader title={t("settings")} accent="bg-violet-500" />\n      <Tabs defaultValue="users">
+      <Tabs defaultValue="users">
+        <PageHeader title={t("settings")} accent="bg-violet-500" right={
+          <div className="w-full overflow-x-auto">
+        <TabsList className="flex max-w-full flex-wrap items-center justify-end gap-1.5 bg-transparent p-0">
+          <TabsTrigger value="users" data-testid="settings-tab-users" aria-label="users" title="users" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><Users className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="tariff" data-testid="settings-tab-tariff" aria-label="tariff" title="tariff" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><Coins className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="tanks" data-testid="settings-tab-tanks" aria-label="tanks" title="tanks" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><Warehouse className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="commercial-status" data-testid="settings-tab-commercial-status" aria-label="commercial-status" title="commercial-status" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><ShieldAlert className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="pumps" data-testid="settings-tab-pumps" aria-label="pumps" title="pumps" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><Fuel className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="sms" data-testid="settings-tab-sms" aria-label="sms" title="sms" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><MessageSquareText className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="campaign" data-testid="settings-tab-campaign" aria-label="campaign" title="campaign" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><CalendarRange className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="audit" data-testid="settings-tab-audit" aria-label="audit" title="audit" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><ClipboardList className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="employee-permissions" data-testid="settings-tab-employee-permissions" aria-label="employee-permissions" title="employee-permissions" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><ShieldAlert className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="full-reset" data-testid="settings-tab-full-reset" aria-label="full-reset" title="full-reset" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><Trash2 className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+          <TabsTrigger value="login-image" data-testid="settings-tab-login-image" aria-label="login-image" title="login-image" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
+            <span className="grid size-7 place-items-center"><LogIn className="size-4 stroke-[2.2]" /></span></TabsTrigger>
+        </TabsList>
+          </div>
+        } />
         <TabsList className="mb-6 grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">
           <TabsTrigger value="users" data-testid="settings-tab-users" className="flex h-auto min-h-10 min-w-0 flex-row gap-2 rounded-2xl border border-stone-200 bg-white px-2 py-1 text-sm font-semibold text-stone-700 shadow-sm transition-all hover:border-sky-300 hover:bg-sky-50 data-[state=active]:border-sky-600 data-[state=active]:bg-sky-200 data-[state=active]:text-sky-950 data-[state=active]:shadow-md">
             <span className="grid size-7 place-items-center rounded-lg bg-sky-100 text-sky-700"><Users className="size-4 stroke-[2.2]" /></span><span>{t("users")}</span>
