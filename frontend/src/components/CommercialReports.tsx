@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw, FileSpreadsheet, FileText } from "lucide-react";
@@ -192,14 +192,24 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
     }
   };
 
+  const exportActionsRef = useRef<ExportActions>({
+    excel: () => undefined,
+    pdf: () => undefined,
+    disabled: true,
+  });
+  exportActionsRef.current = {
+    excel: exportExcel,
+    pdf: () => { void exportPdf(); },
+    disabled: loading || !displayedRows.length,
+  };
   useEffect(() => {
     onExportActionsChange?.({
-      excel: exportExcel,
-      pdf: () => { void exportPdf(); },
-      disabled: loading || !displayedRows.length,
+      excel: () => exportActionsRef.current.excel(),
+      pdf: () => exportActionsRef.current.pdf(),
+      disabled: exportActionsRef.current.disabled,
     });
     return () => onExportActionsChange?.(null);
-  }, [onExportActionsChange, exportExcel, exportPdf, loading, displayedRows.length]);
+  }, [onExportActionsChange, loading, displayedRows.length]);
 
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
