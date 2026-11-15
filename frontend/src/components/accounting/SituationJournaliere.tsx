@@ -93,7 +93,7 @@ export default function SituationJournaliere() {
           <span className="font-medium text-stone-700">{ar ? "إلى" : "Au"}</span>
           <input aria-label={ar ? "تاريخ النهاية" : "Date de fin"} type="date" value={endDate} min={startDate || undefined} onChange={event => setEndDate(event.target.value)} className="bg-transparent outline-none" />
         </label>
-        <button onClick={() => void report.refetch()} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> {ar ? "تحديث" : "Actualiser"}</button>
+        
         <button onClick={() => window.print()} disabled={!data} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"><Printer className="size-4" /> {ar ? "طباعة / PDF" : "Imprimer / PDF"}</button>
       </div>
     </div>
