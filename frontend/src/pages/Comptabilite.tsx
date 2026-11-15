@@ -5,7 +5,7 @@ import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { fmtMoney, useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, type Tone } from "@/components/shared";
-import { RefreshCw, TrendingUp, Wallet, Package, AlertTriangle, ReceiptText, Plus, Trash2, type LucideIcon } from "lucide-react";
+import { RefreshCw, TrendingUp, Wallet, Package, AlertTriangle, ReceiptText, Plus, Trash2, Printer, type LucideIcon } from "lucide-react";
 
 type Row = Record<string, any>;
 type PassiveIncome = { id: string; income_type: string; description: string; income_date: string; amount_tnd: string; payment_method: string; notes?: string };
@@ -73,7 +73,7 @@ const mills = (value: unknown): bigint => {
   return sign * (BigInt(match[2]) * 1000n + BigInt(fraction || "0"));
 };
 const addMoney = (...values: unknown[]) => values.reduce<bigint>((total, value) => total + mills(value), 0n);
-const dateOf = (r: Row) => String(r.purchase_date || r.sale_date || r.day || r.created_at || "").slice(0, 10);
+const dateOf = (r: Row) => String(r.payment_date || r.paid_at || r.purchase_date || r.sale_date || r.day || r.created_at || "").slice(0, 10);
 const sum = (rows: Row[], field: string) => rows.reduce((total, row) => total + n(row[field]), 0);
 
 function Metric({ title, value, detail, icon: Icon, tone }: {
@@ -117,17 +117,25 @@ function DataTable({ title, description, rows, columns, empty }: {
 export default function Comptabilite() {
   const { lang } = useI18n();
   const ar = lang === "ar";
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const rangeQuery = fromDate || toDate
+    ? `?${new URLSearchParams({ ...(fromDate ? { start_date: fromDate } : {}), ...(toDate ? { end_date: toDate } : {}) }).toString()}`
+    : "";
+  const periodLabel = fromDate || toDate
+    ? `${fromDate || (ar ? "بداية الموسم" : "Début")} — ${toDate || (ar ? "اليوم" : "Aujourd’hui")}`
+    : (ar ? "الموسم الحالي بالكامل" : "Toute la saison active");
   const query = useQuery({
-    queryKey: ["accounting-overview"],
-    queryFn: () => apiGet<Overview>("/accounting/overview"),
+    queryKey: ["accounting-overview", fromDate, toDate],
+    queryFn: () => apiGet<Overview>(`/accounting/overview${rangeQuery}`),
     staleTime: 30_000,
   });
   const data = query.data;
   const [activeTab, setActiveTab] = useState<"overview" | "daily">("overview");
   const queryClient = useQueryClient();
   const passiveQuery = useQuery({
-    queryKey: ["accounting-passive-incomes"],
-    queryFn: () => apiGet<PassiveIncome[]>("/accounting/passive-incomes"),
+    queryKey: ["accounting-passive-incomes", fromDate, toDate],
+    queryFn: () => apiGet<PassiveIncome[]>(`/accounting/passive-incomes${rangeQuery}`),
     staleTime: 30_000,
   });
   const [passiveForm, setPassiveForm] = useState<PassiveIncomeForm>({
@@ -147,7 +155,7 @@ export default function Comptabilite() {
   });
   const passiveIncomes = passiveQuery.data ?? [];
   const passiveIncomeTotal = passiveIncomes.reduce((total, item) => total + mills(item.amount_tnd), 0n);
-  const expenseQuery = useQuery({queryKey:["accounting-expenses"],queryFn:()=>apiGet<AccountingExpense[]>("/accounting/expenses"),staleTime:30_000});
+  const expenseQuery = useQuery({queryKey:["accounting-expenses",fromDate,toDate],queryFn:()=>apiGet<AccountingExpense[]>(`/accounting/expenses${rangeQuery}`),staleTime:30_000});
   const [expenseForm,setExpenseForm]=useState<ExpenseForm>({expense_type:"ELECTRICITY",description:"",expense_date:new Date().toISOString().slice(0,10),amount_tnd:"",payment_method:"CASH",beneficiary:"",notes:""});
   const createExpense=useMutation({mutationFn:(payload:ExpenseForm)=>apiPost<AccountingExpense>("/accounting/expenses",payload),onSuccess:()=>{void queryClient.invalidateQueries({queryKey:["accounting-expenses"]});setExpenseForm({expense_type:"ELECTRICITY",description:"",expense_date:new Date().toISOString().slice(0,10),amount_tnd:"",payment_method:"CASH",beneficiary:"",notes:""});}});
   const deleteExpense=useMutation({mutationFn:(id:string)=>apiDelete("/accounting/expenses/"+encodeURIComponent(id)),onSuccess:()=>void queryClient.invalidateQueries({queryKey:["accounting-expenses"]})});
@@ -211,7 +219,7 @@ export default function Comptabilite() {
   const serviceRows = data.traditional_invoices || [];
   const saleRows = data.commercial_sales_invoices || [];
   const fmt = (value: unknown) => money(value);
-  return <div className="mx-auto max-w-7xl space-y-6">
+  return <div className="accounting-print-area mx-auto max-w-7xl space-y-6">\n    <style>{`@media print { @page { size: A4 landscape; margin: 10mm; } body * { visibility: hidden !important; } .accounting-print-area, .accounting-print-area * { visibility: visible !important; } .accounting-print-area { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; } .accounting-print-area .no-print, .accounting-print-area button, .accounting-print-area input, .accounting-print-area select, .accounting-print-area textarea { display: none !important; } .accounting-print-area .overflow-x-auto { overflow: visible !important; } .accounting-print-area table { min-width: 0 !important; width: 100% !important; font-size: 8px !important; } .accounting-print-area th, .accounting-print-area td { padding: 3px 4px !important; } .accounting-print-area .shadow-sm { box-shadow: none !important; } .accounting-print-area .rounded-lg { break-inside: avoid; } }`}</style>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="flex items-center gap-2"><ReceiptText className="size-6 text-emerald-700" /><h1 className="text-2xl font-bold text-stone-900">{ar ? "المحاسبة" : "Comptabilité"}</h1></div>
@@ -226,6 +234,19 @@ export default function Comptabilite() {
     </div>
 
     {activeTab === "overview" && <>
+    <div className="hidden print:block border-b pb-3">
+      <h2 className="text-xl font-bold">{ar ? "تقرير المحاسبة — Oro Verde و GS" : "Rapport comptable — Oro Verde et GS"}</h2>
+      <p className="text-sm">{ar ? "الفترة:" : "Période :"} {periodLabel} · {ar ? "الموسم:" : "Saison :"} {data.active_season}</p>
+    </div>
+    <div className="no-print flex flex-wrap items-end justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="grid gap-1 text-sm font-medium"><span>{ar ? "من" : "Du"}</span><input type="date" value={fromDate} max={toDate || undefined} onChange={e=>setFromDate(e.target.value)} className="rounded-lg border bg-white px-3 py-2"/></label>
+        <label className="grid gap-1 text-sm font-medium"><span>{ar ? "إلى" : "Au"}</span><input type="date" value={toDate} min={fromDate || undefined} onChange={e=>setToDate(e.target.value)} className="rounded-lg border bg-white px-3 py-2"/></label>
+        {(fromDate || toDate) && <button type="button" onClick={()=>{setFromDate("");setToDate("");}} className="rounded-lg border bg-white px-3 py-2 text-sm font-medium">{ar ? "إلغاء الفترة" : "Réinitialiser"}</button>}
+      </div>
+      <button type="button" onClick={()=>window.print()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"><Printer className="size-4"/>{ar ? "تصدير PDF / طباعة" : "Exporter PDF"}</button>
+      <p className="w-full text-xs text-stone-500">{ar ? "تُطبّق الفترة على الجداول والمؤشرات المالية والمداخيل والمصاريف." : "La période s’applique aux tableaux, indicateurs, revenus et dépenses."}</p>
+    </div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric title={ar ? "مداخيل الخدمات" : "Revenus de prestation"} value={fmt(calculated.serviceRevenue)} detail={ar ? "المبالغ المقبوضة فعلياً مقابل الخدمات · الموسم الحالي" : "Montants réellement encaissés sur les prestations · saison active"} icon={TrendingUp} tone="olive" />
       <Metric title={ar ? "مبيعات الزيت GS" : "Ventes d’huile GS"} value={fmt(calculated.salesRevenue)} detail={ar ? "المبالغ المقبوضة فعلياً من المبيعات · الموسم الحالي" : "Montants réellement encaissés sur les ventes · saison active"} icon={TrendingUp} tone="sky" />
