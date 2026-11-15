@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { FileSpreadsheet, FileText, ShieldAlert, Wallet, Layers, Sprout, Droplet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CommercialReports from "@/components/CommercialReports";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -117,6 +118,12 @@ export default function Reports() {
           </div>
         }
       />
+      <Tabs defaultValue="normal" className="w-full">
+        <TabsList className="mb-5 flex h-auto w-fit flex-wrap gap-1">
+          <TabsTrigger value="normal">{ar ? "التقرير العادي" : "Rapport de trituration"}</TabsTrigger>
+          <TabsTrigger value="commercial">{ar ? "تقرير التسيير التجاري" : "Rapport gestion commerciale"}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="normal">
       <div className="mb-6 flex flex-wrap items-end gap-4 rounded-2xl border border-violet-200 bg-[#FAF5FF] p-4">
         <div className="space-y-2">
           <Label>{t("worker_col")}</Label>
@@ -302,6 +309,11 @@ export default function Reports() {
           </Table>
         </div>
       )}
+        </TabsContent>
+        <TabsContent value="commercial">
+          <CommercialReports lang={lang} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
