@@ -3117,7 +3117,7 @@ async def export_commercial_report_pdf(
     from math import ceil
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
@@ -3167,13 +3167,13 @@ async def export_commercial_report_pdf(
                                    alignment=TA_LEFT, textColor=blue, spaceBefore=6, spaceAfter=5)
     chart_title_style = ParagraphStyle("GSChartTitle", fontName=bold, fontSize=9, leading=12,
                                        alignment=TA_CENTER, textColor=blue)
-    card_label_style = ParagraphStyle("GSCardLabel", fontName=regular, fontSize=7.2, leading=9,
+    card_label_style = ParagraphStyle("GSCardLabel", fontName=regular, fontSize=6, leading=7.4,
                                       alignment=TA_CENTER, textColor=white)
     card_value_style = ParagraphStyle("GSCardValue", fontName=bold, fontSize=13, leading=16,
                                       alignment=TA_CENTER, textColor=white)
-    table_head_style = ParagraphStyle("GSTableHead", fontName=bold, fontSize=7.1, leading=8.5,
+    table_head_style = ParagraphStyle("GSTableHead", fontName=bold, fontSize=6.1, leading=7.4,
                                       alignment=TA_CENTER, textColor=navy)
-    table_cell_style = ParagraphStyle("GSTableCell", fontName=regular, fontSize=7, leading=9,
+    table_cell_style = ParagraphStyle("GSTableCell", fontName=regular, fontSize=5.9, leading=7.2,
                                       alignment=TA_CENTER, textColor=ink, wordWrap="CJK")
     table_total_style = ParagraphStyle("GSTableTotal", fontName=bold, fontSize=7.2, leading=9,
                                        alignment=TA_CENTER, textColor=navy)
@@ -3186,7 +3186,7 @@ async def export_commercial_report_pdf(
     def card(label: Any, value: Any, color):
         item = Table([[Paragraph(safe(label), card_label_style)],
                       [Paragraph(safe(value), card_value_style)]],
-                     colWidths=[51 * mm], rowHeights=[10 * mm, 13 * mm])
+                     colWidths=[88 * mm], rowHeights=[10 * mm, 13 * mm])
         item.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), color),
             ("BOX", (0, 0), (-1, -1), 0.5, color),
@@ -3228,19 +3228,19 @@ async def export_commercial_report_pdf(
         return table
 
     def chart_drawing(values, labels, fill, kind="bar"):
-        drawing = Drawing(250, 112)
+        drawing = Drawing(500, 125)
         clean_values = [max(0.0, float(value or 0)) for value in values]
         clean_labels = [str(label) for label in labels]
         if not clean_values:
             clean_values, clean_labels = [0.0], ["—"]
         maximum = max(clean_values + [1.0]) * 1.15
-        left, right, bottom, top = 29, 240, 25, 96
+        left, right, bottom, top = 42, 490, 30, 110
         plot_w, plot_h = right - left, top - bottom
         for tick in range(5):
             y = bottom + plot_h * tick / 4
             drawing.add(Line(left, y, right, y, strokeColor=border, strokeWidth=0.4))
             drawing.add(String(left - 4, y - 2, f"{maximum * tick / 4:.0f}",
-                               fontName="Helvetica", fontSize=5.2, textAnchor="end", fillColor=muted))
+                               fontName="Helvetica", fontSize=6.2, textAnchor="end", fillColor=muted))
         slot = plot_w / len(clean_values)
         points = []
         for index, value in enumerate(clean_values):
@@ -3248,7 +3248,7 @@ async def export_commercial_report_pdf(
             y = bottom + (value / maximum) * plot_h
             points.append((x, y))
             drawing.add(String(x, 9, clean_labels[index][:8], fontName="Helvetica",
-                               fontSize=5.1, textAnchor="middle", fillColor=ink))
+                               fontSize=6.2, textAnchor="middle", fillColor=ink))
         if kind == "line":
             for (x1, y1), (x2, y2) in zip(points, points[1:]):
                 drawing.add(Line(x1, y1, x2, y2, strokeColor=fill, strokeWidth=2))
@@ -3278,7 +3278,7 @@ async def export_commercial_report_pdf(
     summary_map = {str(item[0]): str(item[1]) for item in summary_items}
     title_text = payload.get("title") or "Rapport de gestion commerciale"
     period_text = payload.get("period") or ""
-    page = landscape(A4)
+    page = A4
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=page, rightMargin=10*mm, leftMargin=10*mm,
                             topMargin=9*mm, bottomMargin=15*mm,
@@ -3289,7 +3289,7 @@ async def export_commercial_report_pdf(
         card("PRODUCTION D'HUILE (L)", summary_map.get("Production d'huile", summary_map.get("الإنتاج", "—")), green),
         card("VOLUME VENDU (L)", summary_map.get("Volume vendu", summary_map.get("المبيعات", "—")), blue),
         card("VALEUR DES VENTES (TND)", summary_map.get("Valeur des ventes", summary_map.get("قيمة المبيعات", "—")), navy),
-    ]], colWidths=[65*mm]*4, hAlign="CENTER")
+    ]], colWidths=[92*mm, 92*mm], hAlign="CENTER")
     cards.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
                                ("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),
                                ("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
@@ -3305,10 +3305,15 @@ async def export_commercial_report_pdf(
         values = [item.get(key, 0) for item in chart_rows if isinstance(item, dict)]
         chart_cells.append([Paragraph(safe(chart_title), chart_title_style),
                             chart_drawing(values, chart_labels, color, "line")])
-    chart_pair = Table([chart_cells], colWidths=[86*mm]*3, hAlign="CENTER")
-    chart_pair.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-                                    ("LEFTPADDING",(0,0),(-1,-1),1),("RIGHTPADDING",(0,0),(-1,-1),1),
-                                    ("TOPPADDING",(0,0),(-1,-1),2),("BOTTOMPADDING",(0,0),(-1,-1),2)]))
+    chart_sections = []
+    for chart_cell in chart_cells:
+        section = Table([[chart_cell[0]], [chart_cell[1]]], colWidths=[180*mm], hAlign="CENTER")
+        section.setStyle(TableStyle([
+            ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+            ("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),
+            ("TOPPADDING",(0,0),(-1,-1),1),("BOTTOMPADDING",(0,0),(-1,-1),1),
+        ]))
+        chart_sections.append(section)
 
     operation_headings = ["Opération", "Nombre", "Quantité totale", "Montant total (TND)"]
     operation_rows = []
@@ -3326,12 +3331,12 @@ async def export_commercial_report_pdf(
         Spacer(1, 4), HRFlowable(width="100%", thickness=1.5, color=blue),
         Spacer(1, 8), cards, Spacer(1, 8),
         Paragraph(safe("ÉVOLUTION DE L'ACTIVITÉ"), section_style),
-        chart_pair, Spacer(1, 4),
+        chart_sections[0], chart_sections[1], chart_sections[2], Spacer(1, 4),
         Paragraph(safe("SYNTHÈSE PAR TYPE D'OPÉRATION"), section_style),
-        report_table(operation_headings, operation_rows, [65*mm, 35*mm, 65*mm, 65*mm]),
+        report_table(operation_headings, operation_rows, [40*mm, 25*mm, 60*mm, 55*mm]),
         Spacer(1, 8),
         Paragraph(safe("JOURNAL DÉTAILLÉ DES OPÉRATIONS GS"), section_style),
-        report_table(headers, rows, [20*mm, 25*mm, 30*mm, 70*mm, 28*mm, 15*mm, 32*mm, 28*mm]),
+        report_table(headers, rows, [15*mm, 20*mm, 20*mm, 43*mm, 20*mm, 12*mm, 27*mm, 25*mm]),
     ]
     if not rows:
         story.append(Paragraph(safe("Aucune opération pour cette période / لا توجد عمليات خلال هذه الفترة"), note_style))
