@@ -205,6 +205,22 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       return next;
     }, { replace: true });
   };
+  // Keep the visible GS page synchronized when the header menu changes only the URL query.
+  useEffect(() => {
+    if (embeddedStockView) return;
+    if (!requestedTab || !validTabs.includes(requestedTab as TabKey)) return;
+    const nextTab = requestedTab as TabKey;
+    const targetTab: TabKey = ["suppliers", "purchases", "customer-purchases"].includes(nextTab)
+      ? "procurement"
+      : nextTab === "buyers"
+        ? "sales"
+        : nextTab;
+    if (["suppliers", "purchases", "customer-purchases"].includes(nextTab)) {
+      setProcurementView(nextTab as "suppliers" | "purchases" | "customer-purchases");
+    }
+    if (nextTab === "buyers" || nextTab === "sales") setSalesView(nextTab);
+    setTab(targetTab);
+  }, [requestedTab, embeddedStockView]);
   const [showTankLevels, setShowTankLevels] = useState(false);
   const [selectedOverviewTankId, setSelectedOverviewTankId] = useState(() => searchParams.get("tank") || "");
   const [supplierName, setSupplierName] = useState("");
