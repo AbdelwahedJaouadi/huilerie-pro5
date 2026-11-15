@@ -205,6 +205,19 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       return next;
     }, { replace: true });
   };
+  // The former GS home (overview) is retired. Old links are redirected to Achats.
+  useEffect(() => {
+    if (embeddedStockView || requestedTab !== "overview") return;
+    setTab("procurement");
+    setProcurementView("suppliers");
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("tab", "procurement");
+      next.delete("tank");
+      return next;
+    }, { replace: true });
+  }, [requestedTab, embeddedStockView, setSearchParams]);
+
   // Keep the visible GS page synchronized when the header menu changes only the URL query.
   useEffect(() => {
     if (embeddedStockView) return;
