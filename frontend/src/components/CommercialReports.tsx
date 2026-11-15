@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw } from "lucide-react";
+import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw, FileSpreadsheet, FileText } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { CodeBadge, StatCard } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,7 +122,45 @@ export default function CommercialReports({ lang }: Props) {
   const loading = purchases.isLoading || production.isLoading || transfers.isLoading || sales.isLoading || suppliers.isLoading || buyers.isLoading || locations.isLoading || tanks.isLoading || oliveLots.isLoading;
   const error = purchases.error || production.error || transfers.error || sales.error || suppliers.error || buyers.error || locations.error || tanks.error || oliveLots.error;
 
+  const exportRows = () => displayedRows.map(x => [x.date || "", x.kind, x.code ?? "", x.party ?? "", x.qty, x.unit, x.amount, x.status ?? ""]);
+  const exportHeaders = ar
+    ? ["التاريخ", "العملية", "المرجع", "المزوّد / الحريف / الموقع", "الكمية", "الوحدة", "المبلغ TND", "الحالة"]
+    : ["Date", "Opération", "Document / Code", "Fournisseur / Client / Emplacement", "Quantité", "Unité", "Montant TND", "Statut"];
+  const exportBaseName = `rapport-gestion-commerciale-${start || "debut"}-${end || "fin"}`;
+
+  const exportExcel = () => {
+    const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [exportHeaders, ...exportRows()].map(row => row.map(csvCell).join(";")).join("\\r\\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${exportBaseName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const popup = window.open("", "_blank");
+    if (!popup) {
+      alert(ar ? "يرجى السماح بفتح النوافذ المنبثقة لتصدير PDF." : "Autorisez les fenêtres contextuelles pour exporter le PDF.");
+      return;
+    }
+    const esc = (value: unknown) => String(value ?? "—").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));
+    const rowsHtml = displayedRows.map(x => `<tr><td>${esc(x.date)}</td><td>${esc(ar ? x.kindAr : x.kind)}</td><td>${esc(x.code)}</td><td>${esc(x.party)}</td><td class="num">${esc(fmt(x.qty, 3))} ${esc(x.unit)}</td><td class="num">${esc(x.amount ? fmt(x.amount, 3) : "—")}</td><td>${esc(x.status)}</td></tr>`).join("");
+    popup.document.write(`<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><head><meta charset="utf-8"><title>${esc(ar ? "تقرير التسيير التجاري" : "Rapport de gestion commerciale")}</title><style>
+      body{font-family:Arial,sans-serif;color:#1f2937;margin:28px}h1{font-size:22px;margin:0 0 8px;color:#312e81}.meta{color:#64748b;font-size:12px;margin-bottom:18px}.stats{display:flex;gap:12px;margin:16px 0 22px}.stat{border:1px solid #dbeafe;border-radius:8px;padding:10px 14px;min-width:130px}.stat b{display:block;font-size:17px;margin-top:5px}table{border-collapse:collapse;width:100%;font-size:10px}th{background:#eef2ff;color:#312e81;text-align:start}th,td{border:1px solid #cbd5e1;padding:7px 6px}tr:nth-child(even){background:#f8fafc}.num{text-align:end;white-space:nowrap}.foot{margin-top:16px;color:#64748b;font-size:10px}@media print{body{margin:12mm}thead{display:table-header-group}tr{break-inside:avoid}}
+      </style></head><body><h1>${esc(ar ? "تقرير التسيير التجاري" : "Rapport de gestion commerciale")}</h1><div class="meta">${esc(ar ? "الفترة" : "Période")} : ${esc(start || (ar ? "البداية" : "Début"))} — ${esc(end || (ar ? "النهاية" : "Fin"))} · ${esc(ar ? "عدد العمليات" : "Opérations affichées")} : ${displayedRows.length}</div><div class="stats"><div class="stat">${esc(ar ? "الزيتون المشتَرى" : "Olives achetées")}<b>${esc(fmt(totalPurchaseKg, 3))} kg</b></div><div class="stat">${esc(ar ? "الإنتاج" : "Production d'huile")}<b>${esc(fmt(totalProductionL, 3))} L</b></div><div class="stat">${esc(ar ? "المبيعات" : "Volume vendu")}<b>${esc(fmt(totalSalesL, 3))} L</b></div><div class="stat">${esc(ar ? "قيمة المبيعات" : "Valeur des ventes")}<b>${esc(fmt(totalSalesAmount, 3))} TND</b></div></div><table><thead><tr>${exportHeaders.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rowsHtml || `<tr><td colspan="7">${esc(ar ? "لا توجد عمليات" : "Aucune opération")}</td></tr>`}</tbody></table><div class="foot">${esc(ar ? "تقرير مستخرج من Oro Verde — GS" : "Rapport extrait de Oro Verde — GS")}</div><script>window.onload=()=>{window.print();};<\\/script></body></html>`);
+    popup.document.close();
+  };
+
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button type="button" onClick={exportExcel} disabled={loading || !displayedRows.length} className="inline-flex h-9 items-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet className="size-4" />{ar ? "تصدير Excel" : "Exporter Excel"}</button>
+      <button type="button" onClick={exportPdf} disabled={loading || !displayedRows.length} className="inline-flex h-9 items-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><FileText className="size-4" />{ar ? "تصدير PDF" : "Exporter PDF"}</button>
+    </div>
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
       <div className="flex min-w-fit items-center gap-2 font-semibold text-violet-950"><CalendarDays className="size-5" /> {ar ? "الفترة" : "Période du rapport"}</div>
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "من" : "Du"}<input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
