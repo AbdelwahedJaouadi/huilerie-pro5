@@ -14,12 +14,14 @@ import { useMe } from "@/lib/useMe";
 import { CodeBadge, GradeBadge, PageHeader, StatusPill } from "@/components/shared";
 import OilEntryDialog from "@/components/OilEntryDialog";
 import CancelLoadDialog from "@/components/CancelLoadDialog";
+import Commercial from "./Commercial";
 
 export default function Loads() {
   const { t, errMsg, lang } = useI18n();
   const ar = lang === "ar";
   const isAdmin = useMe().data?.role === "admin";
   const qc = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"loads" | "chargement" | "lots" | "movements">("loads");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [editing, setEditing] = useState<Load | null>(null);
@@ -61,7 +63,14 @@ export default function Loads() {
   const totalAmount = active.reduce((a, r) => a + (r.amount ?? 0), 0);
 
   return (
-    <div>
+    <div className="space-y-4">
+      <div role="tablist" aria-label={ar ? "أقسام الحمولة" : "Sections du chargement"} className="flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-white p-2 shadow-sm">
+        <Button type="button" role="tab" aria-selected={activeTab === "loads"} variant={activeTab === "loads" ? "default" : "outline"} onClick={() => setActiveTab("loads")}>{ar ? "الحمولة" : "الحمولة"}</Button>
+        <Button type="button" role="tab" aria-selected={activeTab === "chargement"} variant={activeTab === "chargement" ? "default" : "outline"} onClick={() => setActiveTab("chargement")}>Chargement</Button>
+        <Button type="button" role="tab" aria-selected={activeTab === "lots"} variant={activeTab === "lots" ? "default" : "outline"} onClick={() => setActiveTab("lots")}>Lots</Button>
+        <Button type="button" role="tab" aria-selected={activeTab === "movements"} variant={activeTab === "movements" ? "default" : "outline"} onClick={() => setActiveTab("movements")}>Mouvements</Button>
+      </div>
+      {activeTab === "loads" ? <div>
       <PageHeader title={t("loads")} accent="bg-amber-500" />
       <div className="mb-5 flex flex-wrap gap-3">
         <Input data-testid="loads-filter-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("filter_placeholder")} className="h-10 max-w-sm rounded-xl bg-white" />
@@ -174,6 +183,7 @@ export default function Loads() {
       </div>
       <OilEntryDialog load={editing} onClose={() => setEditing(null)} />
       <CancelLoadDialog load={cancelling} onClose={() => setCancelling(null)} />
+      </div> : <Commercial key={activeTab} embeddedStockView={activeTab} />}
     </div>
   );
 }
