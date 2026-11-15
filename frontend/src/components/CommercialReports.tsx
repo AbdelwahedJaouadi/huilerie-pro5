@@ -123,26 +123,28 @@ export default function CommercialReports({ lang }: Props) {
   const error = purchases.error || production.error || transfers.error || sales.error || suppliers.error || buyers.error || locations.error || tanks.error || oliveLots.error;
 
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
-    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
-      <div className="flex items-center gap-2 font-semibold text-violet-950"><CalendarDays className="size-5" /> {ar ? "الفترة" : "Période du rapport"}</div>
+    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+      <div className="flex min-w-fit items-center gap-2 font-semibold text-violet-950"><CalendarDays className="size-5" /> {ar ? "الفترة" : "Période du rapport"}</div>
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "من" : "Du"}<input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "إلى" : "Au"}<input type="date" value={end} onChange={e => setEnd(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
       <button className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { setStart(""); setEnd(""); }}>{ar ? "كل الفترات" : "Toute la période"}</button>
-      <button className="ml-auto flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void tanks.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
-    </div>
-    {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar ? "تعذر تحميل جزء من بيانات التقرير. تحقق من الاتصال ثم حدّث الصفحة." : "Impossible de charger une partie des données du rapport. Vérifiez la connexion puis actualisez."}</div>}
-    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="min-w-[180px] flex-1">
-        <div className="mb-2 text-xs font-semibold text-slate-600">{ar ? "أنواع العمليات المعروضة" : "Opérations à afficher"}</div>
+      <div className="mx-1 hidden h-10 border-l border-violet-200 xl:block" />
+      <div className="min-w-[220px] flex-1">
+        <div className="mb-2 text-xs font-semibold text-violet-950">{ar ? "أنواع العمليات المعروضة" : "Opérations à afficher"}</div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setSelectedKinds([])} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedKinds.length === 0 ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{ar ? "الكل" : "Toutes"}</button>
+          <button type="button" onClick={() => setSelectedKinds([])} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedKinds.length === 0 ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{ar ? "الكل" : "Toutes"}</button>
           {operationKinds.map(kind => {
             const active = selectedKinds.length === 0 || selectedKinds.includes(kind);
             const tones: Record<string, string> = { Achat: active ? "border-amber-500 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-400", Production: active ? "border-emerald-500 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-400", Transfert: active ? "border-violet-500 bg-violet-100 text-violet-900" : "border-slate-200 bg-white text-slate-400", Vente: active ? "border-sky-500 bg-sky-100 text-sky-900" : "border-slate-200 bg-white text-slate-400" };
-            return <button key={kind} type="button" aria-pressed={active} onClick={() => toggleKind(kind)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-95 ${tones[kind]}`}>{ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind}</button>;
+            const OperationIcon = ({ Achat: ShoppingBasket, Production: Factory, Transfert: ArrowLeftRight, Vente: ShoppingCart } as Record<string, typeof ShoppingBasket>)[kind];
+            return <button key={kind} type="button" aria-pressed={active} onClick={() => toggleKind(kind)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-95 ${tones[kind]}`}><OperationIcon className="size-3.5" />{ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind}</button>;
           })}
         </div>
       </div>
+      <button className="flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void tanks.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
+    </div>
+    {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar ? "تعذر تحميل جزء من بيانات التقرير. تحقق من الاتصال ثم حدّث الصفحة." : "Impossible de charger une partie des données du rapport. Vérifiez la connexion puis actualisez."}</div>}
+    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <label className="grid min-w-[190px] gap-1 text-xs font-semibold text-slate-600">{ar ? "الحالة" : "Statut"}
         <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800">
           <option value="">{ar ? "كل الحالات" : "Tous les statuts"}</option>
