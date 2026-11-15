@@ -68,6 +68,24 @@ export default function CommercialOverviewPanel() {
     refetchInterval: 30_000,
     retry: false,
   });
+  const purchases = useQuery({
+    queryKey: ["commercial", "olive-purchases"],
+    queryFn: () => apiGetAllPages<Row>("/commercial/v1/olive-purchases", 500),
+    enabled: ready,
+    retry: false,
+  });
+  const suppliers = useQuery({
+    queryKey: ["commercial", "suppliers"],
+    queryFn: () => apiGetAllPages<Row>("/commercial/v1/suppliers", 500),
+    enabled: ready,
+    retry: false,
+  });
+  const buyers = useQuery({
+    queryKey: ["commercial", "buyers"],
+    queryFn: () => apiGetAllPages<Row>("/commercial/v1/buyers", 500),
+    enabled: ready,
+    retry: false,
+  });
   const tanks = useQuery({
     queryKey: ["commercial", "tanks"],
     queryFn: () => apiGet<Row[]>("/commercial/v1/tanks"),
@@ -100,16 +118,74 @@ export default function CommercialOverviewPanel() {
   const historySales = useQuery({ queryKey: ["dashboard", "tank-history", "sales", selectedTankId], queryFn: () => apiGetAllPages<Row>("/commercial/v1/sales", 500), enabled: historyEnabled });
   const historyRows = useMemo(() => {
     if (!selectedTankId) return [];
-    const rows = [
-      ...(historyProduction.data ?? []).filter((run) => run.output_tank_id === selectedTankId).map((run) => ({ id: "production-" + run.id, date: run.production_date ?? run.created_at, type: ar ? "إنتاج" : "Production", reference: run.document_number ?? run.batch_code ?? "—", quantity: Number(run.output_quantity_liters ?? run.actual_oil_output_kg ?? run.output_quantity_kg ?? 0), status: run.status })),
-      ...(historySales.data ?? []).filter((sale) => sale.source_tank_id === selectedTankId).map((sale) => ({ id: "sale-" + sale.id, date: sale.sale_date ?? sale.created_at, type: ar ? "بيع" : "Vente", reference: sale.document_number ?? sale.batch_code ?? "—", quantity: -Number(sale.quantity_liters ?? sale.quantity_kg ?? 0), status: sale.status })),
-      ...(historyTransfers.data ?? []).filter((move) => move.product_kind === "OIL" && (move.source_location_id === selectedTankId || move.destination_location_id === selectedTankId)).map((move) => ({ id: "transfer-" + move.id, date: move.created_at, type: ar ? "تحويل" : "Transfert", reference: move.document_number ?? "—", quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0), status: move.source_location_id === selectedTankId ? (ar ? "خروج" : "Sortie") : (ar ? "دخول" : "Entrée") })),
-      ...(historyMovements.data ?? []).filter((move) => move.product_kind === "OIL" && (move.source_location_id === selectedTankId || move.destination_location_id === selectedTankId)).map((move) => ({ id: "movement-" + move.id, date: move.created_at, type: ar ? "حركة مخزون" : "Mouvement de stock", reference: move.document_number ?? "—", quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0), status: move.movement_kind ?? "—" })),
-    ];
-    return rows.sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
-  }, [selectedTankId, historyProduction.data, historySales.data, historyTransfers.data, historyMovements.data, ar]);
-  const historyLoading = historyMovements.isLoading || historyTransfers.isLoading || historyProduction.isLoading || historySales.isLoading;
-  const historyError = historyMovements.isError || historyTransfers.isError || historyProduction.isError || historySales.isError;
+    const purchaseForLot = (lot: Row | undefined) => lot
+      ? (purchases.data ?? []).find((purchase) => purchase.id === lot.source_purchase_id || (purchase.batch_code && purchase.batch_code === lot.batch_code) || (purchase.batch_codes ?? []).includes(lot.batch_code))
+      : undefined;
+    const purchaseForOilLot = (oilLot: Row | undefined) => {
+      if (!oilLot) return undefined;
+      const direct = purchaseForLot(oilLot);
+      if (direct) return direct;
+      const production = (historyProduction.data ?? []).find((run) => run.id === oilLot.source_production_id);
+      const oliveLot = (lots.data ?? []).find((lot) => lot.id === production?.source_olive_lot_id || lot.id === production?.source_lot_id);
+      return purchaseForLot(oliveLot);
+    };
+    const supplierForPurchase = (purchase: Row | undefined) => purchase
+      ? (suppliers.data ?? []).find((supplier) => supplier.id === purchase.supplier_id)
+      : undefined;
+    const supplierName = (purchase: Row | undefined) => supplierForPurchase(purchase)?.name ?? purchase?.supplier_name ?? "—";
+    const supplierPhone = (purchase: Row | undefined) => supplierForPurchase(purchase)?.phone ?? purchase?.supplier_phone ?? "—";
+    const joinUnique = (items: unknown[]) => [...new Set(items.map((item) => String(item ?? "").trim()).filter((item) => item && item !== "—"))].join(", ") || "—";
+    const productionRows = (historyProduction.data ?? []).filter((run) => run.output_tank_id === selectedTankId).map((run) => {
+      const inputLotIds = [run.input_lot_id, run.source_lot_id, run.source_olive_lot_id, ...(Array.isArray(run.input_lot_ids) ? run.input_lot_ids : []), ...(Array.isArray(run.consumed_lot_ids) ? run.consumed_lot_ids : []), ...(Array.isArray(run.inputs) ? run.inputs.map((input: Row) => input.lot_id ?? input.olive_lot_id) : [])].filter(Boolean);
+      const sourceLots = (lots.data ?? []).filter((lot) => inputLotIds.includes(lot.id));
+      const sourcePurchases = sourceLots.map(purchaseForLot).filter(Boolean) as Row[];
+      const fallbackPurchase = (purchases.data ?? []).find((purchase) => purchase.batch_code === run.batch_code || (purchase.batch_codes ?? []).includes(run.batch_code));
+      const linkedPurchases = sourcePurchases.length ? sourcePurchases : (fallbackPurchase ? [fallbackPurchase] : []);
+      return {
+        id: "production-" + run.id, date: run.production_date ?? run.created_at,
+        type: ar ? "إنتاج" : "Production", reference: run.document_number ?? run.batch_code ?? "—",
+        supplier: joinUnique(linkedPurchases.map(supplierName)), supplierPhone: joinUnique(linkedPurchases.map(supplierPhone)), buyer: "—",
+        quantity: Number(run.output_quantity_liters ?? run.actual_oil_output_kg ?? run.output_quantity_kg ?? 0), status: run.status,
+      };
+    });
+    const salesRows = (historySales.data ?? []).filter((sale) => sale.source_tank_id === selectedTankId).map((sale) => {
+      const allocations = Array.isArray(sale.dispatch_allocations) ? sale.dispatch_allocations : [];
+      const allocatedOilLots = allocations.map((allocation: Row) => (lots.data ?? []).find((item) => item.id === allocation.lot_id || item.batch_code === allocation.batch_code)).filter(Boolean) as Row[];
+      const fallbackOilLot = (lots.data ?? []).find((item) => item.batch_code === sale.batch_code || item.id === sale.oil_lot_id || item.id === sale.lot_id);
+      const sourcePurchases = (allocatedOilLots.length ? allocatedOilLots : (fallbackOilLot ? [fallbackOilLot] : [])).map(purchaseForOilLot).filter(Boolean) as Row[];
+      const buyer = (buyers.data ?? []).find((item) => item.id === sale.buyer_id);
+      return {
+        id: "sale-" + sale.id, date: sale.sale_date ?? sale.created_at, type: ar ? "بيع" : "Vente",
+        reference: sale.document_number ?? sale.batch_code ?? "—",
+        supplier: joinUnique(sourcePurchases.map(supplierName)), supplierPhone: joinUnique(sourcePurchases.map(supplierPhone)),
+        buyer: buyer?.name ?? sale.buyer_name ?? "—",
+        quantity: -Number(sale.quantity_liters ?? sale.quantity_kg ?? 0), status: sale.status,
+      };
+    });
+    const movementRows = (historyTransfers.data ?? []).filter((move) => move.product_kind === "OIL" && (move.source_location_id === selectedTankId || move.destination_location_id === selectedTankId)).map((move) => {
+      const lot = (lots.data ?? []).find((item) => item.id === move.lot_id);
+      const purchase = purchaseForOilLot(lot);
+      return {
+        id: "transfer-" + move.id, date: move.created_at, type: ar ? "تحويل" : "Transfert", reference: move.document_number ?? "—",
+        supplier: supplierName(purchase), supplierPhone: supplierPhone(purchase), buyer: "—",
+        quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0),
+        status: move.source_location_id === selectedTankId ? (ar ? "خروج" : "Sortie") : (ar ? "دخول" : "Entrée"),
+      };
+    });
+    const stockRows = (historyMovements.data ?? []).filter((move) => move.product_kind === "OIL" && (move.source_location_id === selectedTankId || move.destination_location_id === selectedTankId)).map((move) => {
+      const lot = (lots.data ?? []).find((item) => item.id === move.lot_id);
+      const purchase = purchaseForOilLot(lot);
+      return {
+        id: "movement-" + move.id, date: move.created_at, type: ar ? "حركة مخزون" : "Mouvement de stock", reference: move.document_number ?? "—",
+        supplier: supplierName(purchase), supplierPhone: supplierPhone(purchase), buyer: "—",
+        quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0),
+        status: move.movement_kind ?? "—",
+      };
+    });
+    return [...productionRows, ...salesRows, ...movementRows, ...stockRows].sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+  }, [selectedTankId, historyProduction.data, historySales.data, historyTransfers.data, historyMovements.data, lots.data, purchases.data, suppliers.data, buyers.data, ar]);
+  const historyLoading = historyMovements.isLoading || historyTransfers.isLoading || historyProduction.isLoading || historySales.isLoading || lots.isLoading || purchases.isLoading || suppliers.isLoading || buyers.isLoading;
+  const historyError = historyMovements.isError || historyTransfers.isError || historyProduction.isError || historySales.isError || lots.isError || purchases.isError || suppliers.isError || buyers.isError;
   const error = status.isError;
 
   return (
@@ -203,11 +279,14 @@ export default function CommercialOverviewPanel() {
                 <p className="p-5 text-center text-sm text-amber-800">{ar ? "تعذّر تحميل سجل العمليات." : "Impossible de charger l’historique des opérations."}</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-sm">
+                  <table className="w-full min-w-[1120px] text-sm">
                     <thead className="bg-sky-50/70 text-sky-950"><tr>
                       <th className="px-4 py-3 text-start font-semibold">{ar ? "التاريخ" : "Date"}</th>
                       <th className="px-4 py-3 text-start font-semibold">{ar ? "العملية" : "Opération"}</th>
                       <th className="px-4 py-3 text-start font-semibold">{ar ? "المرجع" : "Référence"}</th>
+                      <th className="px-4 py-3 text-start font-semibold">{ar ? "المزوّد" : "Fournisseur"}</th>
+                      <th className="px-4 py-3 text-start font-semibold">{ar ? "هاتف المزوّد" : "Téléphone fournisseur"}</th>
+                      <th className="px-4 py-3 text-start font-semibold">{ar ? "الحريف المشتري" : "Client acheteur"}</th>
                       <th className="px-4 py-3 text-end font-semibold">{ar ? "كمية الزيت" : "Quantité d’huile"}</th>
                       <th className="px-4 py-3 text-start font-semibold">{ar ? "الحالة / التفاصيل" : "Statut / détails"}</th>
                     </tr></thead>
@@ -217,11 +296,14 @@ export default function CommercialOverviewPanel() {
                           <td className="whitespace-nowrap px-4 py-3 text-stone-700">{row.date ? new Date(row.date).toLocaleDateString(ar ? "ar-TN" : "fr-FR") : "—"}</td>
                           <td className="px-4 py-3 font-semibold text-stone-800">{row.type}</td>
                           <td className="px-4 py-3 font-mono font-semibold text-stone-800">{row.reference}</td>
+                          <td className="px-4 py-3 font-medium text-stone-800">{row.supplier ?? "—"}</td>
+                          <td className="whitespace-nowrap px-4 py-3 font-mono text-stone-600" dir="ltr">{row.supplierPhone ?? "—"}</td>
+                          <td className="px-4 py-3 font-medium text-stone-800">{row.buyer ?? "—"}</td>
                           <td className={`px-4 py-3 text-end font-bold tabular-nums ${row.quantity < 0 ? "text-rose-700" : "text-emerald-700"}`}>{row.quantity > 0 ? "+" : ""}{row.quantity.toLocaleString("fr-FR")} L</td>
                           <td className="px-4 py-3 text-stone-600">{String(row.status ?? "—")}</td>
                         </tr>
                       ))}
-                      {!historyRows.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-stone-500">{ar ? "لا توجد عمليات مسجلة لهذا الخزان." : "Aucune opération enregistrée pour cette cuve."}</td></tr>}
+                      {!historyRows.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-stone-500">{ar ? "لا توجد عمليات مسجلة لهذا الخزان." : "Aucune opération enregistrée pour cette cuve."}</td></tr>}
                     </tbody>
                   </table>
                 </div>
