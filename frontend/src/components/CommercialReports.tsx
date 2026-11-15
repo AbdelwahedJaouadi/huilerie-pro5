@@ -32,6 +32,8 @@ export default function CommercialReports({ lang }: Props) {
   const ar = lang === "ar";
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [selectedKinds, setSelectedKinds] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState("");
   const purchases = useQuery({ queryKey: ["commercial", "report", "purchases"], queryFn: () => list("/commercial/v1/olive-purchases") });
   const production = useQuery({ queryKey: ["commercial", "report", "production"], queryFn: () => list("/commercial/v1/production-runs") });
   const transfers = useQuery({ queryKey: ["commercial", "report", "transfers"], queryFn: () => list("/commercial/v1/internal-movements") });
@@ -97,6 +99,10 @@ export default function CommercialReports({ lang }: Props) {
     return groups.sort((a, b) => b.date.localeCompare(a.date));
   }, [purchases.data, production.data, transfers.data, sales.data, suppliers.data, buyers.data, locations.data, tanks.data, oliveLots.data, start, end]);
 
+  const operationKinds = ["Achat", "Production", "Transfert", "Vente"];
+  const availableStatuses = [...new Set(filtered.map(x => String(x.status ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const displayedRows = filtered.filter(x => (!selectedKinds.length || selectedKinds.includes(x.kind)) && (!selectedStatus || String(x.status ?? "") === selectedStatus));
+  const toggleKind = (kind: string) => setSelectedKinds(current => current.length === 0 ? [kind] : current.includes(kind) ? current.filter(value => value !== kind) : [...current, kind]);
   const totalPurchaseKg = filtered.filter(x => x.kind === "Achat").reduce((s, x) => s + x.qty, 0);
   const totalProductionL = filtered.filter(x => x.kind === "Production").reduce((s, x) => s + x.qty, 0);
   const totalSalesL = filtered.filter(x => x.kind === "Vente").reduce((s, x) => s + x.qty, 0);
@@ -125,6 +131,27 @@ export default function CommercialReports({ lang }: Props) {
       <button className="ml-auto flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void tanks.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
     </div>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar ? "تعذر تحميل جزء من بيانات التقرير. تحقق من الاتصال ثم حدّث الصفحة." : "Impossible de charger une partie des données du rapport. Vérifiez la connexion puis actualisez."}</div>}
+    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="min-w-[180px] flex-1">
+        <div className="mb-2 text-xs font-semibold text-slate-600">{ar ? "أنواع العمليات المعروضة" : "Opérations à afficher"}</div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setSelectedKinds([])} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedKinds.length === 0 ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{ar ? "الكل" : "Toutes"}</button>
+          {operationKinds.map(kind => {
+            const active = selectedKinds.length === 0 || selectedKinds.includes(kind);
+            const tones: Record<string, string> = { Achat: active ? "border-amber-500 bg-amber-100 text-amber-900" : "border-slate-200 bg-white text-slate-400", Production: active ? "border-emerald-500 bg-emerald-100 text-emerald-900" : "border-slate-200 bg-white text-slate-400", Transfert: active ? "border-violet-500 bg-violet-100 text-violet-900" : "border-slate-200 bg-white text-slate-400", Vente: active ? "border-sky-500 bg-sky-100 text-sky-900" : "border-slate-200 bg-white text-slate-400" };
+            return <button key={kind} type="button" aria-pressed={active} onClick={() => toggleKind(kind)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors hover:brightness-95 ${tones[kind]}`}>{ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind}</button>;
+          })}
+        </div>
+      </div>
+      <label className="grid min-w-[190px] gap-1 text-xs font-semibold text-slate-600">{ar ? "الحالة" : "Statut"}
+        <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-800">
+          <option value="">{ar ? "كل الحالات" : "Tous les statuts"}</option>
+          {availableStatuses.map(status => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </label>
+      <button type="button" onClick={() => { setSelectedKinds([]); setSelectedStatus(""); }} className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">{ar ? "إعادة ضبط" : "Réinitialiser"}</button>
+      <div className="text-xs text-slate-500">{ar ? "النتائج" : "Lignes affichées"}: <span className="font-bold tabular-nums text-slate-800">{displayedRows.length}</span> / {filtered.length}</div>
+    </div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard tone="gold" label={ar ? "الزيتون المشتَرى" : "Olives achetées"} value={fmt(totalPurchaseKg, 3)} unit="kg" icon={<ShoppingBasket />} />
       <StatCard tone="emerald" label={ar ? "الإنتاج" : "Production d'huile"} value={fmt(totalProductionL, 3)} unit="L" icon={<Factory />} />
@@ -141,8 +168,8 @@ export default function CommercialReports({ lang }: Props) {
       <CardHeader><CardTitle>{ar ? "سجل جميع عمليات GS" : "Journal des opérations GS"}</CardTitle></CardHeader>
       <CardContent className="p-0 sm:p-6">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{ar ? "التاريخ" : "Date"}</TableHead><TableHead>{ar ? "العملية" : "Opération"}</TableHead><TableHead>{ar ? "المرجع" : "Document / Code"}</TableHead><TableHead>{ar ? "المزوّد / الحريف / الموقع" : "Fournisseur / Client / Emplacement"}</TableHead><TableHead className="text-end">{ar ? "الكمية" : "Quantité"}</TableHead><TableHead>{ar ? "الحالة" : "Statut"}</TableHead></TableRow></TableHeader><TableBody>
-          {filtered.map((x, i) => { const rowTone = x.kind === "Achat" ? "bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-l-amber-500" : x.kind === "Production" ? "bg-emerald-50/80 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500" : x.kind === "Transfert" ? "bg-violet-50/80 hover:bg-violet-100/80 border-l-4 border-l-violet-500" : "bg-sky-50/80 hover:bg-sky-100/80 border-l-4 border-l-sky-500"; const operationTone = x.kind === "Achat" ? "text-amber-900" : x.kind === "Production" ? "text-emerald-900" : x.kind === "Transfert" ? "text-violet-900" : "text-sky-900"; return <TableRow key={String(x.code ?? i) + x.kind} className={rowTone}><TableCell className="whitespace-nowrap">{labelDate(x.date)}</TableCell><TableCell className={`font-bold ${operationTone}`}>{ar ? x.kindAr : x.kind}</TableCell><TableCell className="font-mono text-xs">{x.code ? <CodeBadge code={String(x.code)} /> : "—"}</TableCell><TableCell>{String(x.party ?? "—")}</TableCell><TableCell className="text-end tabular-nums">{fmt(x.qty, 3)} {x.unit}</TableCell><TableCell>{String(x.status ?? "—")}</TableCell></TableRow>; })}
-          {!filtered.length && <TableRow><TableCell colSpan={6} className="py-10 text-center text-stone-500">{loading ? (ar ? "جار تحميل البيانات…" : "Chargement…") : (ar ? "لا توجد عمليات مسجلة" : "Aucune opération enregistrée")}</TableCell></TableRow>}
+          {displayedRows.map((x, i) => { const rowTone = x.kind === "Achat" ? "bg-amber-50/80 hover:bg-amber-100/80 border-l-4 border-l-amber-500" : x.kind === "Production" ? "bg-emerald-50/80 hover:bg-emerald-100/80 border-l-4 border-l-emerald-500" : x.kind === "Transfert" ? "bg-violet-50/80 hover:bg-violet-100/80 border-l-4 border-l-violet-500" : "bg-sky-50/80 hover:bg-sky-100/80 border-l-4 border-l-sky-500"; const operationTone = x.kind === "Achat" ? "text-amber-900" : x.kind === "Production" ? "text-emerald-900" : x.kind === "Transfert" ? "text-violet-900" : "text-sky-900"; return <TableRow key={String(x.code ?? i) + x.kind} className={rowTone}><TableCell className="whitespace-nowrap">{labelDate(x.date)}</TableCell><TableCell className={`font-bold ${operationTone}`}>{ar ? x.kindAr : x.kind}</TableCell><TableCell className="font-mono text-xs">{x.code ? <CodeBadge code={String(x.code)} /> : "—"}</TableCell><TableCell>{String(x.party ?? "—")}</TableCell><TableCell className="text-end tabular-nums">{fmt(x.qty, 3)} {x.unit}</TableCell><TableCell>{String(x.status ?? "—")}</TableCell></TableRow>; })}
+          {!displayedRows.length && <TableRow><TableCell colSpan={6} className="py-10 text-center text-stone-500">{loading ? (ar ? "جار تحميل البيانات…" : "Chargement…") : (ar ? "لا توجد عمليات مسجلة" : "Aucune opération enregistrée")}</TableCell></TableRow>}
         </TableBody></Table></div>
       </CardContent>
     </Card>
