@@ -3096,27 +3096,34 @@ async def export_commercial_report_pdf(
     payload: dict[str, Any],
     user: dict = Depends(current_user),
 ):
-    """Create a downloadable PDF from the exact filtered GS report currently displayed."""
+    """Create a styled, chart-rich GS report PDF matching the standard Oro Verde report."""
     _authorize(user, "commercial.read")
     rows = payload.get("rows")
     headers = payload.get("headers")
     summary = payload.get("summary") or []
+    chart_rows = payload.get("chart") or []
+    breakdown = payload.get("breakdown") or []
     if not isinstance(rows, list) or len(rows) > 5000 or not isinstance(headers, list) or len(headers) != 8:
         raise HTTPException(422, "invalid_commercial_report_export")
     if any(not isinstance(row, list) or len(row) != 8 for row in rows):
         raise HTTPException(422, "invalid_commercial_report_rows")
+    if not isinstance(chart_rows, list) or len(chart_rows) > 120:
+        raise HTTPException(422, "invalid_commercial_report_chart")
 
     import io
+    from datetime import datetime, timezone
     from html import escape
     from pathlib import Path
+    from math import ceil
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.graphics.shapes import Drawing, Line, String, Rect, Circle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
     font_dir = Path(__file__).resolve().parent.parent / "fonts"
     regular, bold = "CommercialReportAmiri", "CommercialReportAmiriBold"
@@ -3126,49 +3133,212 @@ async def export_commercial_report_pdf(
         pdfmetrics.registerFont(TTFont(bold, str(font_dir / "Amiri-Bold.ttf")))
 
     def shape(value: Any) -> str:
-        text = str(value if value is not None else "—")
-        if any("\\u0600" <= char <= "\\u06ff" for char in text):
+        value = str(value if value is not None else "—")
+        if any("\u0600" <= char <= "\u06ff" for char in value):
             import arabic_reshaper
             from bidi.algorithm import get_display
-            return get_display(arabic_reshaper.reshape(text))
-        return text
+            return get_display(arabic_reshaper.reshape(value))
+        return value
 
-    def cell(value: Any, style: ParagraphStyle) -> Paragraph:
-        return Paragraph(escape(shape(value)).replace("\\n", "<br/>"), style)
+    def safe(value: Any) -> str:
+        return escape(shape(value)).replace("\n", "<br/>")
 
-    buf = io.BytesIO()
+    # Same blue / gold / green / cool-grey identity used by the standard Oro Verde PDF.
+    navy = colors.HexColor("#24577D")
+    blue = colors.HexColor("#3978C8")
+    light_blue = colors.HexColor("#DCEBFA")
+    pale_blue = colors.HexColor("#EFF6FC")
+    gold = colors.HexColor("#D6A000")
+    green = colors.HexColor("#78A95E")
+    pale_gold = colors.HexColor("#FFF3CC")
+    ink = colors.HexColor("#263746")
+    muted = colors.HexColor("#64748B")
+    border = colors.HexColor("#C9D5E1")
+    white = colors.white
+    teal = colors.HexColor("#15966B")
+    orange = colors.HexColor("#E9823B")
+    violet = colors.HexColor("#8064B5")
+
+    title_style = ParagraphStyle("GSReportTitle", fontName=bold, fontSize=21, leading=26,
+                                 alignment=TA_LEFT, textColor=blue, spaceAfter=2)
+    subtitle_style = ParagraphStyle("GSReportSubtitle", fontName=regular, fontSize=8.5, leading=12,
+                                    alignment=TA_LEFT, textColor=muted)
+    section_style = ParagraphStyle("GSReportSection", fontName=bold, fontSize=12, leading=16,
+                                   alignment=TA_LEFT, textColor=blue, spaceBefore=6, spaceAfter=5)
+    chart_title_style = ParagraphStyle("GSChartTitle", fontName=bold, fontSize=9, leading=12,
+                                       alignment=TA_CENTER, textColor=blue)
+    card_label_style = ParagraphStyle("GSCardLabel", fontName=regular, fontSize=7.2, leading=9,
+                                      alignment=TA_CENTER, textColor=white)
+    card_value_style = ParagraphStyle("GSCardValue", fontName=bold, fontSize=13, leading=16,
+                                      alignment=TA_CENTER, textColor=white)
+    table_head_style = ParagraphStyle("GSTableHead", fontName=bold, fontSize=7.1, leading=8.5,
+                                      alignment=TA_CENTER, textColor=navy)
+    table_cell_style = ParagraphStyle("GSTableCell", fontName=regular, fontSize=7, leading=9,
+                                      alignment=TA_CENTER, textColor=ink, wordWrap="CJK")
+    table_total_style = ParagraphStyle("GSTableTotal", fontName=bold, fontSize=7.2, leading=9,
+                                       alignment=TA_CENTER, textColor=navy)
+    note_style = ParagraphStyle("GSNote", fontName=regular, fontSize=8, leading=11,
+                                alignment=TA_CENTER, textColor=muted)
+
+    def p(value: Any, style=table_cell_style):
+        return Paragraph(safe(value), style)
+
+    def card(label: Any, value: Any, color):
+        item = Table([[Paragraph(safe(label), card_label_style)],
+                      [Paragraph(safe(value), card_value_style)]],
+                     colWidths=[51 * mm], rowHeights=[10 * mm, 13 * mm])
+        item.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), color),
+            ("BOX", (0, 0), (-1, -1), 0.5, color),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+        return item
+
+    def report_table(headings, data_rows, widths, total_rows=0):
+        rendered = [[p(value, table_head_style) for value in headings]]
+        for index, row in enumerate(data_rows):
+            style = table_total_style if total_rows and index >= len(data_rows) - total_rows else table_cell_style
+            rendered.append([p(value, style) for value in row])
+        if len(rendered) == 1:
+            rendered.append([p("Aucune donnée") for _ in headings])
+        table = Table(rendered, colWidths=widths, repeatRows=1, hAlign="CENTER")
+        styles = [
+            ("BACKGROUND", (0, 0), (-1, 0), light_blue),
+            ("GRID", (0, 0), (-1, -1), 0.35, border),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]
+        body_end = len(rendered) - 1 - total_rows
+        if body_end >= 1:
+            styles.append(("ROWBACKGROUNDS", (0, 1), (-1, body_end), [white, pale_blue]))
+        if total_rows:
+            styles.extend([
+                ("BACKGROUND", (0, len(rendered) - total_rows), (-1, -1), pale_blue),
+                ("LINEABOVE", (0, len(rendered) - total_rows), (-1, len(rendered) - total_rows), 1, blue),
+            ])
+        table.setStyle(TableStyle(styles))
+        return table
+
+    def chart_drawing(values, labels, fill, kind="bar"):
+        drawing = Drawing(250, 112)
+        clean_values = [max(0.0, float(value or 0)) for value in values]
+        clean_labels = [str(label) for label in labels]
+        if not clean_values:
+            clean_values, clean_labels = [0.0], ["—"]
+        maximum = max(clean_values + [1.0]) * 1.15
+        left, right, bottom, top = 29, 240, 25, 96
+        plot_w, plot_h = right - left, top - bottom
+        for tick in range(5):
+            y = bottom + plot_h * tick / 4
+            drawing.add(Line(left, y, right, y, strokeColor=border, strokeWidth=0.4))
+            drawing.add(String(left - 4, y - 2, f"{maximum * tick / 4:.0f}",
+                               fontName="Helvetica", fontSize=5.2, textAnchor="end", fillColor=muted))
+        slot = plot_w / len(clean_values)
+        points = []
+        for index, value in enumerate(clean_values):
+            x = left + slot * (index + 0.5)
+            y = bottom + (value / maximum) * plot_h
+            points.append((x, y))
+            drawing.add(String(x, 9, clean_labels[index][:8], fontName="Helvetica",
+                               fontSize=5.1, textAnchor="middle", fillColor=ink))
+        if kind == "line":
+            for (x1, y1), (x2, y2) in zip(points, points[1:]):
+                drawing.add(Line(x1, y1, x2, y2, strokeColor=fill, strokeWidth=2))
+            for x, y in points:
+                drawing.add(Circle(x, y, 2.1, fillColor=fill, strokeColor=fill))
+        else:
+            width = min(13, max(3, slot * 0.58))
+            for (x, y), value in zip(points, clean_values):
+                drawing.add(Rect(x - width / 2, bottom, width, max(0.8, y - bottom),
+                                 fillColor=fill, strokeColor=fill, strokeWidth=0.3))
+        drawing.add(Line(left, bottom, right, bottom, strokeColor=muted, strokeWidth=0.6))
+        return drawing
+
+    def draw_footer(canvas, doc):
+        canvas.saveState()
+        page_width, _ = doc.pagesize
+        canvas.setStrokeColor(border)
+        canvas.setLineWidth(0.6)
+        canvas.line(10 * mm, 10 * mm, page_width - 10 * mm, 10 * mm)
+        canvas.setFont(regular, 7)
+        canvas.setFillColor(muted)
+        canvas.drawString(10 * mm, 5 * mm, "Oro Verde — Gestion commerciale")
+        canvas.drawRightString(page_width - 10 * mm, 5 * mm, f"Page {doc.page}")
+        canvas.restoreState()
+
+    summary_items = [item for item in summary if isinstance(item, list) and len(item) == 2]
+    summary_map = {str(item[0]): str(item[1]) for item in summary_items}
+    title_text = payload.get("title") or "Rapport de gestion commerciale"
+    period_text = payload.get("period") or ""
     page = landscape(A4)
-    doc = SimpleDocTemplate(buf, pagesize=page, rightMargin=9*mm, leftMargin=9*mm, topMargin=10*mm, bottomMargin=12*mm,
-                            title="Rapport de gestion commerciale — Oro Verde GS")
-    title_style = ParagraphStyle("CommercialTitle", fontName=bold, fontSize=17, leading=22, alignment=TA_CENTER, textColor=colors.HexColor("#312e81"), spaceAfter=5)
-    meta_style = ParagraphStyle("CommercialMeta", fontName=regular, fontSize=8.5, leading=12, alignment=TA_CENTER, textColor=colors.HexColor("#57534e"), spaceAfter=9)
-    head_style = ParagraphStyle("CommercialHead", fontName=bold, fontSize=7.5, leading=9, alignment=TA_CENTER, textColor=colors.white)
-    body_style = ParagraphStyle("CommercialBody", fontName=regular, fontSize=7.2, leading=9, wordWrap="CJK")
-    story = [
-        Paragraph(shape(payload.get("title") or "Rapport de gestion commerciale"), title_style),
-        Paragraph(shape(payload.get("period") or ""), meta_style),
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=page, rightMargin=10*mm, leftMargin=10*mm,
+                            topMargin=9*mm, bottomMargin=15*mm,
+                            title="Rapport de gestion commerciale — Oro Verde", author="Oro Verde")
+
+    cards = Table([[
+        card("OLIVES ACHETÉES (KG)", summary_map.get("Olives achetées", summary_map.get("الزيتون المشتَرى", "—")), gold),
+        card("PRODUCTION D'HUILE (L)", summary_map.get("Production d'huile", summary_map.get("الإنتاج", "—")), green),
+        card("VOLUME VENDU (L)", summary_map.get("Volume vendu", summary_map.get("المبيعات", "—")), blue),
+        card("VALEUR DES VENTES (TND)", summary_map.get("Valeur des ventes", summary_map.get("قيمة المبيعات", "—")), navy),
+    ]], colWidths=[65*mm]*4, hAlign="CENTER")
+    cards.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+                               ("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),
+                               ("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
+
+    chart_labels = [str(item.get("period", "")) for item in chart_rows if isinstance(item, dict)]
+    chart_specs = [
+        ("ACHATS D'OLIVES (KG)", "achats", gold),
+        ("PRODUCTION D'HUILE (L)", "production", green),
+        ("VENTES D'HUILE (L)", "ventes", blue),
     ]
-    if summary:
-        summary_text = "   |   ".join(f"{shape(item[0])} : {shape(item[1])}" for item in summary if isinstance(item, list) and len(item) == 2)
-        story.append(Paragraph(summary_text, meta_style))
-    data = [[cell(value, head_style) for value in headers]]
-    data.extend([[cell(value, body_style) for value in row] for row in rows])
-    if len(data) == 1:
-        data.append([cell("Aucune opération", body_style)] + [cell("", body_style) for _ in range(7)])
-    table = Table(data, colWidths=[18*mm, 20*mm, 24*mm, 65*mm, 24*mm, 14*mm, 24*mm, 20*mm], repeatRows=1, hAlign="LEFT")
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#312e81")),
-        ("GRID", (0,0), (-1,-1), 0.35, colors.HexColor("#cbd5e1")),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f8fafc")]),
-        ("LEFTPADDING", (0,0), (-1,-1), 4), ("RIGHTPADDING", (0,0), (-1,-1), 4),
-        ("TOPPADDING", (0,0), (-1,-1), 4), ("BOTTOMPADDING", (0,0), (-1,-1), 4),
-    ]))
-    story.append(table)
-    doc.build(story)
-    buf.seek(0)
-    from datetime import datetime, timezone
+    chart_cells = []
+    for chart_title, key, color in chart_specs:
+        values = [item.get(key, 0) for item in chart_rows if isinstance(item, dict)]
+        chart_cells.append([Paragraph(safe(chart_title), chart_title_style),
+                            chart_drawing(values, chart_labels, color, "line")])
+    chart_pair = Table([chart_cells], colWidths=[86*mm]*3, hAlign="CENTER")
+    chart_pair.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+                                    ("LEFTPADDING",(0,0),(-1,-1),1),("RIGHTPADDING",(0,0),(-1,-1),1),
+                                    ("TOPPADDING",(0,0),(-1,-1),2),("BOTTOMPADDING",(0,0),(-1,-1),2)]))
+
+    operation_headings = ["Opération", "Nombre", "Quantité totale", "Montant total (TND)"]
+    operation_rows = []
+    for item in breakdown:
+        if isinstance(item, dict):
+            operation_rows.append([
+                item.get("kind", "—"), item.get("count", 0),
+                item.get("quantity", "—"), item.get("amount", "—"),
+            ])
+
+    story = [
+        Paragraph(safe("ORO VERDE"), title_style),
+        Paragraph(safe(title_text), section_style),
+        Paragraph(safe(period_text), subtitle_style),
+        Spacer(1, 4), HRFlowable(width="100%", thickness=1.5, color=blue),
+        Spacer(1, 8), cards, Spacer(1, 8),
+        Paragraph(safe("ÉVOLUTION DE L'ACTIVITÉ"), section_style),
+        chart_pair, Spacer(1, 4),
+        Paragraph(safe("SYNTHÈSE PAR TYPE D'OPÉRATION"), section_style),
+        report_table(operation_headings, operation_rows, [65*mm, 35*mm, 65*mm, 65*mm]),
+        Spacer(1, 8),
+        Paragraph(safe("JOURNAL DÉTAILLÉ DES OPÉRATIONS GS"), section_style),
+        report_table(headers, rows, [20*mm, 25*mm, 30*mm, 70*mm, 28*mm, 15*mm, 32*mm, 28*mm]),
+    ]
+    if not rows:
+        story.append(Paragraph(safe("Aucune opération pour cette période / لا توجد عمليات خلال هذه الفترة"), note_style))
+    doc.build(story, onFirstPage=draw_footer, onLaterPages=draw_footer)
+    buffer.seek(0)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
     filename = f"rapport-gestion-commerciale-{stamp}.pdf"
-    return StreamingResponse(buf, media_type="application/pdf",
+    return StreamingResponse(buffer, media_type="application/pdf",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
