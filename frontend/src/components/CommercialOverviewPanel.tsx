@@ -214,7 +214,7 @@ export default function CommercialOverviewPanel() {
         <div className="space-y-4 p-4 md:p-5">
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <Metric label={ar ? "الموسم النشط" : "Saison active"} value={status.data.season_code || status.data.active_season || "—"} icon={Activity} tone="commercial-card commercial-card--green" />
-            <button type="button" onClick={() => setShowTankLevels((open) => !open)} aria-expanded={showTankLevels} aria-controls="dashboard-tank-levels" className="w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2">
+            <button type="button" onClick={() => setShowTankLevels((open) => { if (open) setSelectedTankId(""); return !open; })} aria-expanded={showTankLevels} aria-controls="dashboard-tank-levels" className="w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2">
               <Metric label={ar ? "الخزانات المهيأة" : "Cuves configurées"} value={status.data.tanks_provisioned == null ? "—/9" : `${status.data.tanks_provisioned}/9`} icon={Warehouse} tone="commercial-card commercial-card--blue" />
               <span className="sr-only">{showTankLevels ? (ar ? "إخفاء مستويات الزيت" : "Masquer les niveaux") : (ar ? "عرض مستويات الزيت" : "Afficher les niveaux")}</span>
             </button>
