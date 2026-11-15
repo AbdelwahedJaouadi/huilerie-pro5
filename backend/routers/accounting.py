@@ -254,11 +254,25 @@ class PassiveIncomeInput(BaseModel):
 
 
 @router.get("/passive-incomes")
-async def list_passive_incomes(_: dict = Depends(require_admin)):
+async def list_passive_incomes(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    _: dict = Depends(require_admin),
+):
     season = await active_season()
+    period_selected = bool(start_date or end_date)
     rows = await db.accounting_passive_incomes.find(
         {"season": season}, {"_id": 0}
-    ).sort([("income_date", -1), ("created_at", -1)]).to_list(1000)
+    ).sort([("income_date", -1), ("created_at", -1)]).to_list(None if period_selected else 1000)
+    if period_selected:
+        try:
+            start_day = date.fromisoformat(start_date).isoformat() if start_date else None
+            end_day = date.fromisoformat(end_date).isoformat() if end_date else None
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Date invalide. Format attendu : AAAA-MM-JJ.")
+        if start_day and end_day and start_day > end_day:
+            raise HTTPException(status_code=422, detail="La date de début doit précéder ou égaler la date de fin.")
+        rows = _filter_accounting_period(rows, start_day, end_day, ("income_date", "created_at"))
     return _safe(rows)
 
 
@@ -337,11 +351,24 @@ async def _create_accounting_outflow(collection: str, kind_field: str, kind: str
     return record
 
 
-async def _list_accounting_outflows(collection: str, date_field: str):
+async def _list_accounting_outflows(
+    collection: str, date_field: str,
+    start_date: str | None = None, end_date: str | None = None,
+):
     season = await active_season()
+    period_selected = bool(start_date or end_date)
     rows = await db[collection].find({"season": season}, {"_id": 0}).sort(
         [(date_field, -1), ("created_at", -1)]
-    ).to_list(1000)
+    ).to_list(None if period_selected else 1000)
+    if period_selected:
+        try:
+            start_day = date.fromisoformat(start_date).isoformat() if start_date else None
+            end_day = date.fromisoformat(end_date).isoformat() if end_date else None
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Date invalide. Format attendu : AAAA-MM-JJ.")
+        if start_day and end_day and start_day > end_day:
+            raise HTTPException(status_code=422, detail="La date de début doit précéder ou égaler la date de fin.")
+        rows = _filter_accounting_period(rows, start_day, end_day, (date_field, "created_at"))
     return _safe(rows)
 
 
@@ -354,8 +381,12 @@ async def _delete_accounting_outflow(collection: str, record_id: str, kind_label
 
 
 @router.get("/expenses")
-async def list_accounting_expenses(_: dict = Depends(require_admin)):
-    return await _list_accounting_outflows("accounting_expenses", "expense_date")
+async def list_accounting_expenses(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    _: dict = Depends(require_admin),
+):
+    return await _list_accounting_outflows("accounting_expenses", "expense_date", start_date, end_date)
 
 
 @router.post("/expenses")
