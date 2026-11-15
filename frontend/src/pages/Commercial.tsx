@@ -3078,7 +3078,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         body * { visibility: hidden !important; }
         .oil-purchase-statement-print, .oil-purchase-statement-print * { visibility: visible !important; }
         .oil-purchase-statement-print { position: absolute !important; inset: 0 !important; width: 100% !important; margin: 0 !important; padding: 8mm !important; background: #fff !important; color: #111 !important; }
-        .oil-purchase-statement-no-print { display: none !important; }`
+        .oil-purchase-statement-no-print { display: none !important; }`}</style>
 
     </div>
   );
