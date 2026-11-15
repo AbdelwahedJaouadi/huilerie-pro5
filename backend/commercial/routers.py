@@ -3284,12 +3284,16 @@ async def export_commercial_report_pdf(
                             topMargin=9*mm, bottomMargin=15*mm,
                             title="Rapport de gestion commerciale — Oro Verde", author="Oro Verde")
 
-    cards = Table([[
-        card("OLIVES ACHETÉES (KG)", summary_map.get("Olives achetées", summary_map.get("الزيتون المشتَرى", "—")), gold),
-        card("PRODUCTION D'HUILE (L)", summary_map.get("Production d'huile", summary_map.get("الإنتاج", "—")), green),
-        card("VOLUME VENDU (L)", summary_map.get("Volume vendu", summary_map.get("المبيعات", "—")), blue),
-        card("VALEUR DES VENTES (TND)", summary_map.get("Valeur des ventes", summary_map.get("قيمة المبيعات", "—")), navy),
-    ]], colWidths=[92*mm, 92*mm], hAlign="CENTER")
+    cards = Table([
+        [
+            card("OLIVES ACHETÉES (KG)", summary_map.get("Olives achetées", summary_map.get("الزيتون المشتَرى", "—")), gold),
+            card("PRODUCTION D'HUILE (L)", summary_map.get("Production d'huile", summary_map.get("الإنتاج", "—")), green),
+        ],
+        [
+            card("VOLUME VENDU (L)", summary_map.get("Volume vendu", summary_map.get("المبيعات", "—")), blue),
+            card("VALEUR DES VENTES (TND)", summary_map.get("Valeur des ventes", summary_map.get("قيمة المبيعات", "—")), navy),
+        ],
+    ], colWidths=[92*mm, 92*mm], hAlign="CENTER")
     cards.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"MIDDLE"),
                                ("LEFTPADDING",(0,0),(-1,-1),2),("RIGHTPADDING",(0,0),(-1,-1),2),
                                ("TOPPADDING",(0,0),(-1,-1),0),("BOTTOMPADDING",(0,0),(-1,-1),0)]))
