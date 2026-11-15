@@ -137,7 +137,7 @@ function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   return <TableRow><TableCell colSpan={colSpan} className="py-10 text-center text-muted-foreground">{text}</TableCell></TableRow>;
 }
 
-export default function Commercial() {
+export default function Commercial({ embeddedStockView }: { embeddedStockView?: "chargement" | "lots" | "movements" } = {}) {
   const { lang } = useI18n();
   const l = labels[lang === "ar" ? "ar" : "fr"];
   const salesText = lang === "ar" ? {
@@ -187,11 +187,11 @@ export default function Commercial() {
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
   const validTabs: TabKey[] = ["factures", "stock", "lots", "movements", "procurement", "suppliers", "purchases", "customer-purchases", "chargement", "production", "transfers", "buyers", "sales", "reports", "accounting"];
-  const initialTab: TabKey = qrBatchCode ? "stock" : requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
+  const initialTab: TabKey = embeddedStockView ? "stock" : qrBatchCode ? "stock" : requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(initialTab);
-  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(requestedTab === "movements" || requestedTab === "lots" ? requestedTab : "chargement");
+  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" || requestedTab === "lots" ? requestedTab : "chargement"));
   const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
   const [salesView, setSalesView] = useState<"buyers" | "sales">("buyers");
   const selectTab = (nextTab: TabKey) => {
@@ -1778,7 +1778,7 @@ export default function Commercial() {
   ];
 
   return (
-    <div className="commercial-workspace mx-auto max-w-7xl space-y-6" dir={lang === "ar" ? "rtl" : "ltr"}>
+    <div className={`commercial-workspace mx-auto max-w-7xl space-y-6 ${embeddedStockView ? "commercial-embedded-stock" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
@@ -1946,7 +1946,7 @@ export default function Commercial() {
         </div>
       )}
 
-      {tab === "stock" && <div className="space-y-4">
+      {tab === "stock" && !embeddedStockView && <div className="space-y-4">
         <div role="tablist" aria-label={lang === "ar" ? "أقسام المخزون" : "Sections du stock"} className="inline-flex flex-wrap gap-2 rounded-xl border bg-muted/40 p-1">
           <Button type="button" size="sm" variant={stockView === "chargement" ? "default" : "ghost"} role="tab" aria-selected={stockView === "chargement"} onClick={() => setStockView("chargement")}>{lang === "ar" ? "الاستلام" : "Chargement"}</Button>
           <Button type="button" size="sm" variant={stockView === "lots" ? "default" : "ghost"} role="tab" aria-selected={stockView === "lots"} onClick={() => setStockView("lots")}>{l.lots}</Button>
@@ -2241,7 +2241,7 @@ export default function Commercial() {
 
       </div>}
 
-      {tab === "stock" && stockView === "movements" && <Card><CardHeader><CardTitle>{l.movements}</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.movement}</TableHead><TableHead>{l.product}</TableHead><TableHead>{l.quantity}</TableHead><TableHead>{l.source}</TableHead><TableHead>{l.destination}</TableHead><TableHead>{l.created}</TableHead></TableRow></TableHeader><TableBody>{(movements.data ?? []).map((m) => <TableRow key={m.id}><TableCell className="font-mono font-bold text-stone-900">{lotCode((lots.data ?? []).find((lot) => lot.id === m.lot_id), m.document_number)}</TableCell><TableCell>{value(m.movement_kind)}</TableCell><TableCell>{m.product_kind === "OLIVE" ? l.olive : l.oil}</TableCell><TableCell>{number(m.quantity_kg)} {m.product_kind === "OIL" ? "L" : "kg"}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.name, "—")}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.name, "—")}</TableCell><TableCell>{date(m.created_at)}</TableCell></TableRow>)}{(!movements.isLoading && !(movements.data?.length)) && <EmptyRow colSpan={7} text={l.noRows} />}</TableBody></Table></CardContent></Card>}
+      {tab === "stock" && stockView === "movements" && (!embeddedStockView || embeddedStockView === "movements") && <Card data-embedded-stock-section><CardHeader><CardTitle>{l.movements}</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.movement}</TableHead><TableHead>{l.product}</TableHead><TableHead>{l.quantity}</TableHead><TableHead>{l.source}</TableHead><TableHead>{l.destination}</TableHead><TableHead>{l.created}</TableHead></TableRow></TableHeader><TableBody>{(movements.data ?? []).map((m) => <TableRow key={m.id}><TableCell className="font-mono font-bold text-stone-900">{lotCode((lots.data ?? []).find((lot) => lot.id === m.lot_id), m.document_number)}</TableCell><TableCell>{value(m.movement_kind)}</TableCell><TableCell>{m.product_kind === "OLIVE" ? l.olive : l.oil}</TableCell><TableCell>{number(m.quantity_kg)} {m.product_kind === "OIL" ? "L" : "kg"}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.name, "—")}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.name, "—")}</TableCell><TableCell>{date(m.created_at)}</TableCell></TableRow>)}{(!movements.isLoading && !(movements.data?.length)) && <EmptyRow colSpan={7} text={l.noRows} />}</TableBody></Table></CardContent></Card>}
 
 
       {tab === "laboratory" && <div className="space-y-4">
@@ -2425,7 +2425,7 @@ export default function Commercial() {
         </div>
       </div>}
 
-      {tab === "stock" && stockView === "chargement" && <div className="space-y-4">
+      {tab === "stock" && stockView === "chargement" && (!embeddedStockView || embeddedStockView === "chargement") && <div data-embedded-stock-section className="space-y-4">
         <div className="flex flex-wrap gap-3 rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
           <input
             data-testid="gs-chargement-search"
@@ -3032,7 +3032,9 @@ export default function Commercial() {
       </div>}
 
       {tab === "laboratory" && <QrScanDialog open={qualityQrScanOpen} onClose={() => setQualityQrScanOpen(false)} onScan={handleQualityQrScan} />}
-      <style>{`@media print {
+      <style>{`.commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
+        .commercial-embedded-stock [data-embedded-stock-section] { display: block; }
+        @media print {
         body * { visibility: hidden !important; }
         .oil-purchase-statement-print, .oil-purchase-statement-print * { visibility: visible !important; }
         .oil-purchase-statement-print { position: absolute !important; inset: 0 !important; width: 100% !important; margin: 0 !important; padding: 8mm !important; background: #fff !important; color: #111 !important; }
