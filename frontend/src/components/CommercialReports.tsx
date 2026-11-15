@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, FileSpreadsheet, FileText } from "lucide-react";
 import { API_ORIGIN, apiGet } from "@/lib/api";
 import { CodeBadge, StatCard } from "@/components/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,7 +259,7 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
           })}
         </div>
       </div>
-      <button className="flex h-9 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm hover:bg-stone-100" onClick={() => { void purchases.refetch(); void production.refetch(); void transfers.refetch(); void sales.refetch(); void suppliers.refetch(); void buyers.refetch(); void locations.refetch(); void tanks.refetch(); void oliveLots.refetch(); }}><RefreshCw className="size-4" />{ar ? "تحديث" : "Actualiser"}</button>
+
     </div>
     {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar ? "تعذر تحميل جزء من بيانات التقرير. تحقق من الاتصال ثم حدّث الصفحة." : "Impossible de charger une partie des données du rapport. Vérifiez la connexion puis actualisez."}</div>}
     <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
