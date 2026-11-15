@@ -17,7 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import CommercialFactures from "@/components/CommercialFactures";
 import { CodeBadge, StatCard } from "@/components/shared";
 import QrScanDialog from "@/components/QrScanDialog";
-import CommercialReports from "@/components/CommercialReports";
 import Comptabilite from "@/pages/Comptabilite";
 
 import { QRCodeSVG } from "qrcode.react";
@@ -186,7 +185,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "reports", "accounting"];
+  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "accounting"];
   const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
@@ -1788,7 +1787,6 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
 
     { id: "production", label: l.productionTab, icon: Factory },
     { id: "transfers", label: l.internalMovementsTab, icon: RefreshCw },
-    { id: "reports", label: "Rapport", icon: FileText },
     { id: "sales", label: salesText.sales, icon: ShoppingCart },
     { id: "factures", label: l.facturesTab, icon: FileText },
     { id: "accounting", label: lang === "ar" ? "المحاسبة" : "Comptabilité", icon: Calculator },
@@ -2980,7 +2978,6 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       </div>}
 
       {tab === "factures" && ready && <CommercialFactures initialInvoiceId={buyerInvoiceToOpen} />}
-      {tab === "reports" && ready && <CommercialReports lang={lang} /> }
 
       {tab === "sales" && salesView === "sales" && <div className="space-y-4">
         {isAdmin && <Card><CardHeader><CardTitle>{salesText.createSale}</CardTitle><CardDescription>{saleTankOptions.length ? salesText.saleDraftHint : salesText.noEligibleOil}</CardDescription></CardHeader><CardContent>
