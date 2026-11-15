@@ -145,7 +145,7 @@ export default function Loads() {
                       <Droplet className="size-4" />
                       {l.oil_kg != null ? t("edit_oil") : t("enter_oil")}
                     </Button>
-                    {isAdmin && (
+                    {isAdmin && !(l.status === "done" && invoiceByLoad.has(l.id)) && (
                       <Button size="sm" variant="ghost" onClick={() => setCancelling(l)} data-testid={`load-cancel-${l.code}`} className="rounded-lg text-red-600 hover:bg-red-50">
                         <Ban className="size-4" />
                         {t("cancel_load")}
