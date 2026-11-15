@@ -39,7 +39,7 @@ def _safe(value: Any) -> Any:
 
 async def _recent(
     collection: str, sort_field: str = "created_at",
-    limit: int = RECENT_LIMIT, match: dict | None = None,
+    limit: int | None = RECENT_LIMIT, match: dict | None = None,
 ):
     docs = await db[collection].find(match or {}, {"_id": 0}).sort(sort_field, -1).to_list(limit)
     return _safe(docs)
@@ -81,58 +81,88 @@ async def _supplier_outstanding_total(match: dict) -> str:
     return rows[0]["total"] if rows else "0.000"
 
 
+def _filter_accounting_period(rows: list[dict], start_day: str | None, end_day: str | None, fields: tuple[str, ...]) -> list[dict]:
+    if not start_day and not end_day:
+        return rows
+    filtered = []
+    for row in rows:
+        value = next((row.get(field) for field in fields if row.get(field)), None)
+        day = _accounting_day(value)
+        if day and (not start_day or day >= start_day) and (not end_day or day <= end_day):
+            filtered.append(row)
+    return filtered
+
+
+def _sum_accounting_rows(rows: list[dict], field: str) -> str:
+    total = sum((_accounting_decimal(row.get(field)) for row in rows), Decimal("0.000"))
+    return format(total, "f")
+
+
+def _outstanding_accounting_rows(rows: list[dict]) -> str:
+    total = Decimal("0.000")
+    for row in rows:
+        amount = _accounting_decimal(row.get("outstanding_amount_dt"))
+        if "outstanding_amount_dt" not in row or row.get("outstanding_amount_dt") is None:
+            amount = _accounting_decimal(row.get("total_amount_dt")) - _accounting_decimal(row.get("paid_amount_dt"))
+        total += max(amount, Decimal("0.000"))
+    return format(total, "f")
+
+
 @router.get("/overview")
-async def accounting_overview(_: dict = Depends(require_admin)):
-    """Read-only totals and recent source documents for the active season only."""
+async def accounting_overview(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    _: dict = Depends(require_admin),
+):
+    """Read-only accounting overview; optional inclusive business-date range."""
+    start_day = end_day = None
+    try:
+        if start_date:
+            start_day = date.fromisoformat(start_date).isoformat()
+        if end_date:
+            end_day = date.fromisoformat(end_date).isoformat()
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Date invalide. Format attendu : AAAA-MM-JJ.")
+    if start_day and end_day and start_day > end_day:
+        raise HTTPException(status_code=422, detail="La date de début doit précéder ou égaler la date de fin.")
+    period_selected = bool(start_day or end_day)
+
     season = await active_season()
     season_code = season_prefix(season)
     commercial_match = {"season_code": season_code}
-
-    # Traditional invoices predate season_code. Their authoritative season is
-    # the season_id on the source olive load, so join by its load_id.
     seasonal_load_ids = await db.loads.distinct("id", {"season_id": season})
     invoice_match = {"load_id": {"$in": seasonal_load_ids}}
 
+    # A date-filtered report must not inherit the 200-row display cap.
+    fetch_limit = None if period_selected else RECENT_LIMIT
     (
         invoices, olive_purchases, supplier_payments, internal_movements, oil_purchases,
         sales_invoices, sale_payments, oil_payments, credit_notes, suppliers, owners,
-        pressing_revenue, pressing_collected, gs_sales_revenue, gs_collected,
-        supplier_olive_total, supplier_olive_paid, supplier_olive_outstanding,
-        customer_olive_total, customer_olive_paid, customer_oil_total, customer_oil_paid,
     ) = await asyncio.gather(
-        _recent("invoices", "day", match=invoice_match),
-        _recent("commercial_olive_purchases", match=commercial_match),
-        _recent("commercial_supplier_olive_purchase_payments", "payment_date", match=commercial_match),
-        _recent("commercial_internal_movements", match=commercial_match),
-        _recent("commercial_oil_purchase_documents", match=commercial_match),
-        _recent("commercial_sales_invoices", match=commercial_match),
-        _recent("commercial_sale_payments", match=commercial_match),
-        _recent("commercial_oil_purchase_payments", match=commercial_match),
-        _recent("commercial_credit_notes", match=commercial_match),
+        _recent("invoices", "day", fetch_limit, invoice_match),
+        _recent("commercial_olive_purchases", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_supplier_olive_purchase_payments", "payment_date", fetch_limit, commercial_match),
+        _recent("commercial_internal_movements", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_oil_purchase_documents", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_sales_invoices", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_sale_payments", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_oil_purchase_payments", "created_at", fetch_limit, commercial_match),
+        _recent("commercial_credit_notes", "created_at", fetch_limit, commercial_match),
         _recent("commercial_suppliers", "name", 1000),
         _recent("commercial_custody_owners", "client_name", 5000),
-        _sum("invoices", "total", invoice_match),
-        _sum("invoices", "paid_amount", invoice_match),
-        _sum("commercial_sales_invoices", "net_amount_dt", commercial_match),
-        _sum("commercial_sales_invoices", "paid_amount_dt", commercial_match),
-        _sum("commercial_olive_purchases", "total_amount_dt", {**commercial_match, "status": "APPROVED"}),
-        _sum("commercial_supplier_olive_purchase_payments", "amount_tnd", commercial_match),
-        _supplier_outstanding_total({**commercial_match, "status": "APPROVED"}),
-        _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {
-            **commercial_match, "product_kind": "OLIVE",
-        }),
-        _sum("commercial_oil_purchase_payments", "amount_tnd", {
-            **commercial_match, "product_kind": "OLIVE",
-        }),
-        _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {
-            **commercial_match,
-            "$or": [{"product_kind": "OIL"}, {"product_kind": {"$exists": False}}],
-        }),
-        _sum("commercial_oil_purchase_payments", "amount_tnd", {
-            **commercial_match,
-            "$or": [{"product_kind": "OIL"}, {"product_kind": {"$exists": False}}],
-        }),
     )
+
+    if period_selected:
+        invoices = _filter_accounting_period(invoices, start_day, end_day, ("day", "created_at"))
+        olive_purchases = _filter_accounting_period(olive_purchases, start_day, end_day, ("purchase_date", "day", "created_at"))
+        supplier_payments = _filter_accounting_period(supplier_payments, start_day, end_day, ("payment_date", "paid_at", "day", "created_at"))
+        internal_movements = _filter_accounting_period(internal_movements, start_day, end_day, ("movement_date", "day", "created_at"))
+        oil_purchases = _filter_accounting_period(oil_purchases, start_day, end_day, ("purchase_date", "day", "created_at"))
+        sales_invoices = _filter_accounting_period(sales_invoices, start_day, end_day, ("sale_date", "day", "created_at"))
+        sale_payments = _filter_accounting_period(sale_payments, start_day, end_day, ("payment_date", "paid_at", "day", "created_at"))
+        oil_payments = _filter_accounting_period(oil_payments, start_day, end_day, ("payment_date", "paid_at", "day", "created_at"))
+        credit_notes = _filter_accounting_period(credit_notes, start_day, end_day, ("issue_date", "credit_note_date", "day", "created_at"))
+
     supplier_names = {str(item.get("id")): item.get("name") for item in suppliers}
     owner_names = {str(item.get("id")): item.get("client_name") for item in owners}
     for purchase in olive_purchases:
@@ -141,22 +171,45 @@ async def accounting_overview(_: dict = Depends(require_admin)):
         source_owner = movement.get("source_owner") or {}
         movement["customer_name"] = owner_names.get(str(source_owner.get("customer_id")))
 
-    return {
-        "active_season": season,
-        "season_code": season_code,
-        "traditional_invoices": invoices,
-        "supplier_olive_purchases": olive_purchases,
-        "supplier_olive_purchase_payments": supplier_payments,
-        "customer_ownership_transfers": internal_movements,
-        "customer_olive_purchases": [item for item in oil_purchases if item.get("product_kind") == "OLIVE"],
-        "customer_oil_purchases": [item for item in oil_purchases if item.get("product_kind", "OIL") == "OIL"],
-        "commercial_sales_invoices": sales_invoices,
-        "commercial_sale_payments": sale_payments,
-        "customer_olive_purchase_payments": [item for item in oil_payments if item.get("product_kind") == "OLIVE"],
-        "customer_oil_purchase_payments": [item for item in oil_payments if item.get("product_kind", "OIL") == "OIL"],
-        "commercial_credit_notes": credit_notes,
-        "suppliers": suppliers,
-        "summary": {
+    approved_supplier_purchases = [row for row in olive_purchases if row.get("status") == "APPROVED"]
+    customer_olive_purchases = [row for row in oil_purchases if row.get("product_kind") == "OLIVE"]
+    customer_oil_purchases = [row for row in oil_purchases if row.get("product_kind", "OIL") == "OIL"]
+    customer_olive_payments = [row for row in oil_payments if row.get("product_kind") == "OLIVE"]
+    customer_oil_payments = [row for row in oil_payments if row.get("product_kind", "OIL") == "OIL"]
+
+    if period_selected:
+        summary = {
+            "pressing_revenue_total": _sum_accounting_rows(invoices, "total"),
+            "pressing_collected_total": _sum_accounting_rows(invoices, "paid_amount"),
+            "gs_sales_revenue_total": _sum_accounting_rows(sales_invoices, "net_amount_dt"),
+            "gs_sales_collected_total": _sum_accounting_rows(sales_invoices, "paid_amount_dt"),
+            "supplier_olive_purchase_total": _sum_accounting_rows(approved_supplier_purchases, "total_amount_dt"),
+            "supplier_olive_paid_total": _sum_accounting_rows(supplier_payments, "amount_tnd"),
+            "supplier_olive_outstanding_total": _outstanding_accounting_rows(approved_supplier_purchases),
+            "customer_olive_purchase_total": _sum_accounting_rows(customer_olive_purchases, "agreed_amount_tnd"),
+            "customer_olive_paid_total": _sum_accounting_rows(customer_olive_payments, "amount_tnd"),
+            "customer_oil_purchase_total": _sum_accounting_rows(customer_oil_purchases, "agreed_amount_tnd"),
+            "customer_oil_paid_total": _sum_accounting_rows(customer_oil_payments, "amount_tnd"),
+        }
+    else:
+        (
+            pressing_revenue, pressing_collected, gs_sales_revenue, gs_collected,
+            supplier_olive_total, supplier_olive_paid, supplier_olive_outstanding,
+            customer_olive_total, customer_olive_paid, customer_oil_total, customer_oil_paid,
+        ) = await asyncio.gather(
+            _sum("invoices", "total", invoice_match),
+            _sum("invoices", "paid_amount", invoice_match),
+            _sum("commercial_sales_invoices", "net_amount_dt", commercial_match),
+            _sum("commercial_sales_invoices", "paid_amount_dt", commercial_match),
+            _sum("commercial_olive_purchases", "total_amount_dt", {**commercial_match, "status": "APPROVED"}),
+            _sum("commercial_supplier_olive_purchase_payments", "amount_tnd", commercial_match),
+            _supplier_outstanding_total({**commercial_match, "status": "APPROVED"}),
+            _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {**commercial_match, "product_kind": "OLIVE"}),
+            _sum("commercial_oil_purchase_payments", "amount_tnd", {**commercial_match, "product_kind": "OLIVE"}),
+            _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {**commercial_match, "$or": [{"product_kind": "OIL"}, {"product_kind": {"$exists": False}}]}),
+            _sum("commercial_oil_purchase_payments", "amount_tnd", {**commercial_match, "$or": [{"product_kind": "OIL"}, {"product_kind": {"$exists": False}}]}),
+        )
+        summary = {
             "pressing_revenue_total": pressing_revenue,
             "pressing_collected_total": pressing_collected,
             "gs_sales_revenue_total": gs_sales_revenue,
@@ -168,11 +221,28 @@ async def accounting_overview(_: dict = Depends(require_admin)):
             "customer_olive_paid_total": customer_olive_paid,
             "customer_oil_purchase_total": customer_oil_total,
             "customer_oil_paid_total": customer_oil_paid,
-        },
-        "recent_limit": RECENT_LIMIT,
+        }
+
+    return {
+        "active_season": season,
+        "season_code": season_code,
+        "traditional_invoices": invoices,
+        "supplier_olive_purchases": olive_purchases,
+        "supplier_olive_purchase_payments": supplier_payments,
+        "customer_ownership_transfers": internal_movements,
+        "customer_olive_purchases": customer_olive_purchases,
+        "customer_oil_purchases": customer_oil_purchases,
+        "commercial_sales_invoices": sales_invoices,
+        "commercial_sale_payments": sale_payments,
+        "customer_olive_purchase_payments": customer_olive_payments,
+        "customer_oil_purchase_payments": customer_oil_payments,
+        "commercial_credit_notes": credit_notes,
+        "suppliers": suppliers,
+        "summary": summary,
+        "recent_limit": None if period_selected else RECENT_LIMIT,
+        "date_range": {"start_date": start_day, "end_date": end_day} if period_selected else None,
         "accounting_basis": "ACTIVE_SEASON_SOURCE_DOCUMENTS_READ_ONLY",
     }
-
 
 class PassiveIncomeInput(BaseModel):
     income_type: Literal["RENT", "EQUIPMENT_RENTAL", "INTEREST", "INVESTMENT", "OTHER"]
