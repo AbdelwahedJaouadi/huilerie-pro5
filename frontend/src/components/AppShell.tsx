@@ -386,12 +386,9 @@ export default function AppShell() {
         <div className={cn("group fixed inset-x-0 top-0 z-50", navRevealEnabled ? "h-3" : "")}>
         <header className={cn("app-topbar-header border-b border-stone-200/70 bg-[#F9F8F3]/95 shadow-sm backdrop-blur-none transition-opacity duration-700 ease-in-out motion-reduce:transition-none", navRevealEnabled ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto" : "opacity-100")}>
           <div className="relative mx-auto flex max-w-7xl items-center gap-2 px-3 py-1 md:px-6">
-            <div dir="ltr" className="flex shrink-0 flex-col items-start gap-1">
-              <div className="flex items-center gap-2">
-                <HeaderAppearanceMenu />
-                <Brand />
-              </div>
+            <div dir="ltr" className="flex min-w-0 flex-1 items-center gap-2">
               {isCommercialWorkspace && <CommercialHeaderMenu lang={lang} />}
+              <Brand />
             </div>
             <div
               data-testid="header-non-terminated"
@@ -418,6 +415,7 @@ export default function AppShell() {
                 <LogOut className="size-4" />
               </Button>
             <div className="ms-auto flex items-center gap-2 pr-10">
+              <HeaderAppearanceMenu />
               <HeaderAppearanceMenu />\n              {user && <SeasonSwitcher isAdmin={isAdmin} />}
               {user && (
                 <Button
@@ -453,7 +451,7 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-      <BottomNav isAdmin={isAdmin} revealEnabled={navRevealEnabled} pendingLabCount={pendingLabLots.data} premium={location.pathname === "/" && dashboardPremium} />
+      <BottomNav isAdmin={isAdmin} revealEnabled={false} pendingLabCount={pendingLabLots.data} premium={location.pathname === "/" && dashboardPremium} />
     </div>
     </ThemeProvider>
   );
