@@ -453,14 +453,14 @@ export default function AppShell() {
               )}
               <LangToggle />
               <NavLink to="/help" data-testid="header-help" title={lang === "ar" ? "مساعدة" : "Aide"} aria-label={lang === "ar" ? "مساعدة" : "Aide"} className="grid size-8 shrink-0 place-items-center rounded-lg border border-sky-200 bg-sky-50 text-sky-800 shadow-sm transition-colors hover:bg-sky-100"><CircleHelp className="size-4" /></NavLink>
-              <Button type="button" variant="outline" size="icon" onClick={() => { void endSession(); }} title={lang === "ar" ? "إنهاء الجلسة" : "Fermer la session"} aria-label={lang === "ar" ? "إنهاء الجلسة" : "Fermer la session"} data-testid="header-logout" className="size-8 shrink-0 rounded-xl border-stone-200 bg-white text-stone-700 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-700"><LogOut className="size-4" /></Button>
-              <HeaderAppearanceMenu />
               {user && (
                 <div className="hidden text-end leading-tight sm:block" data-testid="user-role-badge">
                   <div className="font-semibold text-stone-900">{user.full_name}</div>
                   <div className="text-sm text-stone-500">{isAdmin ? t("admin") : t("worker")} · <span dir="ltr">@{user.username}</span></div>
                 </div>
               )}
+              <HeaderAppearanceMenu />
+              <Button type="button" variant="outline" size="icon" onClick={() => { void endSession(); }} title={lang === "ar" ? "إنهاء الجلسة" : "Fermer la session"} aria-label={lang === "ar" ? "إنهاء الجلسة" : "Fermer la session"} data-testid="header-logout" className="size-8 shrink-0 rounded-xl border-stone-200 bg-white text-stone-700 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-700"><LogOut className="size-4" /></Button>
 
             </div>
           </div>
