@@ -186,8 +186,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "stock", "lots", "movements", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "reports", "accounting"];
-  const initialTab: TabKey = qrBatchCode ? "stock" : requestedTab && (validTabs.includes(requestedTab as TabKey) || requestedTab === "chargement") ? (requestedTab === "lots" || requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "stock";
+  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "reports", "accounting"];
+  const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(initialTab);
@@ -1787,7 +1787,6 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     { id: "procurement", label: lang === "ar" ? "المشتريات" : "Achats", icon: ShoppingBasket },
 
     { id: "production", label: l.productionTab, icon: Factory },
-    { id: "stock", label: lang === "ar" ? "المخزون" : "Stocks", icon: Warehouse },
     { id: "transfers", label: l.internalMovementsTab, icon: RefreshCw },
     { id: "reports", label: "Rapport", icon: FileText },
     { id: "sales", label: salesText.sales, icon: ShoppingCart },
