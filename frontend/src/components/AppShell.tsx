@@ -417,12 +417,9 @@ export default function AppShell() {
         <header className={cn("app-topbar-header border-b border-stone-200/70 bg-[#F9F8F3]/95 shadow-sm backdrop-blur-none transition-opacity duration-700 ease-in-out motion-reduce:transition-none", navRevealEnabled ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto" : "opacity-100")}>
           <div className="relative mx-auto flex max-w-7xl items-center gap-2 px-3 py-1 md:px-6">
             <div dir="ltr" className="flex min-w-0 flex-1 items-center gap-3">
-              {isCommercialWorkspace && (
-                <div className="flex min-w-0 flex-col items-start gap-0.5" data-testid="commercial-header-section">
-                  <span className="px-1 text-xs font-extrabold leading-none tracking-wider text-emerald-900">GS</span>
-                  <CommercialHeaderMenu lang={lang} />
-                </div>
-              )}
+              <div className="flex min-w-0 flex-col items-start gap-0.5" data-testid="commercial-header-section">
+                <CommercialHeaderMenu lang={lang} />
+              </div>
               <Brand />
             </div>
             <div
