@@ -169,6 +169,23 @@ export default function CommercialReports({ lang, onExportActionsChange }: Props
             [ar ? "المبيعات" : "Volume vendu", `${fmt(totalSalesL, 3)} L`],
             [ar ? "قيمة المبيعات" : "Valeur des ventes", `${fmt(totalSalesAmount, 3)} TND`],
           ],
+          chart: chart.map(item => ({
+            period: item.period,
+            achats: Number(item.achats) || 0,
+            production: Number(item.production) || 0,
+            ventes: Number(item.ventes) || 0,
+          })),
+          breakdown: operationKinds.map(kind => {
+            const items = displayedRows.filter(item => item.kind === kind);
+            const quantity = items.reduce((total, item) => total + Number(item.qty || 0), 0);
+            const amount = items.reduce((total, item) => total + Number(item.amount || 0), 0);
+            return {
+              kind: ar ? ({ Achat: "شراء", Production: "إنتاج", Transfert: "تحويل", Vente: "بيع" } as Record<string, string>)[kind] : kind,
+              count: items.length,
+              quantity: `${fmt(quantity, 3)} ${kind === "Achat" ? "kg" : "L"}`,
+              amount: `${fmt(amount, 3)} TND`,
+            };
+          }),
         }),
       });
       if (!response.ok) {
