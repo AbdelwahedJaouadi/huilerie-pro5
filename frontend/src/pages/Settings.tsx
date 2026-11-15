@@ -702,8 +702,8 @@ export default function SettingsPage() {
     <div>
       <Tabs defaultValue="users">
         <PageHeader title={t("settings")} accent="bg-violet-500" right={
-          <div className="w-full overflow-x-auto">
-        <TabsList className="flex max-w-full flex-wrap items-center justify-end gap-1.5 bg-transparent p-0">
+          <div className="max-w-full shrink-0 overflow-x-auto">
+        <TabsList className="flex max-w-full flex-nowrap items-center justify-end gap-1.5 bg-transparent p-0">
           <TabsTrigger value="users" data-testid="settings-tab-users" aria-label="users" title="users" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
             <span className="grid size-7 place-items-center"><Users className="size-4 stroke-[2.2]" /></span></TabsTrigger>
           <TabsTrigger value="tariff" data-testid="settings-tab-tariff" aria-label="tariff" title="tariff" className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white p-1 text-stone-700 shadow-sm transition-all hover:bg-stone-50 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-950">
