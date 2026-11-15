@@ -2322,8 +2322,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         </CardContent></Card>
       </div>}
 
-      {tab === "procurement" && procurementView === "suppliers" && <div className="space-y-5">
-        <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
+      {tab === "procurement" && procurementView === "suppliers" && <div className="gs-suppliers-compact space-y-3 text-sm">
+        <div className="grid gap-3 xl:grid-cols-[280px_minmax(0,1fr)]">
           <div className="rounded-2xl border border-teal-200 bg-white p-4 shadow-sm">
             {isAdmin && <Button type="button" className="mb-3 w-full rounded-xl bg-teal-600 hover:bg-teal-700" onClick={() => { cancelSupplierEdit(); setShowSupplierForm((v) => !v); }}>
               <Plus className="mr-2 size-4"/>{lang === "ar" ? "إضافة مزوّد جديد" : "Nouveau fournisseur"}
@@ -3051,7 +3051,27 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       </div>}
 
       {tab === "laboratory" && <QrScanDialog open={qualityQrScanOpen} onClose={() => setQualityQrScanOpen(false)} onScan={handleQualityQrScan} />}
-      <style>{`.commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
+      <style>{`.gs-suppliers-compact { font-size: 12px; }
+        .gs-suppliers-compact > * { gap: 0.65rem !important; }
+        .gs-suppliers-compact .rounded-2xl { border-radius: 0.75rem !important; }
+        .gs-suppliers-compact .shadow-sm { box-shadow: 0 1px 2px rgb(0 0 0 / 0.05) !important; }
+        .gs-suppliers-compact .p-6 { padding: 0.75rem !important; }
+        .gs-suppliers-compact .p-5 { padding: 0.65rem !important; }
+        .gs-suppliers-compact .p-4 { padding: 0.6rem !important; }
+        .gs-suppliers-compact .px-5 { padding-left: 0.65rem !important; padding-right: 0.65rem !important; }
+        .gs-suppliers-compact .py-4 { padding-top: 0.45rem !important; padding-bottom: 0.45rem !important; }
+        .gs-suppliers-compact .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.65rem !important; }
+        .gs-suppliers-compact .space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem !important; }
+        .gs-suppliers-compact .text-3xl { font-size: 1.35rem !important; line-height: 1.7rem !important; }
+        .gs-suppliers-compact .text-2xl { font-size: 1.15rem !important; line-height: 1.5rem !important; }
+        .gs-suppliers-compact .text-lg { font-size: 0.95rem !important; line-height: 1.35rem !important; }
+        .gs-suppliers-compact input, .gs-suppliers-compact select { height: 2rem !important; font-size: 0.75rem !important; padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+        .gs-suppliers-compact button { font-size: 0.75rem !important; }
+        .gs-suppliers-compact table { font-size: 0.68rem !important; }
+        .gs-suppliers-compact th, .gs-suppliers-compact td { padding: 0.35rem 0.4rem !important; white-space: nowrap; }
+        .gs-suppliers-compact .print-sheet { font-size: 12px !important; }
+        @media print { .gs-suppliers-compact .print-sheet { font-size: 12px !important; } }
+        .commercial-embedded-stock > :not([data-embedded-stock-section]) { display: none !important; }
         .commercial-embedded-stock [data-embedded-stock-section] { display: block; }
         @media print {
         body * { visibility: hidden !important; }
