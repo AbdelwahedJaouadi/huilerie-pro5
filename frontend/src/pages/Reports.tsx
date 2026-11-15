@@ -21,6 +21,11 @@ export default function Reports() {
   const ar = lang === "ar";
   const me = useMe();
   const [activeReportTab, setActiveReportTab] = useState("normal");
+  const [commercialExportActions, setCommercialExportActions] = useState<{
+    excel: () => void;
+    pdf: () => void;
+    disabled: boolean;
+  } | null>(null);
   const [period, setPeriod] = useState<"daily" | "monthly">("daily");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -116,6 +121,15 @@ export default function Reports() {
             <a href={`https://huilerie-pro3.onrender.com/api/reports/revenue.pdf?${qs}`} download data-testid="report-export-pdf" className={cn(buttonVariants(), "rounded-xl bg-rose-600 hover:bg-rose-700")}>
               <FileText className="size-4" /> {t("export_pdf")}
             </a>
+          </div>
+        ) : activeReportTab === "commercial" && commercialExportActions ? (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={commercialExportActions.excel} disabled={commercialExportActions.disabled} data-testid="commercial-report-export-excel" className={cn(buttonVariants(), "rounded-xl bg-green-700 hover:bg-green-800 disabled:opacity-50")}>
+              <FileSpreadsheet className="size-4" /> {ar ? "تصدير Excel" : "Exporter Excel"}
+            </button>
+            <button type="button" onClick={commercialExportActions.pdf} disabled={commercialExportActions.disabled} data-testid="commercial-report-export-pdf" className={cn(buttonVariants(), "rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50")}>
+              <FileText className="size-4" /> {ar ? "تصدير PDF" : "Exporter PDF"}
+            </button>
           </div>
         ) : undefined}
       />
@@ -312,7 +326,7 @@ export default function Reports() {
       )}
         </TabsContent>
         <TabsContent value="commercial">
-          <CommercialReports lang={lang} />
+          <CommercialReports lang={lang} onExportActionsChange={setCommercialExportActions} />
         </TabsContent>
       </Tabs>
     </div>
