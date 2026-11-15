@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CalendarDays, Factory, ShoppingBasket, ArrowLeftRight, ShoppingCart, RefreshCw, FileSpreadsheet, FileText } from "lucide-react";
@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Row = Record<string, any>;
-type Props = { lang: string };
+type ExportActions = { excel: () => void; pdf: () => void; disabled: boolean };
+type Props = { lang: string; onExportActionsChange?: (actions: ExportActions | null) => void };
 
 const list = async (path: string): Promise<Row[]> => {
   const result: Row[] = [];
@@ -28,7 +29,7 @@ const dateOf = (row: Row) => String(first(row, ["purchase_date", "production_dat
 const fmt = (v: number, digits = 0) => new Intl.NumberFormat("fr-TN", { maximumFractionDigits: digits }).format(v);
 const labelDate = (v: string) => v ? new Date(v + "T12:00:00").toLocaleDateString() : "—";
 
-export default function CommercialReports({ lang }: Props) {
+export default function CommercialReports({ lang, onExportActionsChange }: Props) {
   const ar = lang === "ar";
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -191,11 +192,16 @@ export default function CommercialReports({ lang }: Props) {
     }
   };
 
+  useEffect(() => {
+    onExportActionsChange?.({
+      excel: exportExcel,
+      pdf: () => { void exportPdf(); },
+      disabled: loading || !displayedRows.length,
+    });
+    return () => onExportActionsChange?.(null);
+  }, [onExportActionsChange, exportExcel, exportPdf, loading, displayedRows.length]);
+
   return <div className="space-y-5" dir={ar ? "rtl" : "ltr"}>
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <button type="button" onClick={exportExcel} disabled={loading || !displayedRows.length} className="inline-flex h-9 items-center gap-2 rounded-xl bg-green-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet className="size-4" />{ar ? "تصدير Excel" : "Exporter Excel"}</button>
-      <button type="button" onClick={exportPdf} disabled={loading || !displayedRows.length} className="inline-flex h-9 items-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"><FileText className="size-4" />{ar ? "تصدير PDF" : "Exporter PDF"}</button>
-    </div>
     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
       <div className="flex min-w-fit items-center gap-2 font-semibold text-violet-950"><CalendarDays className="size-5" /> {ar ? "الفترة" : "Période du rapport"}</div>
       <label className="grid gap-1 text-xs font-medium text-stone-600">{ar ? "من" : "Du"}<input type="date" value={start} onChange={e => setStart(e.target.value)} className="h-9 rounded-lg border bg-white px-2 text-sm" /></label>
