@@ -152,6 +152,36 @@ async def accounting_overview(
         _recent("commercial_custody_owners", "client_name", 5000),
     )
 
+    all_invoices_for_payments = invoices
+    traditional_invoice_payments = []
+    for invoice in all_invoices_for_payments:
+        invoice_payments = invoice.get("payments") if isinstance(invoice.get("payments"), list) else []
+        if invoice_payments:
+            for payment in invoice_payments:
+                payment_day = _accounting_day(payment.get("at") or payment.get("payment_date") or payment.get("paid_at"))
+                if payment_day and (not period_selected or (not start_day or payment_day >= start_day) and (not end_day or payment_day <= end_day)):
+                    traditional_invoice_payments.append({
+                        "id": f"{invoice.get('id', '')}:{payment.get('at', '')}:{payment.get('amount', '')}",
+                        "invoice_id": invoice.get("id"),
+                        "invoice_number": invoice.get("number"),
+                        "client_name": invoice.get("client_name"),
+                        "payment_date": payment.get("at") or payment.get("payment_date") or payment.get("paid_at"),
+                        "amount": _safe(payment.get("amount", "0")),
+                        "paid_by": payment.get("by"),
+                    })
+        elif _accounting_decimal(invoice.get("paid_amount")) > 0:
+            invoice_day = _accounting_day(invoice.get("day") or invoice.get("created_at"))
+            if invoice_day and (not period_selected or (not start_day or invoice_day >= start_day) and (not end_day or invoice_day <= end_day)):
+                traditional_invoice_payments.append({
+                    "id": f"{invoice.get('id', '')}:legacy",
+                    "invoice_id": invoice.get("id"),
+                    "invoice_number": invoice.get("number"),
+                    "client_name": invoice.get("client_name"),
+                    "payment_date": invoice.get("day") or invoice.get("created_at"),
+                    "amount": _safe(invoice.get("paid_amount")),
+                    "paid_by": None,
+                })
+
     if period_selected:
         invoices = _filter_accounting_period(invoices, start_day, end_day, ("day", "created_at"))
         olive_purchases = _filter_accounting_period(olive_purchases, start_day, end_day, ("purchase_date", "day", "created_at"))
@@ -180,7 +210,7 @@ async def accounting_overview(
     if period_selected:
         summary = {
             "pressing_revenue_total": _sum_accounting_rows(invoices, "total"),
-            "pressing_collected_total": _sum_accounting_rows(invoices, "paid_amount"),
+            "pressing_collected_total": _sum_accounting_rows(traditional_invoice_payments, "amount"),
             "gs_sales_revenue_total": _sum_accounting_rows(sales_invoices, "net_amount_dt"),
             "gs_sales_collected_total": _sum_accounting_rows(sales_invoices, "paid_amount_dt"),
             "supplier_olive_purchase_total": _sum_accounting_rows(approved_supplier_purchases, "total_amount_dt"),
@@ -227,6 +257,7 @@ async def accounting_overview(
         "active_season": season,
         "season_code": season_code,
         "traditional_invoices": invoices,
+        "traditional_invoice_payments": traditional_invoice_payments,
         "supplier_olive_purchases": olive_purchases,
         "supplier_olive_purchase_payments": supplier_payments,
         "customer_ownership_transfers": internal_movements,
