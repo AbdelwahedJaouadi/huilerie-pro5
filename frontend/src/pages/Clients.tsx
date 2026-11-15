@@ -51,17 +51,17 @@ export default function Clients() {
   return (
     <div>
       <PageHeader title={t("clients")} sub={t("clients_sub")} accent="bg-teal-500" />
-      <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <div className="rounded-2xl border border-teal-200 bg-white p-4 shadow-sm">
+      <div className="grid gap-3 xl:grid-cols-[280px_1fr]">
+        <div className="rounded-xl border border-teal-200 bg-white p-2.5 shadow-sm">
           <Input
             data-testid="clients-search-input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("search_phone")}
-            className="mb-3 h-10 rounded-xl"
+            className="mb-2 h-8 rounded-lg text-sm"
           />
           {rows.length === 0 && <p className="py-10 text-center text-sm text-stone-500">{t("no_data")}</p>}
-          <ul className="max-h-[65vh] space-y-1 overflow-y-auto">
+          <ul className="max-h-[72vh] space-y-0.5 overflow-y-auto">
             {rows.map((c) => (
               <li key={c.phone}>
                 <button
@@ -69,7 +69,7 @@ export default function Clients() {
                   data-testid={`client-item-${c.phone}`}
                   onClick={() => setParams({ phone: c.phone })}
                   className={cn(
-                    "w-full rounded-xl px-3 py-2.5 text-start transition-colors duration-200",
+                    "w-full rounded-lg px-2 py-1.5 text-start text-sm transition-colors duration-200",
                     c.phone === phone ? "bg-teal-50 ring-1 ring-teal-300" : "hover:bg-stone-50",
                   )}
                 >
@@ -89,16 +89,16 @@ export default function Clients() {
 
         <div>
           {!phone && (
-            <div className="grid min-h-72 place-items-center rounded-2xl border-2 border-dashed border-stone-200 bg-white/60 p-8 text-center text-stone-500">
-              <div><BookUser className="mx-auto mb-3 size-10 text-teal-400" />{t("select_client")}</div>
+            <div className="grid min-h-56 place-items-center rounded-xl border-2 border-dashed border-stone-200 bg-white/60 p-5 text-center text-sm text-stone-500">
+              <div><BookUser className="mx-auto mb-2 size-8 text-teal-400" />{t("select_client")}</div>
             </div>
           )}
           {h && (
-            <div className="code-reveal space-y-5" data-testid="client-history">
-              <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+            <div className="code-reveal space-y-3 [&_table]:text-xs [&_th]:px-2 [&_th]:py-1.5 [&_td]:px-2 [&_td]:py-1.5" data-testid="client-history">
+              <div className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wider text-stone-500">{t("client")}</div>
-                  <div className="font-heading text-3xl font-bold text-stone-900" data-testid="client-history-name">{h.client_name}</div>
+                  <div className="font-heading text-2xl font-bold text-stone-900" data-testid="client-history-name">{h.client_name}</div>
                   <div className="mt-1 flex items-center gap-2 text-sm text-stone-600"><Phone className="size-4" /><span dir="ltr">{h.phone}</span></div>
                 </div>
                 {isAdmin && (
@@ -118,15 +118,15 @@ export default function Clients() {
                   </div>
                 )}
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5 [&>*]:min-w-0 [&_.text-2xl]:text-xl">
                 <StatCard tone="rose" testId="client-history-visits" label={t("visits")} value={h.loads_count} icon={<Layers />} />
                 <StatCard tone="olive" testId="client-history-olive" label={t("olive_kg")} value={fmtNum(h.olive_kg)} unit={t("kg")} icon={<Sprout />} />
                 <StatCard tone="gold" testId="client-history-oil" label={t("oil_kg")} value={fmtNum(h.oil_kg)} unit={t("liter")} icon={<Droplet />} />
                 <StatCard tone="sky" label={t("avg_yield")} value={h.avg_yield != null ? fmtNum(h.avg_yield, 2) : "—"} unit="%" icon={<Percent />} />
                 {h.amount != null && <StatCard tone="violet" testId="client-history-amount" label={t("amount")} value={fmtMoney(h.amount)} unit={t("dt")} icon={<Wallet />} />}
               </div>
-              <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-                <div className="border-b border-stone-100 px-5 py-4 font-heading text-lg font-bold">{t("history")}</div>
+              <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+                <div className="border-b border-stone-100 px-3 py-2 font-heading text-base font-bold">{t("history")}</div>
                 <Table data-testid="client-history-table">
                   <TableHeader className="bg-stone-50">
                     <TableRow>
