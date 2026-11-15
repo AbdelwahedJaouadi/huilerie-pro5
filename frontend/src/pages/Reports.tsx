@@ -119,9 +119,9 @@ export default function Reports() {
         }
       />
       <Tabs defaultValue="normal" className="w-full">
-        <TabsList className="mb-5 flex h-auto w-fit flex-wrap gap-1">
-          <TabsTrigger value="normal">{ar ? "التقرير العادي" : "Rapport de trituration"}</TabsTrigger>
-          <TabsTrigger value="commercial">{ar ? "تقرير التسيير التجاري" : "Rapport gestion commerciale"}</TabsTrigger>
+        <TabsList className="mb-5 flex h-auto w-fit flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
+          <TabsTrigger value="normal" className="rounded-xl border border-transparent px-5 py-2.5 font-semibold text-slate-600 transition-all data-[state=active]:border-amber-300 data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-md">{ar ? "التقرير العادي" : "Rapport de trituration"}</TabsTrigger>
+          <TabsTrigger value="commercial" className="rounded-xl border border-transparent px-5 py-2.5 font-semibold text-slate-600 transition-all data-[state=active]:border-emerald-300 data-[state=active]:bg-emerald-700 data-[state=active]:text-white data-[state=active]:shadow-md">{ar ? "تقرير التسيير التجاري" : "Rapport gestion commerciale"}</TabsTrigger>
         </TabsList>
         <TabsContent value="normal">
       <div className="mb-6 flex flex-wrap items-end gap-4 rounded-2xl border border-violet-200 bg-[#FAF5FF] p-4">
