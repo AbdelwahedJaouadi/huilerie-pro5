@@ -1831,11 +1831,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         </div>
         <div className="flex items-center gap-2">
           
-          <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void queryClient.invalidateQueries({ queryKey: ["commercial"] })}>
-            <RefreshCw className="size-4" /> {l.refresh}
-          </Button>
-        </div>
+
         </div>
       </div>
 
