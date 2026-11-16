@@ -1,5 +1,4 @@
 import { createPortal } from "react-dom";
-import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
 import Code128Barcode from "@/components/Code128Barcode";
