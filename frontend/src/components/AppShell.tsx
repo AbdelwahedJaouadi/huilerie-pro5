@@ -344,7 +344,11 @@ export default function AppShell() {
       const assessedCodes = new Set(assessments.map((assessment) => String(assessment.batch_code || assessment.sample_reference || "").trim().toUpperCase()).filter(Boolean));
       const pendingGsCount = lots.filter((lot) => lot.product_kind === "OLIVE" && lot.status === "OPEN" && lot.batch_code && !assessedCodes.has(String(lot.batch_code).trim().toUpperCase())).length;
       const analysedLoadIds = new Set(labAnalyses.map((analysis) => String(analysis.load_id)));
-      const pendingCustomerCount = customerLoads.filter((load) => !load.lab && load.status !== "cancelled" && !analysedLoadIds.has(String(load.id))).length;
+      const pendingCustomerCount = customerLoads.filter((load) =>
+        // Match the laboratory page: finished or delivered customer loads are no longer pending.
+        !load.lab && ["pending", "pressing"].includes(String(load.status))
+        && !analysedLoadIds.has(String(load.id))
+      ).length;
       return pendingGsCount + pendingCustomerCount;
     },
     refetchInterval: 30_000,
