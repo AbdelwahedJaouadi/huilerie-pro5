@@ -176,9 +176,9 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const valid = name.trim() && phone.trim().length >= 4 && kgVal > 0 && bagsOk;
 
   return (
-    <div className={stacked ? "grid gap-6" : "grid gap-6 xl:grid-cols-[1fr_1fr]"}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-stone-200 bg-white p-2">
+    <div className={stacked ? "grid gap-4" : "grid gap-4 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]"}>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-stone-200 bg-white p-1.5">
           <button type="button" onClick={() => setReceptionType("client")} className={receptionType === "client" ? "flex items-center justify-center gap-2 rounded-xl bg-lime-700 px-3 py-3 text-sm font-semibold text-white" : "flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-stone-600 hover:bg-stone-50"}><UserRound className="size-4" /> {ar ? "حريف · Oro Verde" : "Client · Oro Verde"}</button>
           <button type="button" onClick={() => setReceptionType("supplier")} className={receptionType === "supplier" ? "flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-3 text-sm font-semibold text-white" : "flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-stone-600 hover:bg-stone-50"}><Truck className="size-4" /> {ar ? "مزوّد · GS" : "Fournisseur · GS"}</button>
         </div>
@@ -187,15 +187,15 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           e.preventDefault();
           if (valid) m.mutate({ client_name: name, phone, olive_kg: kgVal, bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
         }}
-        className="space-y-5 rounded-2xl border border-lime-200 bg-[#F2F8EE] p-6 shadow-sm"
+        className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
       >
-        <div className="flex items-center gap-3 text-[#1E3A14]">
-          <div className="grid size-10 place-items-center rounded-xl bg-lime-600 text-white"><Sprout className="size-5" /></div>
-          <h2 className="font-heading text-xl font-bold">{t("register_arrival")}</h2>
+        <div className="flex items-center gap-2 text-[#1E3A14]">
+          <div className="grid size-8 place-items-center rounded-lg bg-lime-600 text-white"><Sprout className="size-4" /></div>
+          <h2 className="font-heading text-lg font-bold">{t("register_arrival")}</h2>
         </div>
-        <div className="space-y-2">
-          <Label>{t("client")}</Label>
+        <div className="space-y-1">
+          <Label className="text-xs">{t("client")}</Label>
           <div className="flex gap-2">
             <div className="relative min-w-0 flex-1" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setClientDropdownOpen(false); }}>
               <button
@@ -247,8 +247,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             </Button>
           </div>
         </div>
-        <div className="grid gap-5 md:grid-cols-2">
-        <div className="relative space-y-2">
+        <div className="grid gap-3 md:grid-cols-2">
+        <div className="relative space-y-1">
           <Label htmlFor="n">{t("full_name")}</Label>
           <Input
             id="n"
@@ -260,20 +260,20 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           />
 
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label htmlFor="ph">{t("phone")}</Label>
           <Input id="ph" dir="ltr" inputMode="tel" data-testid="intake-client-phone-input" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-11 rounded-xl bg-white text-start" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label htmlFor="kg">{t("olive_kg")} *</Label>
           <Input id="kg" inputMode="decimal" data-testid="intake-olive-kg-input" value={kg} onChange={(e) => setKg(e.target.value)} aria-invalid={kgBad} className="h-11 rounded-xl bg-white text-lg font-semibold" />
           {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label htmlFor="bags">{t("bags")}</Label>
           <Input id="bags" inputMode="numeric" data-testid="intake-bags-input" value={bags} onChange={(e) => setBags(e.target.value)} aria-invalid={!bagsOk} className="h-11 rounded-xl bg-white" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label>{t("variety")}</Label>
           <Select value={variety || null} onValueChange={(v) => setVariety((v as string) ?? "")}>
             <SelectTrigger className="h-11 w-full rounded-xl bg-white" data-testid="intake-variety-select"><SelectValue>{(v) => (v ? String(v) : <span className="text-stone-400">{t("choose_variety")}</span>)}</SelectValue></SelectTrigger>
@@ -282,7 +282,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label>{t("status")}</Label>
           <Select value={initStatus} onValueChange={(v) => setInitStatus(v as "pending" | "pressing")}>
             <SelectTrigger className="h-11 w-full rounded-xl bg-white" data-testid="intake-status-select"><SelectValue>{(v) => t(v as "pending" | "pressing")}</SelectValue></SelectTrigger>
@@ -293,11 +293,11 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           </Select>
         </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <Label htmlFor="obs">{t("observations")}</Label>
-          <Textarea id="obs" data-testid="intake-notes-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} className="min-h-20 rounded-xl bg-white" />
+          <Textarea id="obs" data-testid="intake-notes-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} className="min-h-14 rounded-lg bg-white" />
         </div>
-        <Button type="submit" disabled={!valid || m.isPending} data-testid="intake-submit-button" className="h-12 w-full rounded-xl bg-lime-700 text-base hover:bg-lime-800 active:scale-[0.98] transition-transform">
+        <Button type="submit" disabled={!valid || m.isPending} data-testid="intake-submit-button" className="h-10 w-full rounded-lg bg-lime-700 text-sm hover:bg-lime-800 active:scale-[0.98] transition-transform">
           <Plus className="size-5" />
           {t("register_arrival")}
         </Button>
@@ -373,9 +373,9 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       </div>
       <NewClientDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={(c) => pick(c)} />
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {receptionType === "client" && histPhone && h && (
-          <div data-testid="intake-client-history" className="rounded-xl border border-teal-200 bg-white p-4">
+          <div data-testid="intake-client-history" className="rounded-xl border border-teal-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 font-semibold text-teal-900"><History className="size-4 text-teal-600" /> {t("client_quick_history")}</div>
               <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800" data-testid="intake-history-avg-yield">
@@ -391,8 +391,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             {h.loads.length === 0 ? (
               <p className="text-sm text-stone-500">{t("no_previous_loads")}</p>
             ) : (
-              <ul className="max-h-48 divide-y divide-stone-100 overflow-auto text-sm">
-                {h.loads.slice(0, 6).map((l) => (
+              <ul className="max-h-96 divide-y divide-stone-100 overflow-auto text-sm">
+                {h.loads.map((l) => (
                   <li key={l.id} className="flex items-center justify-between gap-2 py-1.5" data-testid={`intake-history-load-${l.code}`}>
                     <span className="font-mono text-xs text-stone-600" dir="ltr">{l.code}</span>
                     <span className="text-lime-800">{fmtNum(l.olive_kg)} kg</span>
@@ -406,7 +406,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           </div>
         )}
         {receptionType === "supplier" && supplierId && !newSupplier && (
-          <div className="rounded-xl border border-blue-200 bg-white p-4" data-testid="intake-supplier-history">
+          <div className="rounded-xl border border-blue-200 bg-white p-5 shadow-sm" data-testid="intake-supplier-history">
             <div className="mb-3 flex items-center gap-2 font-semibold text-blue-950"><History className="size-4 text-blue-700" /> {ar ? "سجل المزوّد" : "Historique du fournisseur"}</div>
             <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs">
               <div className="rounded-lg bg-blue-50 p-2"><div className="text-stone-500">{ar ? "المشتريات المسجلة" : "Achats enregistrés"}</div><div className="text-base font-bold text-blue-900">{supplierPurchases.length}</div></div>
@@ -415,7 +415,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             <div className="mb-1 text-xs font-semibold text-stone-500">{ar ? "المشتريات السابقة" : "Achats précédents"}</div>
             {supplierPurchasesQuery.isLoading ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل السجل…" : "Chargement de l’historique…"}</p> :
               supplierPurchases.length === 0 ? <p className="text-sm text-stone-500">{ar ? "لا توجد مشتريات سابقة لهذا المزوّد." : "Aucun achat précédent pour ce fournisseur."}</p> :
-              <ul className="max-h-56 divide-y divide-stone-100 overflow-auto text-sm">
+              <ul className="max-h-96 divide-y divide-stone-100 overflow-auto text-sm">
                 {supplierPurchases.slice(0, 10).map((purchase) => <li key={purchase.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`intake-supplier-history-${purchase.id}`}>
                   <span className="min-w-0"><span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-stone-400">{ar ? "رمز الشراء" : "Code d’achat"}</span><span className="font-mono text-xs font-semibold text-blue-900" dir="ltr">{purchase.batch_code ?? purchase.batch_codes?.[0] ?? "—"}</span></span>
                   <span className="text-stone-600">{purchase.purchase_date ?? "—"}</span>
