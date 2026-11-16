@@ -702,7 +702,7 @@ export default function SettingsPage() {
     <div>
       <Tabs defaultValue="users">
         <PageHeader title={t("settings")} accent="bg-violet-500" right={
-          <div className="flex w-full min-w-0 -translate-y-4 justify-end self-start">
+          <div className="flex w-full min-w-0 -translate-y-8 justify-end self-start">
         <TabsList className="grid w-1/2 grid-cols-[repeat(30,minmax(0,1fr))] gap-1 bg-transparent p-0 [&>*:nth-child(-n+5)]:col-span-6 [&>*:nth-child(n+6)]:col-span-5">
           <TabsTrigger value="users" data-testid="settings-tab-users" aria-label="users" title="users" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 data-[state=active]:border-sky-600 data-[state=active]:bg-sky-600 data-[state=active]:text-white">
             <span className="grid size-4 place-items-center"><Users className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Utilisateurs</span></TabsTrigger>
