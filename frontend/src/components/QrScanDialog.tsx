@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { ScanLine } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
@@ -35,11 +35,11 @@ export default function QrScanDialog({ open, onClose, onScan }: { open: boolean;
     // wait one frame so the dialog has mounted the reader element
     const raf = requestAnimationFrame(() => {
       if (stopped) return;
-      scanner = new Html5Qrcode(READER_ID, false);
+      scanner = new Html5Qrcode(READER_ID, { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128] });
       scanner
         .start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 230, height: 230 } },
+          { fps: 10 },
           (text) => {
             const code = codeFromScan(text);
             if (!code) return;
