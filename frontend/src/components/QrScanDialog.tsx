@@ -41,13 +41,36 @@ export default function QrScanDialog({ open, onClose, onScan }: { open: boolean;
           { facingMode: "environment" },
           { fps: 10 },
           (text) => {
-            const code = codeFromScan(text);
-            if (!code) return;
+            const raw = text.trim();
+            if (!raw) return;
+            let destination: string | null = null;
+            if (raw.startsWith("OVC|")) {
+              destination = `/certificate/${encodeURIComponent(raw.slice(4))}`;
+            } else if (raw.startsWith("OVGS|")) {
+              destination = `/commercial/certificate/${encodeURIComponent(raw.slice(5))}`;
+            } else if (raw.startsWith("GS|")) {
+              const [, purchaseId, batchCode] = raw.split("|");
+              if (purchaseId && batchCode) {
+                destination = `/commercial?purchase=${encodeURIComponent(purchaseId)}&batch=${encodeURIComponent(batchCode)}`;
+              }
+            }
+            if (!destination) {
+              try {
+                const scannedUrl = new URL(raw);
+                if (scannedUrl.origin === window.location.origin) {
+                  destination = scannedUrl.pathname + scannedUrl.search + scannedUrl.hash;
+                }
+              } catch {
+                // Raw traceability codes are handled by the standard search route below.
+              }
+            }
+            const code = codeFromScan(raw);
+            if (!destination && !code) return;
             stopped = true;
             stop();
             onClose();
             if (onScan) onScan(code);
-            else navigate(`/search?code=${encodeURIComponent(code)}`);
+            else navigate(destination || `/search?code=${encodeURIComponent(code)}`);
           },
           () => undefined,
         )
