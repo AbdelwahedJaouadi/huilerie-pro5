@@ -125,6 +125,8 @@ function BottomNav({ isAdmin, revealEnabled, pendingLabCount, premium }: { isAdm
 
 function CommercialHeaderMenu({ lang }: { lang: string }) {
   const ar = lang === "ar";
+  const location = useLocation();
+  const selectedTab = new URLSearchParams(location.search).get("tab") || "procurement";
   const [open, setOpen] = useState(false);
   const items = [
     { label: ar ? "المشتريات" : "Achats", tab: "procurement" },
@@ -168,9 +170,12 @@ function CommercialHeaderMenu({ lang }: { lang: string }) {
                 role="menuitem"
                 data-testid={`commercial-menu-${item.tab}`}
                 onClick={() => setOpen(false)}
-                className={({ isActive }) => cn(
+                aria-current={selectedTab === item.tab ? "page" : undefined}
+                className={cn(
                   "block whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
-                  isActive ? "bg-emerald-800 text-white" : "text-stone-800 hover:bg-emerald-50 hover:text-emerald-900"
+                  selectedTab === item.tab
+                    ? "bg-emerald-700 text-white shadow-sm"
+                    : "text-stone-800 hover:bg-emerald-50 hover:text-emerald-900"
                 )}
               >
                 {item.label}
