@@ -107,11 +107,11 @@ export default function ClientAccounts() {
   const canPrint = Boolean(data && (!custom || (start && end)));
   return <section className="mb-6 space-y-4">
     <div className="grid gap-3 sm:grid-cols-2">
-      <button type="button" onClick={() => chooseMode("global")} className={`flex items-center gap-4 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mode === "global" ? "border-emerald-500 bg-emerald-50" : "border-stone-200 bg-white"}`}>
+      <button type="button" onClick={() => chooseMode("global")} className={`flex items-center gap-4 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mode === "global" ? "border-emerald-500 bg-emerald-200" : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-100 hover:border-emerald-400"}`}>
         <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><FileSpreadsheet className="size-6"/></span>
         <span><strong className="block text-base">{labels.global}</strong><small className="text-stone-500">{labels.globalSub}</small></span>
       </button>
-      <button type="button" onClick={() => chooseMode("statement")} className={`flex items-center gap-4 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mode === "statement" ? "border-sky-500 bg-sky-50" : "border-stone-200 bg-white"}`}>
+      <button type="button" onClick={() => chooseMode("statement")} className={`flex items-center gap-4 rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mode === "statement" ? "border-sky-500 bg-sky-200" : "border-sky-200 bg-gradient-to-br from-sky-50 to-blue-100 hover:border-sky-400"}`}>
         <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-800"><BookOpenCheck className="size-6"/></span>
         <span><strong className="block text-base">{labels.statement}</strong><small className="text-stone-500">{labels.statementSub}</small></span>
       </button>
