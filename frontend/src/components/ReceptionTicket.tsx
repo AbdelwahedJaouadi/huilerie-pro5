@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
-import Code128Barcode from "@/components/Code128Barcode";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiGet } from "@/lib/api";
@@ -13,11 +13,9 @@ type BothFn = ReturnType<typeof useI18n>["both"];
 
 function Code128Trial({ code }: { code: string }) {
   return (
-    <div data-testid="intake-ticket-code128" className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-800">Code 128</span>
-      <Code128Barcode value={code} width={2} height={54} />
+    <div data-testid="intake-ticket-qrcode" className="flex flex-col items-center gap-1">
+      <QRCodeSVG value={code} size={112} level="M" marginSize={1} />
       <span className="font-mono text-xs font-bold tracking-wider text-stone-800" dir="ltr">{code}</span>
-      <span className="text-[10px] text-stone-500">Scan to read the code</span>
     </div>
   );
 }
