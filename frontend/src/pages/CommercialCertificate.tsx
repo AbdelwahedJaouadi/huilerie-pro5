@@ -1,6 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
+import Code128Barcode from "@/components/Code128Barcode";
 import { ArrowLeft, Droplets, Printer } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { apiGet } from "@/lib/api";
@@ -75,7 +75,7 @@ export default function CommercialCertificate() {
               </div>
               <div className="flex items-start gap-3">
                 <div className="flex flex-col items-center gap-1 text-center">
-                  <QRCodeSVG value={window.location.href} size={84} level="M" marginSize={1} />
+                  <Code128Barcode value={`OVGS|${id}`} width={1.2} height={48} className="w-52" />
                   <span className="text-[10px] text-stone-600">Scanner pour consulter l'analyse</span>
                   <span dir="rtl" className="text-[10px] text-stone-600">امسح لعرض التحليل</span>
                 </div>
