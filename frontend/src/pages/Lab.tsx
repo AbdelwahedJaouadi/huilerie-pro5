@@ -116,7 +116,9 @@ export default function Lab() {
     return Number(load.olive_kg || 0) > 0 && receivedKg >= Number(load.olive_kg || 0);
   }).map((load) => load.id));
   const pendingLoads = (loadsList.data ?? []).filter((load) =>
-    !load.lab && load.status !== "cancelled"
+    // Customer loads leave the laboratory queue as soon as pressing is finished.
+    // Only loads still awaiting pressing (pending/pressing) may be selected for analysis.
+    !load.lab && ["pending", "pressing"].includes(load.status)
     && !fullyReceivedCustodyLoadIds.has(load.id)
     && !rows.some((analysis) => analysis.load_id === load.id)
   );
