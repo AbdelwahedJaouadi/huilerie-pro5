@@ -2,8 +2,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import JsBarcode from "jsbarcode";
+import Code128Barcode from "@/components/Code128Barcode";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiGet } from "@/lib/api";
@@ -14,28 +13,15 @@ import { CodeBadge } from "@/components/shared";
 type BothFn = ReturnType<typeof useI18n>["both"];
 
 function Code128Trial({ code }: { code: string }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  useEffect(() => {
-    if (!svgRef.current) return;
-    JsBarcode(svgRef.current, code, {
-      format: "CODE128",
-      displayValue: false,
-      lineColor: "#111827",
-      width: 2,
-      height: 54,
-      margin: 8,
-    });
-  }, [code]);
   return (
     <div data-testid="intake-ticket-code128" className="flex min-w-0 flex-col items-center gap-1 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-800">Code 128 · test</span>
-      <svg ref={svgRef} role="img" aria-label={`Code 128 barcode for ${code}`} className="h-auto max-w-full" />
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-800">Code 128</span>
+      <Code128Barcode value={code} width={2} height={54} />
       <span className="font-mono text-xs font-bold tracking-wider text-stone-800" dir="ltr">{code}</span>
       <span className="text-[10px] text-stone-500">Scan to read the code</span>
     </div>
   );
 }
-
 
 function BiLabel({ k, both, className }: { k: Parameters<BothFn>[0]; both: BothFn; className?: string }) {
   const v = both(k);
@@ -70,10 +56,6 @@ export default function ReceptionTicket({ load, children, testId = "intake-ticke
           <BiLabel k="code" both={both} className="mb-2 text-xs text-stone-500" />
           <CodeBadge code={load.code} testId="intake-generated-code" big />
           <BiLabel k="code_hint" both={both} className="mt-3 text-sm text-stone-500" />
-        </div>
-        <div data-testid="intake-ticket-qr" className="flex flex-col items-center gap-1">
-          <QRCodeSVG value={`${window.location.origin}/search?code=${encodeURIComponent(load.code)}`} size={112} level="M" marginSize={1} />
-          <BiLabel k="scan_to_open" both={both} className="text-[10px] text-stone-500" />
         </div>
         <Code128Trial code={load.code} />
       </div>
