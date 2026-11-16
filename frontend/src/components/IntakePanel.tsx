@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
-import Code128Barcode from "@/components/Code128Barcode";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -445,10 +445,9 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
                 <div className="inline-flex rounded-lg bg-amber-50 px-4 py-2 font-mono text-2xl font-bold text-amber-900" dir="ltr">{supplierReceipt.batch_code}</div>
                 <div className="mt-3 text-sm text-stone-500">{ar ? "رمز GS المعتمد لتتبع الدفعة" : "Code GS à conserver pour le suivi du lot"}</div>
               </div>
-              <div data-testid="supplier-ticket-code128" className="flex flex-col items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/60 px-3 py-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800">Code 128 · GS</span>
-                <Code128Barcode value={`GS|${supplierReceipt.purchase?.id ?? ""}|${supplierReceipt.batch_code ?? ""}`} width={1.2} height={48} />
-                <span className="text-[10px] text-stone-500">{ar ? "امسح لفتح الدفعة في GS" : "Scanner pour ouvrir le lot dans GS"}</span>
+              <div data-testid="supplier-ticket-qrcode" className="flex flex-col items-center gap-1">
+                <QRCodeSVG value={window.location.origin + "/commercial?purchase=" + encodeURIComponent(supplierReceipt.purchase?.id ?? "") + "&batch=" + encodeURIComponent(supplierReceipt.batch_code ?? "")} size={112} level="M" marginSize={1} />
+                <span className="text-[10px] text-stone-500">{ar ? "امسح الرمز لفتح الدفعة في GS" : "Scanner pour ouvrir le lot dans GS"}</span>
               </div>
             </div>
             <dl className="grid grid-cols-2 gap-4 border-t border-stone-200 pt-6 text-sm">
