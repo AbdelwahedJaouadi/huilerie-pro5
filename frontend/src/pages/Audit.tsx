@@ -153,6 +153,27 @@ export default function Audit() {
   };
   const entityName = (value?: string) => value ? (ENTITY_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? value) : "—";
   const actionName = (value?: string) => value ? (ACTION_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? value) : "—";
+  const operationReference = (item: AuditEvent) => {
+    const preferredKeys = [
+      "document_number", "invoice_number", "batch_code", "traceability_code",
+      "lot_code", "sample_reference", "payment_number", "reversal_number",
+      "source_load_code", "code", "number", "reference",
+    ];
+    const findReference = (value: unknown, depth = 0): string | undefined => {
+      if (!value || typeof value !== "object" || depth > 3) return undefined;
+      const record = value as Record<string, unknown>;
+      for (const key of preferredKeys) {
+        const candidate = record[key];
+        if (typeof candidate === "string" && candidate.trim() && candidate !== item.entity_id) return candidate.trim();
+      }
+      for (const nested of Object.values(record)) {
+        const found = findReference(nested, depth + 1);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    return findReference(item.details) ?? "—";
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6" dir={isArabic ? "rtl" : "ltr"} data-testid="admin-audit-page">
@@ -205,7 +226,7 @@ export default function Audit() {
                   <TableCell className="min-w-36 font-medium">{item.actor_name || item.actor_user_id || "system"}</TableCell>
                   <TableCell className="min-w-48 font-semibold">{actionName(item.action)}</TableCell>
                   <TableCell className="min-w-32">{entityName(item.entity_type)}</TableCell>
-                  <TableCell className="min-w-36 font-mono text-xs">{item.entity_id || "—"}</TableCell>
+                  <TableCell className="min-w-36 font-mono text-xs">{operationReference(item)}</TableCell>
                   <TableCell className="min-w-64">
                     {item.details && Object.keys(item.details).length > 0
                       ? <details className="max-w-md"><summary className="cursor-pointer text-sm font-medium text-emerald-800">{isArabic ? "عرض التفاصيل" : "Afficher"}</summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-2 text-xs">{JSON.stringify(item.details, null, 2)}</pre></details>
