@@ -148,7 +148,7 @@ export default function Factures() {
       <div className="w-full max-w-sm space-y-2">
         <Label>{t("invoice_status")}</Label>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full"><SelectValue>{statusFilter === "all" ? t("all") : statusFilter === "pending" ? t("invoice_status_pending") : statusFilter === "partial" ? t("invoice_status_partial") : t("invoice_status_paid")}</SelectValue></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("all")}</SelectItem>
             <SelectItem value="pending">{t("invoice_status_pending")}</SelectItem>
