@@ -234,8 +234,8 @@ function HeaderAppearanceMenu() {
   );
 }
 
-function Brand() {
-  const { t } = useI18n();
+function Brand({ nonTerminated }: { nonTerminated: number | undefined }) {
+  const { t, lang } = useI18n();
   const mill = useQuery({ queryKey: ["mill"], queryFn: () => apiGet<MillInfo>("/mill") });
   const m = mill.isError ? undefined : mill.data;
 
@@ -285,8 +285,22 @@ function Brand() {
           <Droplets className="size-5 text-amber-400" />
         </div>
       )}
-      <div>
-        <div className="font-heading text-base font-bold leading-tight text-stone-900" data-testid="header-brand-name">{m?.mill_name || t("app_name")}</div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div className="font-heading text-base font-bold leading-tight text-stone-900" data-testid="header-brand-name">{m?.mill_name || t("app_name")}</div>
+          <div
+            data-testid="header-non-terminated"
+            title="كل الحمولات التي لم تنتهِ من العصر"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-amber-950 shadow-sm"
+            aria-live="polite"
+          >
+            <Clock3 className="size-3.5 text-amber-700" />
+            <span className="text-xs font-semibold">{lang === "ar" ? "غير منتهية" : "Non terminé"}</span>
+            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+              {nonTerminated ?? "—"}
+            </span>
+          </div>
+        </div>
         <div className="hidden text-sm text-stone-500 sm:block">{t("app_tagline")}</div>
       </div>
     </div>
@@ -419,19 +433,7 @@ export default function AppShell() {
               <div className="flex min-w-0 flex-col items-start gap-0.5" data-testid="commercial-header-section">
                 <CommercialHeaderMenu lang={lang} />
               </div>
-              <Brand />
-            </div>
-            <div
-              data-testid="header-non-terminated"
-              title="كل الحمولات التي لم تنتهِ من العصر"
-              className="flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-1.5 py-1 text-amber-950 shadow-sm"
-              aria-live="polite"
-            >
-              <Clock3 className="size-4 text-amber-700" />
-              <span className="hidden text-sm font-semibold sm:inline">{lang === "ar" ? "غير منتهية" : "Non terminé"}</span>
-              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-amber-600 px-1.5 py-0.5 text-xs font-bold text-white">
-                {todayLoads.data?.non_terminated ?? "—"}
-              </span>
+              <Brand nonTerminated={todayLoads.data?.non_terminated} />
             </div>
 <div className="ms-auto flex items-center gap-2">
               {user && <SeasonSwitcher isAdmin={isAdmin} />}
