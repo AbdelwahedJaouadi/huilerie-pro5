@@ -35,7 +35,7 @@ export default function QrScanDialog({ open, onClose, onScan }: { open: boolean;
     // wait one frame so the dialog has mounted the reader element
     const raf = requestAnimationFrame(() => {
       if (stopped) return;
-      scanner = new Html5Qrcode(READER_ID, { formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128] });
+      scanner = new Html5Qrcode(READER_ID, { verbose: false, formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128] });
       scanner
         .start(
           { facingMode: "environment" },
