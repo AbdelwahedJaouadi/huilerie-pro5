@@ -19,7 +19,7 @@ import { CodeBadge, StatCard } from "@/components/shared";
 import QrScanDialog from "@/components/QrScanDialog";
 import Comptabilite from "@/pages/Comptabilite";
 
-import Code128Barcode from "@/components/Code128Barcode";
+import { QRCodeSVG } from "qrcode.react";
 
 type AnyRecord = Record<string, any>;
 type CommercialStatus = {
@@ -2610,9 +2610,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                 <div className="font-mono text-2xl font-bold text-stone-900" dir="ltr">{purchaseCodeDisplay(selectedPurchaseReceipt.batch_code || selectedPurchaseReceipt.batch_codes?.[0] || selectedPurchaseReceipt.lines?.[0]?.batch_code)}</div>
                 <div className="mt-3 text-sm text-stone-500">{lang === "ar" ? "كود GS الواجب الاحتفاظ به لتتبع الدفعة" : "Code GS à conserver pour le suivi du lot"}</div>
               </div>
-              <div data-testid="approved-purchase-ticket-code128" className="flex flex-col items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/60 px-3 py-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-blue-800">Code 128 · GS</span>
-                <Code128Barcode value={`GS|${selectedPurchaseReceipt.id ?? ""}|${selectedPurchaseReceipt.batch_code || selectedPurchaseReceipt.batch_codes?.[0] || selectedPurchaseReceipt.lines?.[0]?.batch_code || ""}`} width={1.2} height={48} />
+              <div data-testid="approved-purchase-ticket-qr" className="flex flex-col items-center gap-1">
+                <QRCodeSVG value={window.location.origin + "/commercial?purchase=" + encodeURIComponent(selectedPurchaseReceipt.id ?? "") + "&batch=" + encodeURIComponent(selectedPurchaseReceipt.batch_code || selectedPurchaseReceipt.batch_codes?.[0] || selectedPurchaseReceipt.lines?.[0]?.batch_code || "")} size={112} level="M" marginSize={1} />
                 <span className="text-[10px] text-stone-500">{lang === "ar" ? "امسح الرمز لفتح الدفعة في GS" : "Scanner pour ouvrir le lot dans GS"}</span>
               </div>
             </div>
