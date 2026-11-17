@@ -28,7 +28,7 @@ Target decisions:
 - Traditional load operations are authenticated but not all use explicit role-specific permissions. Build a least-privilege endpoint matrix before expanding staff access.
 - The app correctly rejects disabled authentication in production through runtime validation. Preserve this fail-closed guard.
 - The backend's traditional and commercial modules share the same MongoDB handle. Do not split the database as part of the foundation work.
-- Traditional load records must support gross weight, tare and net weight distinctly. Keep current manual entry working and define the record contract for a later electronic weighbridge; do not treat this as a live feature until separately implemented and tested.
+- Traditional load records must support gross weight, tare and net weight distinctly. Current source inspection shows the reception form persists only one `olive_kg` value; separate gross/tare capture is not yet implemented. Add manual gross and tare entry first, derive net server-side, preserve downstream compatibility through the existing `olive_kg` field during migration, and later connect the electronic weighbridge. Do not treat scale integration as live until separately implemented and tested.
 
 **Exit gate:** verified source/runtime map, permission matrix, relationship/integrity report and a regression-tested list of existing behavior that must not regress.
 
