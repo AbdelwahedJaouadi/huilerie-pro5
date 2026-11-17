@@ -131,3 +131,24 @@ The route inventory distinguishes two controls:
 Workers can be assigned only the allowlisted permissions in `ASSIGNABLE_COMMERCIAL_PERMISSIONS`. Some endpoints that check management permissions also carry an administrator dependency, so assigning a permission alone does not grant worker access. Conversely, worker-assignable `edit_records` and `delete_records` permissions can enable draft/specific-record operations such as supplier deactivation, olive-purchase draft changes, and the limited quality-assessment deletion above.
 
 The route scan confirms dependency presence, not that the current assignment model matches the mill's intended staffing model. A role matrix and endpoint tests are still required.
+
+
+## Existing test coverage and a test that currently encodes the weak load-delete rule
+
+- `backend/commercial/tests/test_permissions.py` covers the pure permission resolver, explicit worker grants, separation between lab recording and quality release, edit/delete assignment and inactive/unknown users.
+- `backend/commercial/tests/test_security_config.py` verifies that production rejects `AUTH_DISABLED=true`; this supports the fail-closed conclusion above.
+- `backend/tests/test_load_delete_unit.py` currently asserts that a load can be deleted whenever no invoice is found.
+- `backend/tests/test_atomic_invoice_deletes_unit.py::test_load_delete_checks_invoice_and_deletes_with_same_session` also expects the sequence invoice-check → load-read → load-delete → lab-delete → audit-event. It does not simulate a GS purchase, custody, quality or production reference.
+
+The last two tests are transaction-focused, but their expected behavior is too permissive for the target ERP traceability model. They should be strengthened when the complete load-reference inventory is finished: a referenced load must be retained and cancellation must not erase its source history. Keep the transaction/audit atomicity assertions while adding the downstream-reference blocker cases.
+
+## First implementation candidate (not yet changed)
+
+The first narrowly testable source correction should be the traditional load deletion policy, after enumerating all actual load references. The change should:
+- keep the existing invoice and ownership-transfer checks;
+- add explicit checks for every confirmed downstream reference, rather than guessing collection names or checking only a subset;
+- reject hard deletion with a stable conflict code when a reference exists;
+- preserve the current transaction boundary and audit event;
+- add tests for each reference type and for the genuinely unreferenced case.
+
+Do not implement this by blanket-blocking every load forever, because that would silently remove the ability to clean up a mistaken, never-used draft. The rule must distinguish an unreferenced intake draft from a source record already consumed by a business workflow.
