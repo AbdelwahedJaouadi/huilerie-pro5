@@ -9,15 +9,17 @@ Target decisions:
 ## Stage 0 — Source and runtime audit (current)
 
 - [x] Confirm repository `abdelwehed-hue/huilerie-pro5`, default branch `main`.
+- [x] Confirm the pro5 frontend and backend Render services exist and their latest inspected deploys are live on the same main commit.
 - [x] Inspect FastAPI entry point, shared MongoDB handle, core routers and frontend routes.
 - [x] Confirm that GS and the traditional app import the same configured MongoDB handle.
 - [x] Identify existing accounting dashboard/reporting and its limitations.
+- [x] Connect read-only to the available Atlas project and inspect the listed databases, collections, selected document counts and indexes.
+- [ ] Confirm the pro5 Render service's actual `MONGO_URL` target and `DB_NAME`; current Render service details did not expose these values.
 - [ ] Complete all route, collection, index and permission inventories.
-- [ ] Inspect live Render environment values without exposing secrets.
-- [ ] Inspect live MongoDB collection names/counts/indexes read-only.
+- [ ] Inspect unclassified migration/snapshot collections and validate data references.
 - [ ] Run existing automated tests and typecheck/build in a controlled environment.
 
-**Exit gate:** documented source/runtime map and a verified list of existing behavior that must not regress.
+**Exit gate:** documented source/runtime map and a verified list of existing behavior that must not regress, including confirmation of the production database used by pro5.
 
 ## Stage 1 — Stabilize the existing operational platform
 
@@ -106,7 +108,7 @@ Target decisions:
 ## Delivery rules
 
 - Work only in `huilerie-pro5`.
-- Keep the first audit documentation isolated on branch `audit/erp-foundation`.
+- Keep the audit documentation isolated on branch `audit/erp-foundation`.
 - No production data changes during source audit.
 - No database split during the initial phases.
 - No large-bang rewrite.
