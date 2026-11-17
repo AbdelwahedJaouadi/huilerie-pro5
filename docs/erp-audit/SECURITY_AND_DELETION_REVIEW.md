@@ -98,3 +98,36 @@ Traditional loads and invoices generally depend on `current_user`, with selected
 - No operational API behavior was changed.
 - No branch was merged and no deployment was triggered.
 - The application remains `huilerie-pro5` using the user-confirmed `huilerie-pro3` database.
+
+
+## Route inventory coverage (static scan)
+
+A static decorator/dependency scan of the commercial router found 89 route handlers. Every inspected handler declares either `Depends(current_user)` or `Depends(require_admin)`; no handler without one of those authentication dependencies was found in that router scan. The same scan found no unguarded route in the inspected traditional files:
+
+- `backend/routers/loads.py`: 10 routes, all authenticated; 3 administrator-only (cancellations, cancel, delete).
+- `backend/routers/invoices.py`: 5 routes, all authenticated; eligible-loads, create, update and delete are administrator-only.
+- `backend/routers/accounting.py`: 8 routes, all administrator-only.
+
+This is a static source check, not a live authorization test. It does not negate the S0 `AUTH_DISABLED` bypass: when that switch is on, `current_user` returns an administrator and therefore all of these dependencies accept the request.
+
+## Verified semantics behind selected commercial delete/cancel routes
+
+Further inspection of the called domain services narrows several earlier concerns:
+
+- Supplier DELETE is a **soft deactivation** (`active=false`) with version check, actor metadata and an audit event; historical purchase references remain.
+- Olive purchase UPDATE is restricted to `DRAFT` and writes before/after details to the audit event. Olive purchase cancel is also restricted to `DRAFT`, requires a reason, changes status to `CANCELLED`, and preserves the document and audit details. Approved receipts cannot use these draft-only operations.
+- Quality-assessment DELETE is restricted to the submitting analyst or an administrator, only for the latest assessment in `AWAITING_INDEPENDENT_REVIEW`, and restores the prior lot quality state. Reviewed assessments are explicitly immutable. The assessment document itself is deleted, but a detailed audit event stores its snapshot and the prior/after lot state. This is a narrowly scoped draft-like deletion, not deletion of a reviewed decision.
+- Preproduction sample cancellation is a state transition to `CANCELLED`; it requires a reason and only permits cancellation of a currently rejected sample with its latest rejected assessment.
+- Customer-custody receipt/release cancellation and correction are domain workflows that check later stock activity before allowing cancellation. Their service methods preserve cancellation metadata and audit events.
+
+The above means the commercial domain already contains several sound patterns worth reusing. The highest-risk destructive gaps remain traditional invoice deletion, accounting income/expense deletion, and traditional load deletion without a complete downstream-reference check.
+
+## Permission assignment caveat
+
+The route inventory distinguishes two controls:
+1. `_authorize(...)` checks the commercial permission.
+2. `Depends(require_admin)` independently restricts the endpoint to administrators.
+
+Workers can be assigned only the allowlisted permissions in `ASSIGNABLE_COMMERCIAL_PERMISSIONS`. Some endpoints that check management permissions also carry an administrator dependency, so assigning a permission alone does not grant worker access. Conversely, worker-assignable `edit_records` and `delete_records` permissions can enable draft/specific-record operations such as supplier deactivation, olive-purchase draft changes, and the limited quality-assessment deletion above.
+
+The route scan confirms dependency presence, not that the current assignment model matches the mill's intended staffing model. A role matrix and endpoint tests are still required.
