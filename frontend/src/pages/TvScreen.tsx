@@ -89,7 +89,14 @@ export default function TvScreen() {
   const { lang } = useI18n();
   const ar = lang === "ar";
   const { board, live } = useLiveBoard();
-  const settingsQuery = useQuery({ queryKey: ["tv-mill-settings"], queryFn: () => apiGet<TvDisplaySettings>("/tv/display-settings") });
+  const settingsQuery = useQuery({
+    queryKey: ["tv-mill-settings"],
+    queryFn: () => apiGet<TvDisplaySettings>("/tv/display-settings"),
+    // Media settings are edited from another device; keep the TV in sync without reloads.
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
   const mill = settingsQuery.data;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -319,7 +326,7 @@ export default function TvScreen() {
           data-testid="tv-video-player"
         >
           {videoId ? <div ref={youtubeHost} className="h-full w-full" data-testid="tv-youtube-player" /> : (
-            <video ref={directVideo} src={directVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" data-testid="tv-direct-video" />
+            <video key={directVideoUrl} ref={directVideo} src={directVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" data-testid="tv-direct-video" />
           )}
         </div>
       ) : null}
