@@ -173,3 +173,15 @@ The current tests `test_client_delete_unit.py` and `test_atomic_invoice_deletes_
 - retain those source loads and only delete genuinely unreferenced draft loads, while preserving the client identity needed by historical GS/customer records.
 
 Do not allow a bulk-delete route to bypass the domain invariants of the single-record route. The desired behavior for mixed client histories (some deletable drafts, some retained referenced loads) must be explicit and tested before implementation.
+
+
+## Other traditional destructive endpoints found
+
+The additional router scan found:
+
+- `DELETE /lab/{id}` in `backend/routers/lab.py` directly deletes a lab-analysis document. It requires an administrator, but the inspected handler does not write a dedicated audit event or check whether the analysis is part of a historical source-load record. The client-wide deletion path also deletes all lab records for the selected loads. This should become a controlled correction/void operation or a narrowly permitted deletion of an unreferenced draft, with an audit trail.
+- `DELETE /users/{id}` in `backend/routers/admin.py` hard-deletes a user account (except the currently signed-in administrator). Prefer deactivation for accounts that have authored operational or audit records so actor identity remains resolvable. Hard deletion should be limited to never-used accounts under an explicit policy.
+- `DELETE /sms/{sms_id}` deletes an SMS log, and `DELETE /sms/twilio` deletes Twilio configuration. These are not equivalent to deleting business source documents; configuration removal may remain a separate administrator action, while sent-message history should generally be retained according to a defined retention policy.
+- `POST /admin/reset` can clear explicitly selected operational/audit collections after the exact `RESET` confirmation and writes a separate `admin_reset_audit` record after the transaction. This is a high-impact administrative function and must remain tightly permissioned; it was not invoked in this audit.
+
+These are source-level findings. No delete endpoint was called during the review.
