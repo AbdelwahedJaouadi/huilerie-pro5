@@ -333,6 +333,7 @@ class ClientSummary(BaseModel):
     oil_kg: float
     last_visit: datetime
     amount: Optional[float] = None
+    active: bool = True
 
 
 class ClientHistory(BaseModel):
