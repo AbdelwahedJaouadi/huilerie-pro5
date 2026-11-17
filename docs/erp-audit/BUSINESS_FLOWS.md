@@ -13,6 +13,23 @@ Source modules inspected: `loads.py`, `lab.py`, `invoices.py`, `client_accounts.
 7. Record invoice payments and update invoice details.
 8. Display client account statements using load and invoice history.
 
+### Future weighbridge requirement — preserve in the data model
+
+Oro Verde must support a future physical vehicle weighbridge. The load/reception workflow must be designed to store, at minimum:
+
+- Gross vehicle/load weight (`poids brut`).
+- Tare/empty vehicle weight (`tare` / `poids à vide`).
+- Net olive/load weight (`poids net`), calculated as gross minus tare.
+- Weight unit, weighing timestamps, and the load/vehicle association.
+
+The first implementation may continue to accept manual readings. The data contract should be ready for a later electronic scale integration without changing the load identity or rewriting historical load records.
+
+For a proper weighbridge audit trail, retain each weighing event as a reading with its timestamp, operator/source (manual or scale), scale/device identifier when available, and any correction reason. Do not silently overwrite a previous reading. The system should validate that gross and tare are non-negative and net is positive; tare must be lower than gross. If a vehicle is weighed in two passes (loaded and empty), preserve both readings and derive net from the matched pair. Do not assume a fixed tare per truck: trailers, vehicles and configurations can change.
+
+When a scale is integrated, the captured stable reading should be linked to the active load and protected against duplicate submission. Manual override remains possible only with a recorded actor, reason and audit event. Calibration and scale verification records should be added as part of the equipment/compliance workflow before treating scale readings as certified measurements.
+
+This is a future requirement, not an instruction to create a new collection or change live load behavior during the current audit.
+
 ### Controls already visible in source
 
 - Traditional invoice collection has unique indexes on invoice ID, invoice number and non-null source load ID.
@@ -67,3 +84,4 @@ This is useful operational reporting, but it is not a posted double-entry accoun
 - Every invoice/payment must be linked to its source document and customer/supplier account.
 - Once accounting is introduced, every financially relevant approved source event must post at most once to the general ledger.
 - Accounting posting must be atomic with, or reliably recoverable from, the source workflow.
+- Traditional mill load records must preserve gross, tare and net weight as distinct, auditable measurements, ready for future weighbridge integration.
