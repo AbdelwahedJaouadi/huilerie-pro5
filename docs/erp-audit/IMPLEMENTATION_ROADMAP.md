@@ -12,14 +12,23 @@ Target decisions:
 - [x] Confirm the pro5 frontend and backend Render services exist and their latest inspected deploys are live on the same main commit.
 - [x] Inspect FastAPI entry point, shared MongoDB handle, core routers and frontend routes.
 - [x] Confirm that GS and the traditional app import the same configured MongoDB handle.
+- [x] User confirmed that pro5 intentionally uses database `huilerie-pro3`.
 - [x] Identify existing accounting dashboard/reporting and its limitations.
-- [x] Connect read-only to the available Atlas project and inspect the listed databases, collections, selected document counts and indexes.
-- [ ] Confirm the pro5 Render service's actual `MONGO_URL` target and `DB_NAME`; current Render service details did not expose these values.
+- [x] Connect read-only to the available Atlas project and inspect listed databases, collections, selected document counts and indexes.
+- [x] Inspect core authentication policy and representative traditional load, invoice and accounting mutation paths.
 - [ ] Complete all route, collection, index and permission inventories.
 - [ ] Inspect unclassified migration/snapshot collections and validate data references.
-- [ ] Run existing automated tests and typecheck/build in a controlled environment.
+- [ ] Run existing automated tests and frontend typecheck/build in a controlled environment.
 
-**Exit gate:** documented source/runtime map and a verified list of existing behavior that must not regress, including confirmation of the production database used by pro5.
+**Findings requiring Stage 1 treatment:**
+- Accounting overview is a source-document reporting layer, not double-entry general-ledger accounting.
+- Passive income and expense records can be physically deleted; traditional invoices also have a physical delete endpoint. Replace financial deletion with reversal/void workflows and preserve immutable history.
+- Commercial permissions are granular, but the assignable permission set is narrower than the full commercial permission set; purchases, production, sales and some operational capabilities remain admin-only in the current policy.
+- Traditional load operations are authenticated but not all use explicit role-specific permissions. Build a least-privilege endpoint matrix before expanding staff access.
+- The app correctly rejects disabled authentication in production through runtime validation. Preserve this fail-closed guard.
+- The backend's traditional and commercial modules share the same MongoDB handle. Do not split the database as part of the foundation work.
+
+**Exit gate:** verified source/runtime map, permission matrix, relationship/integrity report and a regression-tested list of existing behavior that must not regress.
 
 ## Stage 1 — Stabilize the existing operational platform
 
@@ -108,7 +117,7 @@ Target decisions:
 ## Delivery rules
 
 - Work only in `huilerie-pro5`.
-- Keep the audit documentation isolated on branch `audit/erp-foundation`.
+- Keep audit documentation isolated on branch `audit/erp-foundation`.
 - No production data changes during source audit.
 - No database split during the initial phases.
 - No large-bang rewrite.
