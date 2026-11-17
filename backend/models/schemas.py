@@ -321,6 +321,8 @@ class ClientUpdate(BaseModel):
 
 class ClientDeleteResult(BaseModel):
     deleted: int
+    deactivated: bool = False
+    loads_retained: int = 0
 
 
 class ClientSummary(BaseModel):
