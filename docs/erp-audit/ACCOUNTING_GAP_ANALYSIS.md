@@ -2,22 +2,24 @@
 
 ## Executive finding
 
-The existing `Comptabilite` module is an operational financial dashboard, not full general-ledger accounting. It consolidates source-document totals and a daily cash/accrual-style event report. No chart-of-accounts, journal-entry, general-ledger, trial-balance, balance-sheet, period-close or tax-ledger API was found in the inspected `backend/routers/accounting.py`.
+The existing `Comptabilite` module is an operational financial dashboard, not full general-ledger accounting. It consolidates source-document totals and a daily event report. No chart-of-accounts, journal-entry, general-ledger, trial-balance, balance-sheet, period-close or tax-ledger API was found in the inspected `backend/routers/accounting.py`.
 
 ## What exists today
 
-- `GET /api/accounting/overview`: aggregates traditional invoices and GS commercial source documents for the active season.
+- `GET /api/accounting/overview`: aggregates traditional invoices and GS commercial source documents for the active olive season.
 - `GET /api/accounting/daily-situation`: builds daily/period reporting events from invoices, purchases, payments, reversals, passive income and expenses.
 - Passive income records: list/create/delete.
 - Expense records: list/create/delete.
 - Frontend `/comptabilite`: overview and daily-situation tabs, summary cards, source-document tables and simple income/expense entry.
 - Commercial workflows already retain source documents, payment records, credit notes, reversals and customer/supplier balances.
+- Accounting routes inspected so far use `require_admin`; this is not yet a role matrix for accountant, cashier, manager and read-only staff.
 
-All inspected accounting endpoints depend on `require_admin`. This does not yet match the intended role-based access model for all staff (accountant, cashier, manager, read-only roles).
+## Runtime and database facts
 
-## Live database observation
-
-In the inspected Atlas database `huilerie-pro3`, neither `accounting_expenses` nor `accounting_passive_incomes` existed in the collection listing; both returned zero documents. This means the simple expense/passive-income entry module appears unused in that database, or the inspected database is not the active database for pro5. The Render backend's actual `DB_NAME` remains unverified.
+- The user explicitly confirmed that pro5 intentionally uses the existing MongoDB database named `huilerie-pro3`. Do not treat the database name as evidence of a wrong connection.
+- `backend/lib/db.py` creates one Mongo client and one configured `db` object. The traditional API and `backend/commercial/routers.py` import that same handle. GS and the traditional app therefore share the same database in the application code.
+- Whether the Render environment variables match that intended database was not independently exposed by the Render service-details response; the user's explicit confirmation is the accepted operational configuration for this audit.
+- The collection listing observed earlier did not show `accounting_expenses` or `accounting_passive_incomes`; their existence/use should be verified against the confirmed live database before assuming these modules contain operational history.
 
 ## Critical gaps for full double-entry accounting
 
@@ -31,16 +33,18 @@ In the inspected Atlas database `huilerie-pro3`, neither `accounting_expenses` n
 8. **Tax:** no configured tax codes, tax periods, tax reports or jurisdiction-specific posting rules found.
 9. **Fixed assets:** no asset register, depreciation schedules or disposal accounting found.
 10. **Period close:** no accounting-period locking, closing entries, retained earnings carry-forward or reopening approval workflow found.
-11. **Audit and corrections:** passive income and expense endpoints physically delete records; posted accounting records must instead be corrected by reversal/adjustment with full history.
+11. **Audit and corrections:** passive income and expense endpoints physically delete records. Traditional invoice deletion also physically removes the invoice after writing an audit event. These are material financial-history risks; the target ledger must correct posted financial events through reversal/adjustment rather than deletion.
 12. **Cost accounting:** no integrated cost-centre, production-cost allocation or finished-goods valuation ledger was found in the inspected accounting module.
 
-## Important current behavior to preserve but redesign
+## Important current behavior and risks to preserve or resolve
 
-- Money calculations in the accounting overview use Decimal/Decimal128-oriented helpers in key aggregation paths.
-- Traditional and commercial financial documents have separate source collections.
+- Money calculations in parts of the accounting overview use Decimal/Decimal128-oriented helpers, but the traditional invoice workflow still converts oil quantity to binary float before calculating the total. The financial core should standardize decimal-safe quantity and money handling end-to-end.
+- Traditional and commercial financial documents have separate source collections but share the same database.
 - The current summary is scoped to the active olive season. Full accounting must support fiscal years and arbitrary accounting periods independently of the olive season.
-- The frontend contains an explicit cash-basis comment for collected revenue. Full accrual accounting must distinguish invoice revenue, cash receipts, payables, expenses and stock valuation rather than mixing them into one total.
+- The frontend contains explicit cash-basis comments for collected revenue. Full accrual accounting must distinguish invoice revenue, cash receipts, payables, expenses and stock valuation rather than mixing them into one total.
 - The frontend declares an `AccountingInvestment` type, but no corresponding investment API route was found in the inspected accounting backend.
+- Traditional load creation, status changes, oil recording and delivery are available to authenticated users; invoice creation/update/deletion are admin-only. This is a partial role split, not yet a documented least-privilege role matrix.
+- Production runtime validation rejects `AUTH_DISABLED=true` when the app is running in production. Keep this fail-closed behavior.
 
 ## Proposed target accounting architecture
 
