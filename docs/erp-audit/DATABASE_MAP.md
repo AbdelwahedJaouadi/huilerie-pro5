@@ -144,3 +144,21 @@ These checks establish that the sampled/current documents do not contain danglin
 3. Validate references among loads, invoices, GS purchases, lots, production runs, stock movements and audit events.
 4. Compare actual index options with source-declared index requirements.
 5. Do not rename, drop, merge or bulk-rewrite collections during this audit.
+## Weighbridge / load-weight contract (verified against current source)
+
+The current traditional reception form (`frontend/src/components/IntakePanel.tsx`) submits a single `olive_kg` value. The `LoadCreate` schema currently validates only `olive_kg` (plus bags, variety, notes and initial status), and `backend/routers/loads.py` persists that value as the load's olive quantity. The current code therefore does **not yet** persist separate gross and tare readings.
+
+The required target model is:
+
+- `gross_weight`: gross vehicle/trailer weight while loaded.
+- `tare_weight`: same vehicle/trailer empty weight.
+- `net_weight`: gross minus tare; this is the authoritative olive quantity used by the existing production, invoice and stock workflows after validation.
+- `weight_unit`: explicit unit (initially kg; support conversion at the boundary only).
+- `weighing_source`: `manual` or `scale`.
+- `weighbridge_id` / `scale_id`: nullable until a device is installed.
+- `gross_weighed_at`, `tare_weighed_at`, `weighed_by`: timestamp and operator per reading.
+- immutable reading/audit history for corrections, including old value, new value, actor, timestamp and reason.
+
+Gross and tare must belong to the same vehicle/load and a coherent weighing event. Reject tare greater than or equal to gross unless an explicitly documented exceptional workflow applies. Calculate net server-side using decimal-safe arithmetic; do not trust a client-submitted net that disagrees with gross minus tare. Preserve the existing `olive_kg` API contract during migration or map it consistently to validated `net_weight` so downstream workflows do not silently change.
+
+**Important distinction:** the future scale integration is not implemented today. First support and validate manual gross/tare/net capture; later connect a selected scale using its actual protocol/API, device identity, stable-reading logic and idempotent submission. Never fabricate scale readings or label manual values as scale-certified.
