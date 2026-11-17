@@ -121,6 +121,22 @@ Source code declares core indexes in `backend/lib/db.py` and extensive commercia
 
 Several GS workflows use `run_transaction`; purchase, sales, production and custody commands commonly use idempotency keys. GS stock changes are routed through stock-ledger services.
 
+## Selected reference-integrity checks (read-only, 17 Nov 2026)
+
+Aggregation checks on the observed records returned no dangling references for these relationships:
+
+- Stock movement `lot_id` → `commercial_lots.id` (16 movements checked).
+- Production output lot and each production input olive lot → `commercial_lots.id` (4 runs and their input/output references checked).
+- Production `stock_movement_ids` → `commercial_stock_movements.id`.
+- Olive purchase `lot_ids` → `commercial_lots.id`.
+- Olive purchase `receipt_movement_ids` → `commercial_stock_movements.id`.
+- Sales invoice `sale_id` → `commercial_sales.id`.
+- Sales invoice dispatch allocation lot IDs → `commercial_lots.id`.
+- Commercial lot `source_load_id` → traditional `loads.id`.
+- Traditional load `ownership_transfer_lot_id` → `commercial_lots.id`.
+
+These checks establish that the sampled/current documents do not contain dangling references along the listed paths. They do **not** prove quantity reconciliation, FIFO correctness, historical completeness, uniqueness of every business code, or correctness of every possible relationship. Inventory reconciliation remains a separate Stage 1 gate.
+
 ## Next database inspection
 
 1. Reconcile all 49 observed collections with source-code collection references.
