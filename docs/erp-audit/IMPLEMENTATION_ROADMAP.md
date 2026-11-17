@@ -5,6 +5,7 @@ Target decisions:
 - Full double-entry accounting.
 - All staff use the system through role-specific access.
 - Start with foundation audit; do not rebuild working modules.
+- Future weighbridge integration is a defined operational requirement: capture gross, tare and net weights for vehicle loads, with a manual-first path and later electronic scale integration.
 
 ## Stage 0 — Source and runtime audit (current)
 
@@ -27,6 +28,7 @@ Target decisions:
 - Traditional load operations are authenticated but not all use explicit role-specific permissions. Build a least-privilege endpoint matrix before expanding staff access.
 - The app correctly rejects disabled authentication in production through runtime validation. Preserve this fail-closed guard.
 - The backend's traditional and commercial modules share the same MongoDB handle. Do not split the database as part of the foundation work.
+- Traditional load records must support gross weight, tare and net weight distinctly. Keep current manual entry working and define the record contract for a later electronic weighbridge; do not treat this as a live feature until separately implemented and tested.
 
 **Exit gate:** verified source/runtime map, permission matrix, relationship/integrity report and a regression-tested list of existing behavior that must not regress.
 
@@ -38,8 +40,9 @@ Target decisions:
 - Verify traceability, idempotency, transaction boundaries and stock-ledger reconciliation.
 - Standardize business identifiers and source-document references.
 - Establish role matrix and permission checks for every sensitive endpoint.
+- Design the load-weight data contract: gross, tare, net, unit, vehicle/load association, weighing time, operator, reading source and correction audit. Preserve raw readings and calculate net from the matched gross/tare pair.
 
-**Exit gate:** core reception-to-production-to-stock-to-sale workflows pass regression tests.
+**Exit gate:** core reception-to-production-to-stock-to-sale workflows pass regression tests; load weights are internally consistent and auditable.
 
 ## Stage 2 — Accounting foundation (design before UI)
 
@@ -96,6 +99,7 @@ Target decisions:
 - Inventory valuation policy.
 - Cost per litre / batch and margin analysis.
 - Machine downtime and maintenance cost linkage.
+- Link raw-material quantities and weighbridge evidence to production and cost calculations.
 
 **Exit gate:** sample batch costs reconcile to source expenses and inventory valuation.
 
@@ -106,11 +110,13 @@ Target decisions:
 - Role-specific operational dashboards.
 - Executive dashboard with drill-down to source records.
 - Alerts for operational, stock and financial exceptions.
+- Weighbridge equipment register, calibration/verification history and scale maintenance workflow before certified automatic weighing is enabled.
 
 ## Stage 8 — Optimization
 
 - Season comparisons and forecasting.
 - Anomaly detection after data quality is proven.
+- Integrate the physical weighbridge (stable reading capture, device protocol/API, scale ID, idempotent submission, manual override audit) after selecting the actual scale model and interface.
 - Offline mill workflow and synchronization only after the online source-of-truth model is defined and tested.
 - Multi-site support only if the business later requires it.
 
