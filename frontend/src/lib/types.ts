@@ -237,6 +237,8 @@ export interface ClientUpdate {
 
 export interface ClientDeleteResult {
   deleted: number;
+  deactivated: boolean;
+  loads_retained: number;
 }
 
 // Mirrors DEFAULT_SMS_ARRIVAL / DEFAULT_SMS_READY in backend/models/schemas.py
