@@ -307,6 +307,7 @@ export interface ClientSummary {
   oil_kg: number;
   last_visit: string;
   amount: number | null;
+  active: boolean;
 }
 
 export interface ClientHistory {
