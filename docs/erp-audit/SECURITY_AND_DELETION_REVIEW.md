@@ -152,3 +152,24 @@ The first narrowly testable source correction should be the traditional load del
 - add tests for each reference type and for the genuinely unreferenced case.
 
 Do not implement this by blanket-blocking every load forever, because that would silently remove the ability to clean up a mistaken, never-used draft. The rule must distinguish an unreferenced intake draft from a source record already consumed by a business workflow.
+
+
+## Additional critical path: deleting a client bypasses the safer single-load deletion helper
+
+A further source trace found a second deletion route in `backend/routers/extras.py`:
+
+- `DELETE /clients/{phone}` loads every traditional load for that phone.
+- It checks only whether any of those loads has a traditional invoice.
+- If no invoice exists, it deletes the client, deletes the associated lab and SMS records, and bulk-deletes all matching loads in one transaction.
+- It does **not** call the single-load deletion helper in `backend/routers/loads.py`.
+- It does not check `ownership_transferred`, `commercial_direct_load_purchases.source_load_id`, `commercial_customer_custody_receipts.source_load_id`, `commercial_lots.source_load_id`, or other GS references before bulk deletion.
+
+This is more serious than the single-load route: the single-load helper blocks a transferred load, but the client-wide bulk-delete path does not apply that guard. A customer whose load has been purchased directly by the mill or received into GS custody could therefore have the original traditional load removed while GS documents retain its source ID. The current Atlas snapshot's reference checks were read-only and found no dangling references at that inspection point; they do not protect against this future deletion path.
+
+The current tests `test_client_delete_unit.py` and `test_atomic_invoice_deletes_unit.py` validate only the invoice guard and transaction order. They do not exercise transferred loads or GS references.
+
+**Priority adjustment:** the first implementation candidate must cover both deletion entry points together. Create one shared load-deletion eligibility service used by single-load deletion and client deletion. The client deletion must either:
+- reject the entire operation if any load has any downstream/ownership-transfer reference; or
+- retain those source loads and only delete genuinely unreferenced draft loads, while preserving the client identity needed by historical GS/customer records.
+
+Do not allow a bulk-delete route to bypass the domain invariants of the single-record route. The desired behavior for mixed client histories (some deletable drafts, some retained referenced loads) must be explicit and tested before implementation.
