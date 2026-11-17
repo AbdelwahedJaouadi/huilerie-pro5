@@ -5,7 +5,7 @@ Scope: source inspection only; no production data or environment variables were 
 
 ## Executive findings
 
-### S0 — Public authentication mode can grant administrator authority to every visitor
+### S0 — Public authentication mode is rejected at production startup; retain this fail-closed guard
 
 In `backend/lib/auth.py`, `current_user()` checks `AUTH_DISABLED`. When the value is one of `1`, `true`, `yes` or `on`, it returns the first active database user whose role is `admin`, without validating a session cookie or identity. `require_admin()` then accepts that returned administrator.
 
@@ -93,7 +93,7 @@ Traditional loads and invoices generally depend on `current_user`, with selected
 
 ## Explicit non-changes
 
-- No production Render environment variable was read or changed.
+- No production Render environment variable was read or changed. The source startup guard and its unit test were inspected.
 - No MongoDB documents or collections were changed.
 - No operational API behavior was changed.
 - No branch was merged and no deployment was triggered.
