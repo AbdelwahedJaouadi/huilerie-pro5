@@ -20,6 +20,8 @@ Source modules inspected: `loads.py`, `lab.py`, `invoices.py`, `client_accounts.
 - Invoice creation writes a source-load guard version in the same transaction.
 - Invoice changes/deletions and load operations have audit-event writes in inspected paths, but coverage and immutability need a complete review.
 - Client statements aggregate events from multiple source collections.
+- A traditional invoice DELETE endpoint physically deletes the invoice and writes an audit event; this preserves evidence of deletion but removes the invoice from the operational source collection. Financial corrections should become void/reversal documents, not hard deletes.
+- A load can be physically deleted only when no invoice exists; the deletion also removes its lab records and writes a GS audit event. This path needs policy review for retention and legal traceability.
 
 ## B. GS / commercial workflow
 
@@ -44,7 +46,8 @@ Source module inspected: `backend/commercial/routers.py` and its service/schema 
 - Stock ledger is a dedicated service; the API rejects direct arbitrary stock movement creation.
 - Quality has release and correction workflows.
 - GS has a dedicated audit-events collection with indexes by date, entity, actor and action.
-- Commercial permissions are assigned per worker; admin receives the full declared commercial permission set.
+- Commercial permissions are assigned per worker; admin receives the full declared commercial permission set. The assignable worker permission list is narrower than the full admin set, leaving purchase, production, sales-management and other high-impact actions unavailable to ordinary workers unless the policy is deliberately expanded.
+- Accounting passive-income and expense records have physical DELETE endpoints; these should be replaced by reversal/void semantics before they are treated as accounting records.
 
 ## C. Accounting connection today
 
