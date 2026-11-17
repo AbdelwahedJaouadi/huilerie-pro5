@@ -129,3 +129,22 @@ Target decisions:
 - No large-bang rewrite.
 - Every implementation unit includes backend tests, frontend typecheck/build and a regression test for affected existing workflows.
 - Deploy only after the user approves the implementation scope and the release passes its test gate.
+
+
+## Stage 0 security and destructive-operation audit update (17 Nov 2026)
+
+The following source reviews are now documented alongside the original project/database/business-flow audit:
+
+- `SECURITY_AND_DELETION_REVIEW.md`: production authentication startup guard, traditional invoice/accounting/load/client/lab/user deletion risks, verified GS cancellation semantics, and test gaps.
+- `COMMERCIAL_PERMISSION_MATRIX.md`: static inventory of all 89 commercial API handlers, including dependency and commercial-permission guards.
+
+Key confirmed findings:
+- `backend/server.py` runs `validate_runtime_security()` before startup; Render is classified as production, and production startup rejects `AUTH_DISABLED=true`. Preserve this guard and its test.
+- All 89 commercial routes inspected have either `current_user` or `require_admin`; the inspected loads, invoices and accounting routers also had no unguarded routes. This does not prove that the effective worker permissions match the mill's desired job roles.
+- The traditional single-load delete checks invoices and ownership transfer, but not all downstream references.
+- The client-wide delete path checks invoices only and bulk-deletes all of the client's loads, bypassing the single-load ownership-transfer guard. It can therefore remove a traditional source load that GS documents may still reference.
+- Traditional invoice, passive-income and expense endpoints hard-delete business documents. Lab analysis and user records also have hard-delete endpoints.
+- Existing load/client deletion unit tests currently validate the narrower invoice-only rule; they must be strengthened rather than preserved as the desired ERP behavior.
+- GS supplier deactivation, draft olive-purchase update/cancellation, preproduction cancellation and reviewed-quality immutability already demonstrate safer domain patterns.
+
+**Updated Stage 0 exit gate:** complete the full load-reference inventory (including all direct-purchase, custody, lot and production links); define the client-deletion behavior for mixed histories; and replace the invoice-only deletion rule with shared, tested deletion eligibility used by both single-load and client-wide operations. No production environment or data was changed during this audit.
