@@ -1,7 +1,6 @@
-"""
-Oro Verde Gestion Commerciale (GS).
+"""Oro Verde Gestion Commerciale (GS).
 
-Independent commercial domain.
-Uses a dedicated database and does not modify
-the original olive-press application.
+GS is a distinct business domain within the Oro Verde application.
+It shares the configured MongoDB client/database handle from `lib.db`
+with the traditional olive-press modules.
 """
