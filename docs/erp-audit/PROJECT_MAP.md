@@ -1,16 +1,28 @@
 # Oro Verde ERP — Project Map (Initial Audit)
 
 Audit target: `abdelwehed-hue/huilerie-pro5`  
-Branch inspected: `main`  
+Source branch inspected: `main`  
 Audit branch: `audit/erp-foundation`  
-Scope: static source review only; no application, database, or Render configuration changes.
+Scope: source review plus read-only Render and Atlas inspection. No application source, database documents, indexes, environment variables, or deployment settings were changed.
 
 ## Technology
 
 - Backend: FastAPI, Python, Motor/PyMongo, Pydantic.
 - Frontend: React 19, Vite, TypeScript, TanStack Query.
 - Persistence: MongoDB selected through `MONGO_URL` and `DB_NAME` in `backend/lib/db.py`.
-- Hosting configuration is not verified by this source audit.
+
+## Confirmed Render services
+
+In the Render workspace named `Oroverde`:
+
+| Service | Repository | Branch | Latest inspected state |
+|---|---|---|---|
+| `oro-verde` | `abdelwehed-hue/huilerie-pro5` | `main` | Static frontend deploy is `live` |
+| `oroverde-pro5-api` | `abdelwehed-hue/huilerie-pro5` | `main` | Backend deploy is `live` |
+
+Both inspected latest deploys use commit `a4f080bc574251ae841b7b7a153cf1986c5392bd` (17 Nov 2026, TV media synchronization update). The backend service is in Virginia on Render's Free plan, one instance. This confirms the intended pro5 frontend/backend services exist and are currently marked live; it does not prove that every user workflow is healthy.
+
+Render's service-details response did not expose environment variable values. Therefore the active `MONGO_URL` target and `DB_NAME` for `oroverde-pro5-api` remain unverified.
 
 ## Application entry points
 
@@ -41,8 +53,10 @@ Scope: static source review only; no application, database, or Render configurat
 
 ## Key architectural observation
 
-The commercial router imports `client`, `db`, and `run_transaction` from `lib.db`, the same module used by the main Oro Verde API. The actual implementation therefore uses the same configured MongoDB client and database handle. The docstring in `backend/commercial/__init__.py` says “dedicated database”, which conflicts with the implementation and must be corrected in project documentation or architecture if it is not intentional.
+The commercial router imports `client`, `db`, and `run_transaction` from `lib.db`, the same module used by the main Oro Verde API. The actual implementation therefore uses the same configured MongoDB client and database handle. The docstring in `backend/commercial/__init__.py` says “dedicated database”, which conflicts with the implementation and should be corrected.
 
-## Known audit limitations
+## Audit limitations
 
-This is not yet a complete route-by-route or collection-by-collection inventory. The GitHub source was inspected, but no live MongoDB connection, Render environment values, production logs, or browser session was inspected. Runtime collection counts, actual `DB_NAME`, live deployment health, and real-user permissions remain unverified.
+- Render tools confirmed service identity and deploy state but did not expose the service's `MONGO_URL` or `DB_NAME`.
+- Atlas read-only inspection found a populated database named `huilerie-pro3` in the connected Atlas project. It is not yet proven that the pro5 Render backend connects to this exact cluster/database.
+- No production logs, browser journey, or test suite execution was performed in this pass.
