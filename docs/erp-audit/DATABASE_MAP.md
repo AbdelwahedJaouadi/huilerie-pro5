@@ -176,3 +176,21 @@ This is a point-in-time reconciliation of the available records, not proof of hi
 ## Production-yield validation in source
 
 Source inspection confirms the production schema rejects oil output greater than total olive input, but it does not impose a realistic extraction-yield range or flag an unusually high yield. The current unit test demonstrates a representative calculation at 18.05%, while the four inspected stored runs are all exactly 100%. Therefore the database anomaly is permitted by the present schema, not evidence by itself of a stock-ledger arithmetic defect. Add a configurable plausibility warning (initially non-blocking) and retain the actual measured output; only introduce a hard business limit after the mill's process, varieties and measurement units are confirmed. Never auto-calculate or replace actual oil output from an assumed yield percentage.
+## Traditional load, invoice and GS linkage review (source inspection)
+
+- Traditional intake currently accepts only `olive_kg` (float) and does not capture gross/tare, vehicle identity, weighing source or individual weighing timestamps. Load creation stores this single value and emits `LOAD_CREATED` audit metadata with `olive_kg`.
+- Traditional invoices are linked to a source load by `load_id`, copy the load's olive/oil quantities, and use a transactional source-load guard to prevent a concurrent load deletion race during invoice creation. A unique invoice-per-load index is documented elsewhere in this audit.
+- The current traditional invoice endpoint still performs a hard `delete_one` on an invoice and emits `INVOICE_DELETED`; this preserves an audit event but removes the financial document itself. This is not acceptable as the final full-accounting behavior. Replace with a void/reversal workflow that preserves the original invoice and references its corrective document. Keep deletion only for unposted drafts if explicitly permitted by policy.
+- Traditional load deletion is blocked when an invoice exists, but otherwise hard-deletes the load and its lab records, then records a deletion event. This is also a traceability risk: once a load has downstream operational, quality, custody or production references, deletion must be blocked and an audited cancellation/reversal used instead. Before deletion, verify all referencing collections, not only `invoices`.
+- GS direct-load purchase workflow references the traditional load using `source_load_id` and reads `olive_kg` as its source quantity. This makes preserving the canonical net-weight field critical: after gross/tare are introduced, GS must consume the validated `net_weight` through the compatibility mapping (`olive_kg` during migration), never gross weight.
+- GS olive purchase schemas already use Decimal quantities, while traditional `LoadCreate.olive_kg` is a float. The weighbridge/manual weighing upgrade should use decimal-safe parsing and server-side subtraction, and avoid silently propagating binary-float rounding into GS or accounting.
+
+## Required acceptance tests for load weighing migration
+
+1. Gross 12,450 kg and tare 4,250 kg yields exactly 8,200 kg net; downstream load list, GS source-load purchase, production eligibility and invoice all use 8,200 kg.
+2. Reject missing gross or tare when the new weighing mode is enabled; retain a controlled legacy path for pre-existing records only.
+3. Reject tare equal to or greater than gross, negative values, invalid precision and unsupported units.
+4. Manual capture is explicitly labeled `manual`; future scale capture requires device identity and scale-origin metadata.
+5. Correcting a recorded gross/tare reading creates an immutable correction event with actor, time, reason and before/after values.
+6. Retrying the same intake request cannot create a duplicate load or duplicate audit/stock effects.
+7. Existing records containing only `olive_kg` remain readable and are not retroactively assigned invented gross/tare values.
