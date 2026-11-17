@@ -162,3 +162,14 @@ The required target model is:
 Gross and tare must belong to the same vehicle/load and a coherent weighing event. Reject tare greater than or equal to gross unless an explicitly documented exceptional workflow applies. Calculate net server-side using decimal-safe arithmetic; do not trust a client-submitted net that disagrees with gross minus tare. Preserve the existing `olive_kg` API contract during migration or map it consistently to validated `net_weight` so downstream workflows do not silently change.
 
 **Important distinction:** the future scale integration is not implemented today. First support and validate manual gross/tare/net capture; later connect a selected scale using its actual protocol/API, device identity, stable-reading logic and idempotent submission. Never fabricate scale readings or label manual values as scale-certified.
+## Quantitative stock-ledger reconciliation (read-only, 17 Nov 2026)
+
+A full pass over the 16 currently observed `commercial_stock_movements` and all 11 `commercial_stock_balances` was reconciled by lot, product, location and owner. For the current snapshot, every balance matched the signed movement history:
+
+- Olive lots: 2627A0001 = 0 kg; 2627A0002 = 0 kg; 2627A0003 = 0 kg; 2627A0004 = 300 kg; 2627A0005 = 750 kg mill-owned (customer-owned balance = 0 kg).
+- Oil lots: 2627A0001 = 400 kg after 900 kg production receipt and 500 kg dispatch; 2627A0002 = 800 kg; 2627A0003 = 3,000 kg; the additional output lot from production 2627PROD0004 = 2,000 kg.
+- Total balances in this snapshot: 1,050 kg olives and 6,200 kg oil.
+
+This is a point-in-time reconciliation of the available records, not proof of historical completeness or of every uninspected movement type. Ownership-transfer movements must be evaluated as paired owner debits/credits at the same location, not treated as physical receipt/consumption.
+
+**Critical production-data exception:** all four stored completed production runs report actual oil output exactly equal to olive input (900/900, 800/800, 3,000/3,000 and 2,000/2,000 kg), i.e. a 100% extraction rate. The movement ledger and balances are internally consistent with these recorded values, but the yields are not credible for ordinary olive-oil extraction. These may be synthetic/test records; until confirmed, treat them as a data-quality exception and add server-side plausibility validation/warnings. Do not silently rewrite these existing production records.
