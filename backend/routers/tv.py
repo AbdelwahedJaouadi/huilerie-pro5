@@ -80,6 +80,13 @@ async def get_tv_display_settings():
     return TvDisplaySettings(**settings)
 
 
+@router.get("/tv/display-settings/version")
+async def get_tv_display_settings_version():
+    """Return a lightweight revision so TV clients only download media when it changes."""
+    settings = await db.settings.find_one({"key": "app"}, {"_id": 0, "tv_media_version": 1}) or {}
+    return {"version": int(settings.get("tv_media_version", 0))}
+
+
 @router.get("/tv/media-settings", response_model=TvMediaSettings)
 async def get_tv_media_settings(_: dict = Depends(current_user)):
     fields = {name: 1 for name in TvMediaSettings.model_fields}
@@ -92,7 +99,7 @@ async def put_tv_media_settings(body: TvMediaSettings, _: dict = Depends(current
     # Dedicated TV-only update: workers can change screen media without gaining access
     # to pricing, login, SMS, or other administrative settings.
     values = body.model_dump()
-    await db.settings.update_one({"key": "app"}, {"$set": values}, upsert=True)
+    await db.settings.update_one({"key": "app"}, {"$set": values, "$inc": {"tv_media_version": 1}}, upsert=True)
     return body
 
 
@@ -134,7 +141,7 @@ async def upload_tv_music(file: UploadFile = File(...), _: dict = Depends(curren
                 "tv_music_url": music_url,
                 "tv_music_filename": filename,
                 "tv_music_file_id": str(new_file_id),
-            }},
+            }, "$inc": {"tv_media_version": 1}},
             upsert=True,
         )
 
