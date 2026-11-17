@@ -3,7 +3,7 @@
 Audit target: `abdelwehed-hue/huilerie-pro5`  
 Source branch inspected: `main`  
 Audit branch: `audit/erp-foundation`  
-Scope: source review plus read-only Render and Atlas inspection. No application source, database documents, indexes, environment variables, or deployment settings were changed.
+Scope: source review plus read-only Render and Atlas inspection. No application source, database documents, indexes, environment variables, or deployment settings were changed during the source/runtime audit.
 
 ## Technology
 
@@ -20,9 +20,13 @@ In the Render workspace named `Oroverde`:
 | `oro-verde` | `abdelwehed-hue/huilerie-pro5` | `main` | Static frontend deploy is `live` |
 | `oroverde-pro5-api` | `abdelwehed-hue/huilerie-pro5` | `main` | Backend deploy is `live` |
 
-Both inspected latest deploys use commit `a4f080bc574251ae841b7b7a153cf1986c5392bd` (17 Nov 2026, TV media synchronization update). The backend service is in Virginia on Render's Free plan, one instance. This confirms the intended pro5 frontend/backend services exist and are currently marked live; it does not prove that every user workflow is healthy.
+Both inspected latest deploys used commit `a4f080bc574251ae841b7b7a153cf1986c5392bd` (17 Nov 2026, TV media synchronization update). The backend service is in Virginia on Render's Free plan, one instance. This confirms the intended pro5 frontend/backend services exist and were marked live at inspection time; it does not prove every user workflow is healthy.
 
-Render's service-details response did not expose environment variable values. Therefore the active `MONGO_URL` target and `DB_NAME` for `oroverde-pro5-api` remain unverified.
+## Database pairing
+
+The user explicitly confirmed that pro5 intentionally uses the existing MongoDB database named `huilerie-pro3`. The code confirms that the traditional API and GS import the same configured MongoDB handle from `backend/lib/db.py`.
+
+Render's service-details response did not expose environment variable values, so the literal secret values were not independently read back. Do not interpret the database name `huilerie-pro3` as a mismatch: it is the user's intended database for the pro5 application.
 
 ## Application entry points
 
@@ -41,7 +45,7 @@ Render's service-details response did not expose environment variable values. Th
 | Traditional invoices | `backend/routers/invoices.py` | Invoice creation/update/list and deletion controls tied to source loads |
 | Client statements | `backend/routers/client_accounts.py` | Consolidated client history and statements |
 | Commercial / GS | `backend/commercial/routers.py` | Purchases, suppliers, lots, stock, tanks, quality, production, sales, payments, returns, custody, audit |
-| Accounting overview | `backend/routers/accounting.py` | Source-document aggregation and daily cash/accrual-style report; not a double-entry ledger |
+| Accounting overview | `backend/routers/accounting.py` | Source-document aggregation and daily reporting; not a double-entry ledger |
 | TV | `backend/routers/tv.py` | Display/media settings, music, control, board and administration |
 | Audit | Commercial audit endpoints and `frontend/src/pages/Audit.tsx` | Stronger coverage in GS than in the traditional mill flows |
 
@@ -51,12 +55,15 @@ Render's service-details response did not expose environment variable values. Th
 - `/factures`, `/comptabilite`, `/commercial`, `/audit`
 - `/tv`, `/tv-admin`, `/sms`, `/cancellations`, certificate routes, login and help.
 
-## Key architectural observation
+## Key architecture and security observations
 
-The commercial router imports `client`, `db`, and `run_transaction` from `lib.db`, the same module used by the main Oro Verde API. The actual implementation therefore uses the same configured MongoDB client and database handle. The docstring in `backend/commercial/__init__.py` says “dedicated database”, which conflicts with the implementation and should be corrected.
+- GS and the traditional API share the same configured MongoDB database handle. The docstring in `backend/commercial/__init__.py` incorrectly describes GS as using a dedicated database.
+- Production runtime validation rejects `AUTH_DISABLED=true`; preserve this fail-closed guard.
+- Traditional load operations such as creation, status changes, oil recording and delivery use authenticated-user access. Invoice mutations and load cancellation/deletion are admin-only in the inspected routes.
+- GS has granular commercial permission checks, but the assignable worker permissions are a subset of the full admin permissions. This means some high-impact capabilities remain admin-only today; a complete role matrix is still required.
+- The accounting routes inspected so far are admin-only. No accountant-specific role was found in the inspected auth policy.
 
 ## Audit limitations
 
-- Render tools confirmed service identity and deploy state but did not expose the service's `MONGO_URL` or `DB_NAME`.
-- Atlas read-only inspection found a populated database named `huilerie-pro3` in the connected Atlas project. It is not yet proven that the pro5 Render backend connects to this exact cluster/database.
-- No production logs, browser journey, or test suite execution was performed in this pass.
+- No production logs, browser journey, or automated test suite execution was performed in this pass.
+- The Atlas collection/index snapshot was read-only. Reference integrity and complete collection/index inventories remain in progress.
