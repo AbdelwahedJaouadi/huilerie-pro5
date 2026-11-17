@@ -1,12 +1,55 @@
 # MongoDB Data Map (Initial Audit)
 
-## Connection model
+## Connection model from source
 
 `backend/lib/db.py` creates one `AsyncIOMotorClient` from `MONGO_URL` and selects `client[DB_NAME]`. The main API and commercial API import the same `db` object. Therefore the source code currently implements one configured MongoDB database for Oro Verde and GS, not two independent databases.
 
-The actual production values of `MONGO_URL` and `DB_NAME` were not read during this audit.
+The commercial router imports `client`, `db` and `run_transaction` from the same `lib.db` module. The docstring in `backend/commercial/__init__.py` claiming a dedicated database is inconsistent with this implementation.
 
-## Collections observed in inspected source
+## Read-only Atlas snapshot
+
+Atlas project: `Project 0`  
+Cluster: `Dadu` (Free tier, AWS US_EAST_1, MongoDB 8.0.37)  
+Database inspected: `huilerie-pro3`
+
+The connected cluster listed five databases: `huilerie-pro3`, `oroverde_cms`, `sample_mflix`, `admin`, and `local`. It did **not** list a database named `huilerie-pro5`.
+
+The `huilerie-pro3` database reported:
+
+- 49 collections
+- 290 documents
+- 185 indexes
+- approximately 8.47 MB data size and 17.78 MB storage size
+
+**Critical limitation:** Render's `oroverde-pro5-api` service environment values were not available through the inspected Render service-details response. Thus it is not confirmed that this service's `MONGO_URL` points to cluster `Dadu` or that its `DB_NAME` is `huilerie-pro3`. Do not infer the production connection from the database name alone.
+
+## Selected live document counts
+
+| Collection | Count |
+|---|---:|
+| `loads` | 5 |
+| `invoices` | 3 |
+| `clients` | 2 |
+| `users` | 3 |
+| `lab` | 3 |
+| `commercial_olive_purchases` | 3 |
+| `commercial_production_runs` | 4 |
+| `commercial_lots` | 14 |
+| `commercial_stock_balances` | 11 |
+| `commercial_stock_movements` | 16 |
+| `commercial_sales` | 1 |
+| `commercial_sales_invoices` | 1 |
+| `commercial_sale_payments` | 1 |
+| `commercial_suppliers` | 2 |
+| `commercial_buyers` | 1 |
+| `commercial_tanks` | 9 |
+| `commercial_locations` | 4 |
+| `commercial_preproduction_samples` | 5 |
+| `commercial_audit_events` | 75 |
+
+These counts describe the inspected Atlas database only, not necessarily the live pro5 deployment until its Render connection is confirmed.
+
+## Live collections observed
 
 ### Traditional mill / shared application
 
@@ -18,9 +61,9 @@ The actual production values of `MONGO_URL` and `DB_NAME` were not read during t
 - `sms_log`
 - `invoices`
 - `clients`
-- `accounting_passive_incomes`
-- `accounting_expenses`
 - `tv_state`
+- `tv_music_files.files`
+- `tv_music_files.chunks`
 
 ### Commercial / GS
 
@@ -54,30 +97,34 @@ The actual production values of `MONGO_URL` and `DB_NAME` were not read during t
 - `commercial_supplier_olive_purchase_payments`
 - `commercial_preproduction_samples`
 - `commercial_quality_assessments`
+- `commercial_quality_releases`
 - `commercial_pump_runtime`
-- `commercial_audit_events)
+- `commercial_audit_events`
+- `commercial_direct_load_purchases`
 
-This list is based on files inspected so far; it is not asserted to be the complete set of collections in the live database.
+### Unclassified / migration-related collections
 
-## Existing integrity mechanisms
+- `admin_reset_audit`
+- `backup_numeric_policy_20261110_settings`
+- `backup_numeric_policy_20261110_loads`
+- `backup_numeric_policy_20261110_invoices`
 
-- Core indexes are declared in `backend/lib/db.py` for users, loads, lab, settings and traditional invoices.
-- GS declares extensive unique and lookup indexes in `backend/commercial/inventory_bootstrap.py`.
-- Several GS workflows use `run_transaction`, which starts a MongoDB session and transaction.
-- Purchase, sales, production and custody commands commonly include idempotency keys and unique indexes.
-- GS stock changes are routed through stock-ledger services; the direct stock-movement endpoint explicitly rejects direct ledger writes.
+The three `backup_numeric_policy_20261110_*` collections contain 1, 14 and 9 documents respectively. Their exact creation purpose and retention policy have not yet been verified. Do not delete or repurpose them during the audit.
 
-## Important design risks / decisions
+The accounting backend references `accounting_expenses` and `accounting_passive_incomes`, but neither appeared in the live collection listing at inspection time; both count as zero documents. MongoDB creates these collections on first insert.
 
-1. **Shared database, separated collections:** preserve the existing shared database initially; use clear collection ownership and service boundaries.
-2. **Conflicting documentation:** `backend/commercial/__init__.py` claims a dedicated database; implementation contradicts it.
-3. **Cross-domain transactions:** before posting accounting entries from GS and traditional workflows, confirm that the live MongoDB deployment supports transactions and that all writes participating in one transaction use the same session.
-4. **No runtime inventory yet:** actual collection counts, indexes installed in production, orphaned references and duplicate business identifiers remain unverified.
-5. **No destructive migration:** do not rename, drop, merge or bulk-rewrite collections as part of the first accounting increment.
+## Existing indexes and integrity mechanisms
+
+Live index inspection confirmed indexes on core collections including `loads`, `invoices`, `commercial_olive_purchases`, `commercial_lots`, `commercial_stock_movements`, `commercial_sales_invoices`, `commercial_audit_events`, `commercial_counters`, `users` and `settings`.
+
+Source code declares core indexes in `backend/lib/db.py` and extensive commercial indexes in `backend/commercial/inventory_bootstrap.py`. The Atlas index-inspection response exposed index names and key patterns, but not every index option; uniqueness settings were therefore not independently re-verified from Atlas in this pass.
+
+Several GS workflows use `run_transaction`; purchase, sales, production and custody commands commonly use idempotency keys. GS stock changes are routed through stock-ledger services.
 
 ## Next database inspection
 
-- Read actual Render `DB_NAME` and confirm it matches the expected database (without exposing secrets).
-- Inspect live collection names, counts and indexes read-only.
-- Validate references among loads, invoices, GS purchases, lots, stock movements and audit events.
-- Produce a migration map before introducing any accounting journal collections.
+1. Confirm the actual Render `MONGO_URL` target and `DB_NAME` without exposing credentials.
+2. Reconcile the 49 live collections with source-code collection references.
+3. Inspect the three numeric-policy snapshot collections and `admin_reset_audit` purpose.
+4. Validate references among loads, invoices, GS purchases, lots, production runs, stock movements and audit events.
+5. Do not rename, drop, merge or bulk-rewrite collections during this audit.
