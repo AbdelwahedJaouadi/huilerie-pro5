@@ -89,7 +89,31 @@ export default function TvScreen() {
   const { lang } = useI18n();
   const ar = lang === "ar";
   const { board, live } = useLiveBoard();
-  const settingsQuery = useQuery({ queryKey: ["tv-mill-settings"], queryFn: () => apiGet<TvDisplaySettings>("/tv/display-settings") });
+  const settingsQuery = useQuery({
+    queryKey: ["tv-mill-settings"],
+    queryFn: () => apiGet<TvDisplaySettings>("/tv/display-settings"),
+  });
+  const mediaVersionQuery = useQuery({
+    queryKey: ["tv-media-version"],
+    queryFn: () => apiGet<{ version: number }>("/tv/display-settings/version"),
+    // Poll a tiny revision value; only re-download the image/settings when they change.
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
+  const lastMediaVersion = useRef<number | null>(null);
+  useEffect(() => {
+    const version = mediaVersionQuery.data?.version;
+    if (version === undefined) return;
+    if (lastMediaVersion.current === null) {
+      lastMediaVersion.current = version;
+      return;
+    }
+    if (version !== lastMediaVersion.current) {
+      lastMediaVersion.current = version;
+      void settingsQuery.refetch();
+    }
+  }, [mediaVersionQuery.data?.version, settingsQuery.refetch]);
   const mill = settingsQuery.data;
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -319,7 +343,7 @@ export default function TvScreen() {
           data-testid="tv-video-player"
         >
           {videoId ? <div ref={youtubeHost} className="h-full w-full" data-testid="tv-youtube-player" /> : (
-            <video ref={directVideo} src={directVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" data-testid="tv-direct-video" />
+            <video key={`${directVideoUrl}:${mediaVersionQuery.data?.version ?? 0}`} ref={directVideo} src={directVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" data-testid="tv-direct-video" />
           )}
         </div>
       ) : null}
