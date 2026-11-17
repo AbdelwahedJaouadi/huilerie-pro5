@@ -15,6 +15,10 @@ The existing `Comptabilite` module is an operational financial dashboard, not fu
 
 All inspected accounting endpoints depend on `require_admin`. This does not yet match the intended role-based access model for all staff (accountant, cashier, manager, read-only roles).
 
+## Live database observation
+
+In the inspected Atlas database `huilerie-pro3`, neither `accounting_expenses` nor `accounting_passive_incomes` existed in the collection listing; both returned zero documents. This means the simple expense/passive-income entry module appears unused in that database, or the inspected database is not the active database for pro5. The Render backend's actual `DB_NAME` remains unverified.
+
 ## Critical gaps for full double-entry accounting
 
 1. **Chart of accounts:** no configurable account tree, account classes, account codes or account control rules found.
