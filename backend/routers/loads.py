@@ -378,17 +378,50 @@ async def _ensure_load_has_no_invoice(load_id: str, session=None) -> None:
         raise HTTPException(409, "load_has_invoice")
 
 
-async def _delete_load_in_transaction(load_id: str, session, user: dict):
-    await _ensure_load_has_no_invoice(load_id, session=session)
-    doc = await db.loads.find_one({"id": load_id}, {"_id": 0}, session=session)
+async def _ensure_load_is_deletable(load_id: str, session=None, load_doc: dict | None = None) -> dict:
+    """Shared hard-delete guard for every traditional-load deletion entry point."""
+    options = {"session": session} if session is not None else {}
+    doc = load_doc or await db.loads.find_one({"id": load_id}, {"_id": 0}, **options)
     if not doc:
         raise HTTPException(404, "not_found")
-    if doc.get("ownership_transferred"):
-        raise HTTPException(409, "load_ownership_transferred_to_mill")
+
+    await _ensure_load_has_no_invoice(load_id, session=session)
+
+    if doc.get("ownership_transferred") or to_decimal(doc.get("custody_received_kg", 0)) > 0:
+        raise HTTPException(409, "load_ownership_or_custody_transferred")
+    original = to_decimal(doc.get("olive_kg", 0))
+    available = to_decimal(doc.get("customer_available_olive_kg", original))
+    if available < original:
+        raise HTTPException(409, "load_ownership_or_custody_transferred")
+
+    if doc.get("pressing") or doc.get("delivered") or doc.get("cancelled") or doc.get("oil_kg") is not None:
+        raise HTTPException(409, "load_has_operational_history")
+
+    for collection_name in (
+        "commercial_direct_load_purchases",
+        "commercial_customer_custody_receipts",
+        "commercial_lots",
+    ):
+        reference = await db[collection_name].find_one(
+            {"source_load_id": load_id}, {"_id": 0, "id": 1}, **options
+        )
+        if reference:
+            raise HTTPException(409, "load_has_gs_reference")
+
+    lab = await db.lab.find_one({"load_id": load_id}, {"_id": 0, "id": 1}, **options)
+    if lab:
+        raise HTTPException(409, "load_has_lab_history")
+    sms = await db.sms_log.find_one({"load_id": load_id}, {"_id": 0, "id": 1}, **options)
+    if sms:
+        raise HTTPException(409, "load_has_sms_history")
+    return doc
+
+
+async def _delete_load_in_transaction(load_id: str, session, user: dict):
+    doc = await _ensure_load_is_deletable(load_id, session=session)
     res = await db.loads.delete_one({"id": load_id}, session=session)
     if not res.deleted_count:
         raise HTTPException(404, "not_found")
-    await db.lab.delete_many({"load_id": load_id}, session=session)
     await _audit_load_event(doc, user, "LOAD_DELETED", {
         "olive_kg": doc.get("olive_kg"), "oil_kg": doc.get("oil_kg"),
         "created_at": doc.get("created_at"),
