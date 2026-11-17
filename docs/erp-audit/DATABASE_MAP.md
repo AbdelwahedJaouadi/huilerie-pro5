@@ -2,9 +2,11 @@
 
 ## Connection model from source
 
-`backend/lib/db.py` creates one `AsyncIOMotorClient` from `MONGO_URL` and selects `client[DB_NAME]`. The main API and commercial API import the same `db` object. Therefore the source code currently implements one configured MongoDB database for Oro Verde and GS, not two independent databases.
+`backend/lib/db.py` creates one `AsyncIOMotorClient` from `MONGO_URL` and selects `client[DB_NAME]`. The main API and commercial API import the same `db` object. Therefore the source code implements one configured MongoDB database for Oro Verde and GS, not two independent databases.
 
 The commercial router imports `client`, `db` and `run_transaction` from the same `lib.db` module. The docstring in `backend/commercial/__init__.py` claiming a dedicated database is inconsistent with this implementation.
+
+The user explicitly confirmed that the pro5 application intentionally uses the existing database named `huilerie-pro3`. Treat this as the intended application/database pairing. The names identify different things: pro5 is the active codebase; huilerie-pro3 is the chosen MongoDB database name.
 
 ## Read-only Atlas snapshot
 
@@ -21,9 +23,9 @@ The `huilerie-pro3` database reported:
 - 185 indexes
 - approximately 8.47 MB data size and 17.78 MB storage size
 
-**Critical limitation:** Render's `oroverde-pro5-api` service environment values were not available through the inspected Render service-details response. Thus it is not confirmed that this service's `MONGO_URL` points to cluster `Dadu` or that its `DB_NAME` is `huilerie-pro3`. Do not infer the production connection from the database name alone.
+Render's service-details response did not expose the actual `MONGO_URL` and `DB_NAME` values. The user's confirmation establishes the intended configuration; the Atlas snapshot is a read-only observation of the named database, not an independent read-back of Render's secret environment variables.
 
-## Selected live document counts
+## Selected document counts observed in Atlas
 
 | Collection | Count |
 |---|---:|
@@ -47,9 +49,7 @@ The `huilerie-pro3` database reported:
 | `commercial_preproduction_samples` | 5 |
 | `commercial_audit_events` | 75 |
 
-These counts describe the inspected Atlas database only, not necessarily the live pro5 deployment until its Render connection is confirmed.
-
-## Live collections observed
+## Collections observed
 
 ### Traditional mill / shared application
 
@@ -109,9 +109,9 @@ These counts describe the inspected Atlas database only, not necessarily the liv
 - `backup_numeric_policy_20261110_loads`
 - `backup_numeric_policy_20261110_invoices`
 
-The three `backup_numeric_policy_20261110_*` collections contain 1, 14 and 9 documents respectively. Their exact creation purpose and retention policy have not yet been verified. Do not delete or repurpose them during the audit.
+The three `backup_numeric_policy_20261110_*` collections contain 1, 14 and 9 documents respectively. Their exact creation purpose and retention policy have not yet been verified. Do not delete or repurpose them during this audit.
 
-The accounting backend references `accounting_expenses` and `accounting_passive_incomes`, but neither appeared in the live collection listing at inspection time; both count as zero documents. MongoDB creates these collections on first insert.
+The accounting backend references `accounting_expenses` and `accounting_passive_incomes`, but neither appeared in the collection listing at the time of inspection. MongoDB creates these collections on first insert; verify their use before assuming historical records exist.
 
 ## Existing indexes and integrity mechanisms
 
@@ -123,8 +123,8 @@ Several GS workflows use `run_transaction`; purchase, sales, production and cust
 
 ## Next database inspection
 
-1. Confirm the actual Render `MONGO_URL` target and `DB_NAME` without exposing credentials.
-2. Reconcile the 49 live collections with source-code collection references.
-3. Inspect the three numeric-policy snapshot collections and `admin_reset_audit` purpose.
-4. Validate references among loads, invoices, GS purchases, lots, production runs, stock movements and audit events.
+1. Reconcile all 49 observed collections with source-code collection references.
+2. Inspect the three numeric-policy snapshot collections and `admin_reset_audit` purpose.
+3. Validate references among loads, invoices, GS purchases, lots, production runs, stock movements and audit events.
+4. Compare actual index options with source-declared index requirements.
 5. Do not rename, drop, merge or bulk-rewrite collections during this audit.
