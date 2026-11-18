@@ -905,8 +905,15 @@ async def update_client(phone: str, body: ClientUpdate, _: dict = Depends(requir
 
 async def _client_has_gs_history(phone: str, session=None) -> bool:
     options = {"session": session} if session is not None else {}
-    for collection_name in ("commercial_buyers", "commercial_custody_owners"):
-        if await db[collection_name].find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
+    # These field names are verified against the current GS collection schemas.
+    for collection_name, phone_field in (
+        ("commercial_buyers", "phone"),
+        ("commercial_custody_owners", "client_phone"),
+        ("commercial_customer_custody_receipts", "customer_phone"),
+    ):
+        if await db[collection_name].find_one(
+            {phone_field: phone}, {"_id": 0, "id": 1}, **options
+        ):
             return True
     if await db.sms_log.find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
         return True
