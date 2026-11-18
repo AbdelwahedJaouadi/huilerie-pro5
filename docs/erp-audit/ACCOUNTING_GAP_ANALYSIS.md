@@ -104,13 +104,13 @@ Current blockers include:
 - Manual passive income/expense creation is a direct insert and deletion is physical; no review/post/reversal state exists.
 - Traditional invoice update/delete are transactional but still allow repricing and physical removal of financial source documents.
 
-Target controls now specify role-specific action capabilities, no self-approval for purchases, sales, payments, reversals, stock adjustments or GL journals, audit evidence, exception handling, and route-level tests. This remains a design/source-audit result only; runtime authorization and live data were not changed.
+Target controls specify role-specific action capabilities, audit evidence, exception handling and route-level tests. **Owner-confirmed exception:** the employee's direct olive purchase/reception registration does not enter a human review queue and does not require a second-person approval. This exception is limited to the direct olive-reception workflow; supplier payments, sales approval, customer receipts/reversals, stock adjustments and GL journals retain their separately designed controls. The direct-entry capability must be granted only to designated employees. See `FINANCIAL_ROLE_AND_APPROVAL_MATRIX.md` section 12 and `GL_SOURCE_OF_TRUTH_AND_MIGRATION_MAP.md`. This remains a design/source-audit result only; runtime authorization and live data were not changed.
 
-### One-step purchase and weighing approval control
+### Direct olive-purchase registration and weighing control
 
-A further route-level review found that `POST /commercial/v1/olive-receptions` internally builds an approval command and performs purchase approval, lot creation and stock receipt within the same transaction initiated by one actor. This is atomic but not maker/checker. The workflow must be split into submitted draft and independent approval, with approval posting purchase + lot + stock + audit atomically.
+A route-level review found that `POST /commercial/v1/olive-receptions` internally performs the purchase transition, lot creation and stock receipt within one transaction initiated by the registering employee. The owner explicitly confirmed that this is the required workflow: the designated employee records the purchase and weighing evidence directly, **without submitting it for human review**. Do not split this direct-reception path into a pending draft/checker queue.
 
-The approved snapshot must include gross, tare and server-calculated net weights, weighing provenance, supplier, varieties, prices and receiving location. Any change after submission must invalidate the approval. This is also the required foundation for future scale integration; no scale integration is claimed today.
+The same atomic transaction must preserve supplier, varieties, prices, receiving location, gross/tare/server-calculated net, weighing provenance, traceability lot, stock receipt and audit evidence. Corrections after registration must be explicit, reasoned and auditable. The separate `POST /commercial/v1/olive-purchases` draft/approve workflow is a different route and must not be substituted for or imposed on direct olive reception. No electronic scale integration is claimed today.
 
 
 ## 13. Inventory valuation and production-cost audit (18 Nov 2026)
