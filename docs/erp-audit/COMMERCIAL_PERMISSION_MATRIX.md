@@ -176,3 +176,5 @@ Recommended dedicated capability: `commercial.register_olive_purchase`.
 - Owner has not yet named the authorized employees; do not assign the capability to any account until that list is explicit.
 
 See `DIRECT_OLIVE_PURCHASE_CAPABILITY.md` for the service boundary, atomicity rules and API permission test matrix. No runtime permission or employee account was changed.
+
+The assignment UI is also hardcoded in `frontend/src/pages/Settings.tsx::EmployeePermissionsPanel`; it currently exposes only six worker capabilities and does not include the proposed `commercial.register_olive_purchase`. A future implementation must update the backend allowlist, route/service authorization, assignment API validation and frontend checkbox list/localized label together. Adding only a backend capability would leave administrators unable to assign it in the UI.
