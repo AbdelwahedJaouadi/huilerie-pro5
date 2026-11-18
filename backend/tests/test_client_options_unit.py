@@ -60,3 +60,21 @@ async def test_client_options_are_global_deduplicated_and_paginated(monkeypatch)
     timestamp_normalizer = next(stage["$set"]["created_at"] for stage in stages if "$set" in stage)
     assert timestamp_normalizer["$cond"][0] == {"$eq": [{"$type": "$created_at"}, "date"]}
     assert timestamp_normalizer["$cond"][2] == datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_client_options_pipeline_excludes_deactivated_phones(monkeypatch):
+    loads = FakeLoads([
+        {"_id": "21600000000", "client_name": "Archived", "last_visit": datetime(2026, 10, 1, tzinfo=timezone.utc)},
+    ])
+
+    class FakeClients:
+        def find(self, query, projection=None):
+            assert query == {"active": False}
+            return FakeCursor([{"phone": "21600000000"}])
+
+    monkeypatch.setattr(extras, "db", SimpleNamespace(loads=loads, clients=FakeClients()))
+
+    await extras.list_client_options(limit=10, skip=0, user={"role": "worker"})
+
+    assert {"$match": {"_id": {"$nin": ["21600000000"]}}} in loads.pipeline
