@@ -290,3 +290,29 @@ The full field lineage, float/Decimal boundaries and the 12,450 / 4,250 / 8,200 
 The quantity-lineage review found that the traditional invoice total uses `oil_kg × price_per_kg`, while `/stats`, worker-report revenue and client-summary amount use `olive_kg × price_per_kg`. The revenue report instead sums cash payment events by payment date, and the client statement uses invoice totals and payment credits. These are distinct measures and must not be collapsed into one “revenue” number.
 
 Before changing any formula or building GL posting templates, obtain owner/accountant confirmation of the tariff basis (per kg olives received, per kg oil measured/returned, or another service-fee basis) and define which screens show invoice value versus cash collected. Add a cross-report reconciliation test for one sample load with partial payment. This is a decision gate, not a code fix to guess.
+
+
+## Detailed quantity-source audit (18 Nov 2026)
+
+The source review confirms the following implementation boundaries:
+
+- Traditional load intake currently accepts and stores only `olive_kg` as a float. No gross/tare snapshot is captured.
+- Traditional pressing completion writes `loads.oil_kg`; yield uses `oil_kg / olive_kg`.
+- Traditional invoice creation snapshots `olive_kg` and `oil_kg`, but computes the service invoice total as `oil_kg × current app price_per_kg`. The invoice stores the selected tariff and total.
+- Traditional `/stats` and related client/worker summary paths use `olive_kg × price_per_kg`, not the invoice formula. This is a confirmed reporting/tariff-basis inconsistency. Do not patch one formula based on guesswork; owner/accountant must define whether the pressing tariff is per kg olives received, per kg oil returned, or another contractual basis. Then align invoice, dashboard, worker report and client statement with explicit separate measures for billed value and cash collected.
+- GS direct customer-load purchase reads the traditional source `loads.olive_kg`, converts it through `Decimal(str(value))` when the source is a float, then creates the custody receipt, olive lot and ownership-transfer stock movement in one transaction. The original load is closed as sold and marked transferred. This path does not take a second weighing.
+- GS supplier reception accepts Decimal variety-line quantities and posts purchase/lot/receipt atomically. It does not yet capture vehicle gross/tare/net or compare the sum of variety lines with a measured net weight.
+- GS production takes explicit Decimal quantities against selected olive lots and posts matching consumption movements. It does not read traditional `loads.olive_kg` directly. Production input total is the sum of the entered lot lines.
+- Precision crosses a float boundary in traditional intake and oil-output records; invoice code also converts oil output to float before Decimal tariff multiplication. GS command quantities and stock quantities use Decimal/Decimal128. This is a migration and serialization risk, not proof of an observed wrong value in existing records.
+
+**Adopted design decision:** use server-derived net weight as the canonical quantity for all new vehicle receptions; retain `loads.olive_kg` as a compatibility alias equal to net until all traditional consumers are migrated. Supplier variety lines must reconcile exactly to the same reception net before posting. GS direct purchase must inherit that source net and never create a second weight. GS production continues to consume explicitly selected GS lot quantities, with stock ledger movements as the decrement authority.
+
+**Additional release gates:**
+
+1. Resolve the tariff basis and the confirmed invoice-vs-statistics formula mismatch before changing existing financial calculations.
+2. Add an integration test proving 12,450.000 kg gross − 4,250.000 kg tare = 8,200.000 kg net, and that exactly 8,200.000 kg reaches the traditional load, GS direct-purchase lot/movement, supplier line reconciliation and any downstream production consumption.
+3. Prove that the traditional invoice retains net olive kg as context but calculates its amount from the approved tariff basis and measured oil output where contractually appropriate.
+4. Add a partial-payment reconciliation test distinguishing invoice value, paid amount, remaining balance and cash collected by payment date.
+5. Add idempotent retry tests for traditional load creation and GS direct reception, including concurrent duplicate submissions.
+6. Do not retrofit gross/tare into historical records that contain only `olive_kg`; classify them as legacy net-only/unknown gross and tare.
+7. Keep runtime untouched until the tariff basis is confirmed and the weight/precision migration contract plus regression tests are approved.
