@@ -225,3 +225,8 @@ Next technical foundation tasks:
 Added `docs/erp-audit/FINANCIAL_EVENT_SOURCE_REGISTER.md`. The register maps traditional pressing invoices/receipts; GS olive and oil purchases/payments; wholesale invoices, payments, reversals, credits and returns; custody; production; stock; and manual passive income/expenses to authoritative source records. It explicitly separates revenue from cash settlement, customer custody from mill inventory, credit applications from cash, and stock movements from revenue.
 
 Before GL implementation, resolve the listed traditional invoice replacement-payment and repricing/deletion hazards, give embedded traditional payments stable identities, normalize Decimal arithmetic, and define cancellation/reversal plus accrual/settlement semantics for manual income/expenses. GS tax treatment remains unconfigured. These are Stage 1/2 blockers, not permissions to alter live financial records.
+
+
+## Posting identity contract completed (17 Nov 2026)
+
+Added `docs/erp-audit/POSTING_IDENTITY_AND_IDEMPOTENCY.md`. It defines a unique source-event identity separate from API request idempotency, a transactional posting sequence, payload-fingerprint conflict handling, immutable reversals, business-date/fiscal-period separation, Decimal/unit normalization and the minimum concurrency/retry/reversal test matrix. This is a design contract only; no ledger collection or posting endpoint was created.
