@@ -247,6 +247,7 @@ async def test_client_delete_deactivates_and_preserves_all_load_records(monkeypa
 
     monkeypatch.setattr(extras, "db", FakeDB(
         loads=Loads(), clients=Clients(), invoices=Related(), sms_log=Related(),
+        commercial_suppliers=FakeCollection(calls=calls),
         commercial_buyers=Related(), commercial_custody_owners=Related(),
         commercial_customer_custody_receipts=Related(),
         commercial_audit_events=FakeAuditEvents(calls),
@@ -291,6 +292,7 @@ async def test_client_without_history_can_be_deleted_in_one_transaction(monkeypa
 
     monkeypatch.setattr(extras, "db", FakeDB(
         loads=Loads(), clients=Clients(), sms_log=Related(),
+        commercial_suppliers=FakeCollection(calls=calls),
         commercial_buyers=Related(), commercial_custody_owners=Related(),
         commercial_customer_custody_receipts=Related(),
         commercial_audit_events=FakeAuditEvents(calls),
