@@ -259,9 +259,18 @@ async def update_invoice(invoice_id: str, body: dict, user: dict = Depends(requi
             "at": now, "by": user.get("username", ""), "action": "updated",
             "before": before, "after": after,
         }
+        push_fields = {"history": history_event}
+        # The accounting daily-situation report reads individual payment events.
+        # Keep the payment ledger in sync with the invoice balance in this transaction.
+        if payment_amount > 0:
+            push_fields["payments"] = {
+                "at": now,
+                "by": user.get("username", ""),
+                "amount": money_db(payment_amount),
+            }
         result = await db.invoices.update_one(
             {"id": invoice_id, "updated_at": doc.get("updated_at")},
-            {"$set": update_fields, "$push": {"history": history_event}},
+            {"$set": update_fields, "$push": push_fields},
             session=session,
         )
         if not result.modified_count:
