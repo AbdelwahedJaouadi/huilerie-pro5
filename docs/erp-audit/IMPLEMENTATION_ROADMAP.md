@@ -207,3 +207,14 @@ Stage 1 must define job-role capabilities and maker/checker separation, then imp
 ## Fiscal-year configuration decision (17 Nov 2026)
 
 The owner deferred choosing the fiscal-year closing date. The ERP must therefore keep the fiscal year configurable and unset until the owner/accountant confirms it. No calendar-year default and no olive-season-derived fiscal year. Statutory annual close and annual financial statements remain blocked until the company profile has approved start/end dates.
+
+
+## NC 01 chart-of-accounts design completed (17 Nov 2026)
+
+Added `docs/erp-audit/TUNISIAN_CHART_OF_ACCOUNTS_DESIGN.md` as a design-only blueprint. It preserves the seven NC 01 classes, defines Oro Verde analytical dimensions and SUARL controls, separates customer-owned custody from company inventory, and outlines source-event posting gates. It intentionally does not invent detailed account codes or debit/credit templates; these require current NC 01 cross-check and written approval by the Tunisian accountant.
+
+Next technical foundation tasks:
+1. Finish read-only inventory of source-event schemas and identifiers for every operational financial event.
+2. Define canonical posting-source identity and idempotency rules before building journal APIs.
+3. Define fiscal-period configuration as unset/required, honoring the owner's deferred fiscal-year decision.
+4. Build chart/journal/posting only after accountant-approved accounts, tax treatment, opening balances and fiscal-year configuration are available.
