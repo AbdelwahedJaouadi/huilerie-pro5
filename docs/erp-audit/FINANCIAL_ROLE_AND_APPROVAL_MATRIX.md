@@ -204,3 +204,27 @@ The design can proceed without blocking ordinary source audit. Before runtime au
 6. Whether TV media upload/delete remains available to all employees; this is separate from financial controls.
 
 Until these are decided, keep current runtime access unchanged on the audit branch and do not merge/deploy the policy design.
+
+## 10. Additional high-risk workflow finding: one-step olive reception
+
+The route `POST /commercial/v1/olive-receptions` is not merely a draft-creation endpoint. Its documented purpose and handler flow create the supplier (when requested), olive purchase, traceability lot and stock receipt in one transaction. It constructs an approval command internally and calls the purchase approval service during that same operation. Therefore the same authenticated actor who initiates the reception also approves the purchase and posts the stock receipt.
+
+This is stronger than the general absence of maker/checker: the current combined reception path structurally has no opportunity for a second person to review the purchase before stock posting. Preserve the useful atomicity of purchase + lot + stock + audit, but redesign the workflow as:
+1. maker submits a reception/purchase draft with measured gross/tare/net, supplier, price, variety, receiving location and evidence;
+2. checker reviews the immutable submitted snapshot and approves or rejects;
+3. approval transaction posts the purchase receipt, lot(s), stock movement(s) and audit event together;
+4. any correction after posting is a linked reversal/adjustment, never an edit to the approved receipt.
+
+The route also uses `current_user` plus `commercial.manage_purchases`, which is not worker-assignable today. It is therefore effectively administrator-only in the current policy, despite not declaring `require_admin`.
+
+Other direct-posting paths that need explicit review/approval states include supplier purchase payment, customer sale payment, payment reversal, buyer-credit application, custody release/receipt and stock adjustment. A transaction and idempotency key protect data consistency; neither proves a second person approved the business decision.
+
+## 11. Weight evidence and approval snapshot
+
+For olive purchase/reception, approval must bind to the exact submitted weighing evidence:
+- gross weight, tare weight and server-calculated net weight;
+- weighing source (manual or later scale integration), scale/device identifier when applicable, measurement timestamps and operator;
+- correction history with old/new values, actor, time and reason;
+- net quantity used by purchase totals, lot receipt and stock movement.
+
+The approver must see and approve the same immutable submitted snapshot. If gross/tare/net or supplier/price/variety/location changes after submission, invalidate the approval request and require resubmission. Never trust a client-supplied net value or allow an approval to silently apply to a changed payload. This preserves the future weighbridge integration without pretending it is already connected.
