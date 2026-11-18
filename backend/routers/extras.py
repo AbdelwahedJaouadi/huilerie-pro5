@@ -890,17 +890,44 @@ async def create_client(body: ClientCreate, user: dict = Depends(current_user)):
 
 
 @router.put("/clients/{phone}", response_model=ClientUpdate)
-async def update_client(phone: str, body: ClientUpdate, _: dict = Depends(require_admin)):
+async def update_client(phone: str, body: ClientUpdate, user: dict = Depends(require_admin)):
+    old_phone = re.sub(r"\s+", "", phone)
     new_phone = re.sub(r"\s+", "", body.phone)
-    res = await db.loads.update_many(
-        {"phone": phone.strip()}, {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}}
-    )
-    cres = await db.clients.update_one(
-        {"phone": phone.strip()}, {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}}
-    )
-    if not res.matched_count and not cres.matched_count:
-        raise HTTPException(404, "client_not_found")
-    return ClientUpdate(client_name=body.client_name.strip(), phone=new_phone)
+
+    async def operation(session):
+        if new_phone != old_phone:
+            duplicate_load = await db.loads.find_one({"phone": new_phone}, {"_id": 0, "id": 1}, session=session)
+            duplicate_client = await db.clients.find_one({"phone": new_phone}, {"_id": 0, "phone": 1}, session=session)
+            if duplicate_load or duplicate_client:
+                raise HTTPException(409, "client_exists")
+            if await _client_has_gs_history(old_phone, session=session):
+                raise HTTPException(409, "client_has_gs_history")
+
+        res = await db.loads.update_many(
+            {"phone": old_phone},
+            {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}},
+            session=session,
+        )
+        cres = await db.clients.update_one(
+            {"phone": old_phone},
+            {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}},
+            session=session,
+        )
+        if not res.matched_count and not cres.matched_count:
+            raise HTTPException(404, "client_not_found")
+        await db.commercial_audit_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "entity_type": "traditional_client",
+            "entity_id": new_phone,
+            "action": "CLIENT_UPDATED",
+            "actor_user_id": user.get("id"),
+            "created_at": datetime.now(timezone.utc),
+            "details": {"previous_phone": old_phone, "new_phone": new_phone,
+                        "client_name": body.client_name.strip()},
+        }, session=session)
+        return ClientUpdate(client_name=body.client_name.strip(), phone=new_phone)
+
+    return await run_transaction(operation)
 
 
 async def _client_has_gs_history(phone: str, session=None) -> bool:
