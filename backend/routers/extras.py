@@ -951,6 +951,8 @@ async def _client_has_gs_history(phone: str, session=None) -> bool:
             {phone_field: phone}, {"_id": 0, "id": 1}, **options
         ):
             return True
+    if await db.invoices.find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
+        return True
     if await db.sms_log.find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
         return True
     return False
