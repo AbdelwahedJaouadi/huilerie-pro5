@@ -163,3 +163,6 @@ The approved client-deletion rule has been implemented in source (not yet merged
 - A unique partial `clients.phone` index and intake guard version protect client identity and the activation check.
 
 **Validation gate still open:** run backend pytest (including the updated client-delete, client-options, load-delete and atomic-deletion tests), run frontend TypeScript/build checks, inspect CI results, then review the complete branch diff before merging or deploying. No live database documents were modified by this implementation.
+
+
+**CI status:** the validation workflow now includes `audit/erp-foundation`, but two push runs ended before any job step started; no logs were produced. This is an infrastructure/runner validation blocker, not evidence that the code passed or failed. Keep the branch unmerged until the runner issue is resolved and backend tests plus frontend build actually execute.
