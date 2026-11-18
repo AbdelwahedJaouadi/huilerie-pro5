@@ -203,3 +203,29 @@ async def test_client_reactivation_and_audit_are_committed_together(monkeypatch)
     assert result == {"ok": True, "active": True}
     assert any(call[0] == "update" for call in calls)
     assert any(call[0] == "insert" and call[1]["action"] == "CLIENT_REACTIVATED" for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_invoice_phone_reference_prevents_client_hard_delete(monkeypatch):
+    calls = []
+    fake = FakeDB(
+        loads=FakeLoads([], calls),
+        clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        invoices=FakeCollection([{"phone": "21600000000", "id": "invoice-1"}], calls),
+        sms_log=FakeCollection(calls=calls),
+        commercial_buyers=FakeCollection(calls=calls),
+        commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
+        commercial_audit_events=FakeCollection(calls=calls),
+    )
+    monkeypatch.setattr(extras, "db", fake)
+
+    async def run(operation):
+        return await operation(object())
+
+    monkeypatch.setattr(extras, "run_transaction", run)
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
+
+    assert result.deactivated is True
+    assert result.deleted == 0
+    assert not any(call[0] == "delete" for call in calls)
