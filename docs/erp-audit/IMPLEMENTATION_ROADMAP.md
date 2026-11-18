@@ -435,3 +435,17 @@ Before any runtime financial fix:
 - Preserve test run IDs and source-event reconciliation assertions.
 
 See `ACCOUNTING_REGRESSION_TEST_COVERAGE.md`. No tests were run as part of this static audit.
+
+
+## Canonical party master and subledger reconciliation gate (18 Nov 2026)
+
+Traditional clients, GS suppliers, GS buyers and custody owners are separate role/domain records. Custody owners link to legacy clients, but no canonical party ID across all roles was found. Separate statements exist for traditional clients, supplier payables, buyer receivables, customer-to-mill purchase payables and custody balances.
+
+Before consolidated ERP party reporting:
+1. Introduce a canonical party identity with role-specific links, preserving every existing domain ID.
+2. Resolve duplicates only through verified legal identifiers and controlled human review; never auto-merge by phone/name.
+3. Keep receivable, payable and custody subledgers separate by legal relationship.
+4. Display consolidated exposure by role without automatic set-off/netting.
+5. Reconcile all legacy statements and preserve historical document snapshots during migration.
+
+**Acceptance gate:** a party with multiple roles has one canonical identity and separate reconciled role balances; ambiguous legacy matches remain unlinked. See `PARTY_MASTER_AND_SUBLEDGER_RECONCILIATION.md`.
