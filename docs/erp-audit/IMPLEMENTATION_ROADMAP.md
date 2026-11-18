@@ -513,3 +513,18 @@ Order of work:
 7. Design and implement durable offline outbox/inbox synchronization before enabling disconnected worker intake.
 
 Do not change the traditional load's legacy quantity basis or existing invoice/statistics formulas in this work. Preserve `loads.olive_kg` as net-only compatibility field during the later weighing migration. No runtime changes were made by this audit.
+
+## Direct olive-purchase worker capability gate (18 Nov 2026)
+
+Added `DIRECT_OLIVE_PURCHASE_CAPABILITY.md` after verifying current router and service-layer authorization.
+
+Confirmed mismatch:
+- Owner requires designated employees to register olive purchases directly without a human review queue.
+- Current `POST /olive-receptions` and both underlying purchase create/approval services require `commercial.manage_purchases`.
+- That capability is not assignable to workers. Thus ordinary workers cannot currently execute the intended direct reception path.
+
+Target: add a dedicated `commercial.register_olive_purchase` capability for selected workers, enforced at a dedicated application-service boundary. It authorizes only the atomic physical purchase/reception + traceability + stock receipt + audit operation. It must not imply supplier payments, reversals, arbitrary purchase edits/approvals, stock adjustments, sales or GL posting.
+
+Do not grant it to all workers. The owner has not yet identified the specific employees; assignment remains a later explicit admin action. The direct purchase remains no-review. This does not justify adding a human approval stage.
+
+Runtime authorization work is gated by real CI execution and MongoDB transaction/permission tests. No current permission or employee record was changed.
