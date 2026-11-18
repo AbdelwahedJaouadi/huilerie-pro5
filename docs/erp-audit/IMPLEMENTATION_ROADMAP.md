@@ -494,3 +494,22 @@ The target is one reusable, immutable weighing-evidence model for traditional cu
 A missing tare is an incomplete operational measurement, not a human approval state. No finalized stock quantity may be posted until both readings exist and net is validated; once complete, the designated employee's direct reception proceeds without a second-person review. Historical net-only loads remain unchanged. A future scale adapter must preserve device/ticket/calibration evidence and idempotent offline synchronization; no hardware integration is claimed.
 
 **Before runtime rollout:** confirm that the shared weighing UI/API scope should cover both traditional customer loads and GS supplier receptions, and later select the scale manufacturer/interface. These decisions do not block the data contract or test design. No runtime fields, UI, API, records or permissions were changed.
+
+## Intake idempotency and offline synchronization gate (18 Nov 2026)
+
+Added `INTAKE_IDEMPOTENCY_AND_OFFLINE_SYNC.md` after confirming:
+- traditional `POST /loads` creates a new ID/code for every request and has no client request key/fingerprint;
+- GS supplier reception's nested purchase/approval fingerprints do not cover all outer new-supplier metadata, allowing changed phone/tax values under the same request key to be silently ignored;
+- the traditional arrival SMS is an external post-commit side effect and needs an outbox/deduplication contract;
+- future offline phone synchronization requires a durable local operation queue and server inbox/idempotency record, not component state alone.
+
+Order of work:
+1. Restore a functioning CI runner (still unresolved; jobs currently have runner_id=0 and no steps).
+2. Implement and test canonical request normalization/fingerprinting.
+3. Implement traditional load idempotency with same-key replay, changed-payload conflict and concurrency-safe winner recovery.
+4. Complete GS outer-command fingerprinting and supplier metadata conflict behavior.
+5. Add transactional notification outbox and verify retry semantics.
+6. Only then add gross/tare fields to the intake command and include all measurement/device evidence in the same request fingerprint.
+7. Design and implement durable offline outbox/inbox synchronization before enabling disconnected worker intake.
+
+Do not change the traditional load's legacy quantity basis or existing invoice/statistics formulas in this work. Preserve `loads.olive_kg` as net-only compatibility field during the later weighing migration. No runtime changes were made by this audit.
