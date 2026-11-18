@@ -247,3 +247,9 @@ The change deactivates the **traditional Oro Verde client registry** and prevent
 ### GitHub Actions validation attempt
 
 The existing validation workflow was extended to run on `audit/erp-foundation`. Two push-triggered workflow runs were created. In both runs, all six jobs (runner smoke, backend syntax, targeted backend tests, commercial tests, MongoDB transaction integration and frontend build) failed within seconds, with no job steps reported and no downloadable job logs. The failed jobs therefore do **not** establish a source-code or test failure; the hosted runner did not produce usable execution output. The workflow has not yet validated this implementation. Investigate repository Actions/runner availability or run the commands from a local checkout before release.
+
+
+### Additional identity protection
+
+- Client history detection also checks `invoices.phone`; Atlas schema inspection confirmed this field exists, so an invoice can preserve a client record even if its original load link is missing.
+- Client profile updates now run in a transaction. A phone change is rejected if the new phone is already used by a client/load or if the old phone has a GS buyer/custody reference; the API does not silently rewrite GS identity snapshots. The update is audited, and legacy clients with load history receive a canonical client-registry record.
