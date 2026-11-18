@@ -47,7 +47,7 @@ class FakeLoads(FakeCollection):
 
 class FakeDB(SimpleNamespace):
     def __getitem__(self, name):
-        return getattr(self, name)
+        return getattr(self, name, FakeCollection())
 
 
 @pytest.mark.asyncio
@@ -175,6 +175,36 @@ async def test_customer_custody_receipt_phone_reference_prevents_hard_delete(mon
         commercial_customer_custody_receipts=FakeCollection(
             [{"customer_phone": "21600000000", "id": "receipt-1"}], calls
         ),
+        commercial_audit_events=FakeCollection(calls=calls),
+    )
+    monkeypatch.setattr(extras, "db", fake)
+
+    async def run(operation):
+        return await operation(object())
+
+    monkeypatch.setattr(extras, "run_transaction", run)
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
+
+    assert result.deactivated is True
+    assert result.deleted == 0
+    assert not any(call[0] == "delete" for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_gs_custody_release_phone_reference_prevents_client_hard_delete(monkeypatch):
+    calls = []
+    fake = FakeDB(
+        loads=FakeLoads([], calls),
+        clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        commercial_customer_custody_releases=FakeCollection(
+            [{"customer_phone": "21600000000", "id": "release-1"}], calls
+        ),
+        invoices=FakeCollection(calls=calls),
+        sms_log=FakeCollection(calls=calls),
+        commercial_suppliers=FakeCollection(calls=calls),
+        commercial_buyers=FakeCollection(calls=calls),
+        commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
         commercial_audit_events=FakeCollection(calls=calls),
     )
     monkeypatch.setattr(extras, "db", fake)
