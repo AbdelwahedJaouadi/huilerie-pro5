@@ -34,7 +34,7 @@ export default function Clients() {
   const rows = list.isError ? [] : (list.data ?? []);
   const h = hist.isError ? null : hist.data;
   const selectedClient = rows.find((c) => c.phone === phone);
-  const selectedClientActive = selectedClient?.active ?? true;
+  const selectedClientActive = h?.active ?? selectedClient?.active ?? true;
   const invoices = useQuery({ queryKey: ["invoices", "load-links"], queryFn: () => apiGet<Array<{ id: string; load_id: string; number: string }>>("/invoices") });
   const invoiceByLoad = new Map((invoices.data ?? []).map((invoice) => [invoice.load_id, invoice]));
   const isAdmin = useMe().data?.role === "admin";
