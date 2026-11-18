@@ -118,3 +118,22 @@ All six jobs report `conclusion=failure`, but each has `steps=null` in the job r
 The latest inspected `main` commit at this audit point (`85e9e896f10f5c840c903f113983ff69dfa669b6`) has no associated workflow runs and no combined status checks. Do not describe the current branch as CI-green.
 
 **Required next CI action:** identify and repair the runner/workflow trigger configuration so a new pull-request commit receives an assigned runner and actual steps/logs. Then require successful backend syntax, invoice/commercial unit tests, MongoDB transaction integration and frontend build/typecheck before any runtime accounting fix is merged. Do not rerun the historical run as a substitute for validating the current source commit.
+
+## 7. Runner provisioning diagnosis (18 Nov 2026, second attempt)
+
+A second direct inspection was performed on PR validation run `44218616527` (attempt 1), then the failed jobs were re-run using GitHub's retry operation (attempt 2).
+
+Observed attempt 2:
+- All six jobs were created and immediately completed as `failure` within approximately 2–3 seconds.
+- Every job reports `runner_id=0`, empty `runner_name`, and empty `steps[]`.
+- The `runner-smoke` job itself did not execute, so this is not a Python setup, dependency installation, test assertion, Docker or MongoDB failure.
+- Downloading the job logs returns `BlobNotFound`; no runner logs exist for this attempt.
+- The workflow YAML is present at `.github/workflows/validate-factures.yml`, includes `pull_request: branches: [main]`, `workflow_dispatch`, and jobs using `ubuntu-latest`. The workflow was therefore discovered and expanded into six jobs.
+
+**Diagnosis boundary:** the evidence localizes the failure before runner assignment/execution. It does not identify whether the underlying GitHub-side cause is Actions availability/billing policy, hosted-runner provisioning, or repository/account policy. The available repository connection cannot read the Actions settings/billing endpoints, so none of those causes is asserted as fact.
+
+**Action taken:** retried the failed jobs once. The retry reproduced the same runner-allocation failure. Do not keep retrying identical runs or change application code/workflow steps to compensate for a failure that occurs before any step starts.
+
+**Required owner-side check:** in GitHub repository `Settings → Actions → General`, verify that Actions are enabled and permitted for the repository; then inspect the account's Actions billing/usage and GitHub Actions service notices. If Actions are enabled and within quota, contact GitHub Support with run `44218616527`, attempt 2, and the six job IDs; include the fact that each job has `runner_id=0`, no steps, and no logs.
+
+Until a hosted runner actually starts the smoke step and returns a runner ID, all backend, MongoDB integration and frontend test results remain **not executed**.
