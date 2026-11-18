@@ -195,3 +195,10 @@ The SUARL decision adds explicit requirements for separating company and shareho
 - Reported by owner: suspension de TVA.
 - Evidence gap: owner does not currently have the official suspension certificate/authorization. Treat the status as reported but unverified; do not treat it as non-assujettissement, a blanket exemption, or permission to suppress VAT on all transactions.
 - Continue non-tax ERP foundation work. Keep tax automation behind an evidence-and-accountant-approval gate.
+
+
+## Permission-model audit addendum (17 Nov 2026)
+
+The GS worker assignment allowlist does not currently include the core operational capabilities for tank management, stock posting/reversal, sales, custody, purchases or production, even though administrators possess them. The pump selection/status handlers are guarded by `commercial.read` despite mutating operational state. Traditional routes also grant broad authenticated-worker write access to several intake and production actions. These are documented gaps, not permissions to broaden automatically.
+
+Stage 1 must define job-role capabilities and maker/checker separation, then implement backend route guards and frontend affordances together with authorization regression tests. Do not grant every capability to all workers.
