@@ -172,3 +172,17 @@ Traditional clients are primarily keyed by phone; GS suppliers and buyers are se
 No canonical party ID spanning all roles was found in the inspected model. This does not prove live duplicate records, but it means the same real-world party can exist in several domains without guaranteed shared identity. Cross-domain search is not identity resolution.
 
 A future canonical party master should link role-specific records while preserving separate receivable/payable/custody subledgers. Never auto-merge by phone/name and never automatically net receivables against payables. See `PARTY_MASTER_AND_SUBLEDGER_RECONCILIATION.md`. No live party records changed.
+
+## 19. Daily-situation endpoint source-level defect confirmation (18 Nov 2026)
+
+A fresh direct read of `backend/routers/invoices.py` and `backend/routers/accounting.py` confirms that the current incremental traditional invoice payment write path appends both an itemized `payments[]` event and a generic `history[]` paid-amount delta. The separate `GET /accounting/daily-situation` read path adds both representations as receipt events. One incremental receipt can therefore be counted twice in `encaissements`. This is a deterministic source-code defect; it is not a claim that any particular live invoice has already been measured as doubled.
+
+Additional endpoint limitations confirmed:
+- approved supplier olive acquisitions and customer-to-mill olive/oil purchases are classified as period expenses, without an inventory-consumption/COGS valuation model;
+- manual income and expense records are projected as both accrual and cash settlement on one date, although no separate settlement event or named treasury account is captured;
+- GS credit-note and sale-return collections are not loaded by the endpoint, so its commercial period view is incomplete;
+- current receivable/payable totals use document outstanding snapshots, not a fully reconciled event subledger.
+
+See `DAILY_SITUATION_RECONCILIATION_FINDINGS.md` for the exact write/read code path, deterministic 100.000-to-200.000 example, correction rules and endpoint-level test matrix.
+
+The CI runner retry was also inspected: all six jobs completed in 2–3 seconds with `runner_id=0`, no runner name, no steps and no downloadable logs. The failure occurs before test execution; the underlying GitHub account/hosted-runner policy could not be established through the available repository connection. No runtime correction or live-data change was made.

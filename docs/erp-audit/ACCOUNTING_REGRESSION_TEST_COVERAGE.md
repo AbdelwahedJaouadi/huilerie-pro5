@@ -137,3 +137,18 @@ Observed attempt 2:
 **Required owner-side check:** in GitHub repository `Settings → Actions → General`, verify that Actions are enabled and permitted for the repository; then inspect the account's Actions billing/usage and GitHub Actions service notices. If Actions are enabled and within quota, contact GitHub Support with run `44218616527`, attempt 2, and the six job IDs; include the fact that each job has `runner_id=0`, no steps, and no logs.
 
 Until a hosted runner actually starts the smoke step and returns a runner ID, all backend, MongoDB integration and frontend test results remain **not executed**.
+
+## 8. Endpoint defect verified against current source (18 Nov 2026)
+
+The current write/read path is now traced end-to-end:
+- `PATCH /invoices/{invoice_id}` appends a payment child when `payment_amount > 0` and also appends an `updated` history event containing the same before/after paid-amount delta.
+- `GET /accounting/daily-situation` loops over `payments[]` and then independently loops over positive `history[]` paid deltas, adding both to receipt events and `known_paid`.
+
+Therefore a single new TND 100.000 payment can produce TND 200.000 in the endpoint's receipt total. The endpoint's `unallocated_legacy_receipts` clamps negative remainder to zero and does not expose this overcount as a reconciliation difference.
+
+The report also:
+- classifies supplier and customer-to-mill acquisitions as expenses before any inventory consumption/COGS valuation;
+- projects manual income/expense as same-day accrual plus same-day receipt/disbursement;
+- omits GS credit notes and sale-return records from its source query.
+
+The detailed source findings and correction contract are in `DAILY_SITUATION_RECONCILIATION_FINDINGS.md`. Runtime code has not been changed because CI still does not assign runners and endpoint-level tests cannot currently be executed.

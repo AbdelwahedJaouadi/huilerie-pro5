@@ -254,9 +254,9 @@ Confirmed:
 
 No runtime permissions were changed. Stage 1 now requires owner-approved job roles, independent checker assignments, financial visibility rules and thresholds, followed by backend service-level authorization, frontend capability alignment and API regression tests. Do not merge or deploy until the existing CI runner issue is resolved and tests execute.
 
-### One-step purchase approval and weighing evidence follow-up
+### Direct olive-purchase registration and weighing evidence
 
-The financial-role review found that `POST /commercial/v1/olive-receptions` internally constructs an approval command and creates the purchase, lot and stock receipt in one transaction under the initiating actor. This preserves atomicity but provides no independent purchase checker. Stage 1 must split submission from approval while keeping approval-time stock posting atomic. The approval snapshot must bind gross, tare, server-derived net, measurement provenance, supplier, price, variety and receiving location. A change to the submitted snapshot must invalidate approval and require resubmission. This also preserves the future weighbridge integration requirement.
+The source review found that `POST /commercial/v1/olive-receptions` internally performs the purchase transition, lot creation and stock receipt in one transaction under the registering actor. The owner explicitly confirmed that the employee must record this purchase directly without a human review queue. The workflow must therefore **not** be split into a pending submission/checker process. Keep the transaction atomic and make it available only through a dedicated capability assigned to designated employees after that role assignment is decided. When gross/tare fields are implemented, bind both readings, server-derived net, measurement source, actor and timestamps to the same immutable reception evidence.
 
 
 ### Owner decision — direct olive purchase entry (17 Nov 2026)
@@ -465,3 +465,17 @@ The contract explicitly prevents the current `/accounting/daily-situation` proje
 6. Keep all GL posting, tax calculation, inventory monetary valuation and treasury posting disabled until their separate policy and accountant gates pass.
 
 No runtime code, permissions, database documents, financial records or Render services were changed by this design update.
+
+
+## Daily-situation source-code reconciliation findings (18 Nov 2026)
+
+Added `DAILY_SITUATION_RECONCILIATION_FINDINGS.md` after direct inspection of the current `backend/routers/accounting.py` and `backend/routers/invoices.py` implementations.
+
+Confirmed:
+- Current incremental traditional invoice payment writes both a `payments[]` item and a `history[]` paid-amount delta in the same transaction; `/accounting/daily-situation` sums both as receipts. A single receipt can therefore be reported twice.
+- Manual income and expense records are projected as both recognition and cash settlement on the same date, although the source schema has no independent settlement event/account evidence.
+- Supplier olive and customer-to-mill purchases are placed in the expense bucket; the report's `net_result` is not statutory profit because inventory acquisition is not separated from consumption/COGS.
+- The endpoint does not load GS credit-note and return records, so it is not a complete sales/returns report.
+- No dedicated endpoint-level regression test for the full daily-situation route exists in the inspected test tree.
+
+**Runtime correction remains blocked** until the hosted runner starts and endpoint-level regression tests execute. CI run `44218616527` attempt 2 again ended with all six jobs at `runner_id=0`, empty steps and no logs. The source-level diagnosis is documented; no live records or runtime code changed.
