@@ -87,6 +87,7 @@ async def test_client_without_history_is_hard_deleted(monkeypatch):
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
         commercial_audit_events=FakeCollection(calls=calls),
     )
     monkeypatch.setattr(extras, "db", fake)
@@ -112,6 +113,7 @@ async def test_client_referenced_in_gs_without_traditional_load_is_deactivated(m
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection([{"phone": "21600000000", "id": "buyer-1"}], calls),
         commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
         commercial_audit_events=FakeCollection(calls=calls),
     )
     monkeypatch.setattr(extras, "db", fake)
@@ -136,6 +138,7 @@ async def test_delete_unknown_client_returns_404(monkeypatch):
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
         commercial_audit_events=FakeCollection(calls=calls),
     )
     monkeypatch.setattr(extras, "db", fake)
