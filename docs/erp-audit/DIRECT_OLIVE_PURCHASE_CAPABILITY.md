@@ -113,3 +113,20 @@ The owner has not yet named the employees who should receive this capability. Th
 Before runtime change, ensure GitHub Actions runs the API permission tests and MongoDB transaction tests on a real runner. Assign the capability only after the owner selects the authorized employees.
 
 No runtime route, permission allowlist, employee record, database document or Render deployment is changed by this design document.
+
+## 9. Frontend assignment UI constraint (additional source review, 18 Nov 2026)
+
+The administrator's `EmployeePermissionsPanel` in `frontend/src/pages/Settings.tsx` also hardcodes the worker permission checkbox list. It currently renders only:
+- `commercial.edit_records`
+- `commercial.delete_records`
+- `commercial.lab_record`
+- `commercial.manage_preproduction_samples`
+- `commercial.quality_release`
+- `commercial.view_audit`
+
+Therefore adding `commercial.register_olive_purchase` to the backend allowlist alone would still leave administrators unable to assign it through the existing UI. A complete runtime change must update all three enforcement/configuration surfaces together:
+1. `backend/commercial/permissions.py` assignable allowlist;
+2. `backend/commercial/routers.py` route/service authorization and assignment endpoint validation;
+3. `frontend/src/pages/Settings.tsx` employee-permission checkbox and localized label.
+
+The frontend checkbox is an assignment control, not a substitute for backend enforcement. Tests must verify both the API assignment contract and the resulting route behavior. No UI or backend permission change has been made.
