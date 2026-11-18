@@ -136,3 +136,12 @@ A source review of the mounted accounting API and frontend confirmed that:
 - The daily-situation endpoint classifies approved supplier olive purchases and customer-to-mill olive/oil purchases as expenses at full purchase amount, while these workflows create company-owned inventory/ownership acquisition records. This can overstate period expenses and understate the reported net result until inventory consumption/COGS is recognized. Treat the current `net_result` as a source-document operational indicator, not statutory profit.
 
 See `OPERATING_EXPENSES_PAYROLL_AND_FIXED_ASSETS.md` for source details, target event model and acceptance tests. No runtime code or live records changed.
+
+
+## 15. Tax engine and invoice compliance review (18 Nov 2026)
+
+The traditional invoice creation path records oil quantity, tariff, total, paid amount and balance, but the inspected invoice schema/write path has no tax base, rate, tax amount, suspension/exemption reason, stamp duty, withholding or applied tax-rule version.
+
+The GS wholesale invoice explicitly stores `tax_treatment_status = NOT_CONFIGURED`; the inspected flow does not calculate tax or snapshot a suspension authorization. This is a correct fail-closed status and must remain until tax configuration is approved.
+
+The owner-reported suspension de TVA is not documentary-verified. The company must not be treated as non-assujettie or given a blanket VAT exemption. See `TAX_CONFIGURATION_AND_INVOICE_COMPLIANCE.md` for required authorization evidence, transaction-specific tax-rule model and acceptance tests. No tax settings or invoices were changed.
