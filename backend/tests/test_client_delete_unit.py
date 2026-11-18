@@ -59,6 +59,7 @@ async def test_client_with_load_history_is_deactivated_and_all_records_are_retai
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
         commercial_audit_events=FakeCollection(calls=calls),
     )
     monkeypatch.setattr(extras, "db", fake)
