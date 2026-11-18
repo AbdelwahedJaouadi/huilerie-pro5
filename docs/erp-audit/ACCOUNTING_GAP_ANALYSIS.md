@@ -154,3 +154,12 @@ Traditional invoice receipts store amount, timestamp and actor but no method or 
 A repository-tree scan found no dedicated cashbook, bank-account, cheque-register, cash-count or bank-statement reconciliation module/API. Therefore current payment documents prove settlement against an invoice/payable in the application, but do not provide a complete account-level treasury ledger or external bank clearance evidence.
 
 See `CASH_AND_BANK_LEDGER_AUDIT.md` for target account, treasury transaction, statement line, reconciliation and cash-count structures. No payment or bank data changed.
+
+
+## 17. Accounting regression coverage review (18 Nov 2026)
+
+The test tree contains invoice mutation unit tests, client statement payment-helper tests, accounting aggregation-helper tests, and GS payment/stock integration tests. It does not contain an endpoint-level regression test for the complete `/accounting/daily-situation` projection.
+
+In particular, `test_incremental_payment_is_appended_to_payment_ledger` confirms an incremental traditional payment appends both an item in `payments[]` and a generic `history` entry. The client-account helper tests cover their own deduplication behavior, but do not exercise the separate daily-situation endpoint that projects both representations. The accounting aggregation tests cover helper/pipeline behavior, not cross-source event reconciliation.
+
+See `ACCOUNTING_REGRESSION_TEST_COVERAGE.md` for the source-based test inventory and required regression matrix. This is static inspection only; tests were not executed and no test pass is claimed.
