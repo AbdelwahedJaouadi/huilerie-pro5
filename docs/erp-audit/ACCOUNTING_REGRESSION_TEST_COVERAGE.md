@@ -70,9 +70,9 @@ Add tests at the pure projection/service layer first, then a small route integra
 |---|---|
 | Traditional incremental receipt | A TND 50.000 payment produces exactly one TND 50.000 receipt in daily-situation; paid snapshot and balance reconcile. |
 | Itemized + history overlap | Same receipt represented in both legacy fields is counted once, not twice. |
-| Legacy aggregate only | Legacy `paid_amount` without itemized event is marked estimated and counted once. |
+| Legacy aggregate only | Legacy `paid_amount` without itemized event is marked `UNALLOCATED_LEGACY`; it is not counted as an authoritative cash receipt. |
 | Itemized partial receipts | Multiple partial receipts each appear once on their own payment dates. |
-| History-only legacy invoice | Only missing itemized receipts are inferred; no duplicate is created. |
+| History-only legacy invoice | Positive history deltas are retained as audit evidence and flagged `LEGACY_UNRESOLVED`; they are not promoted to cash receipts without itemized payment evidence. |
 | GS PAY + REV | Cash receipt and reversal reconcile to net paid balance without mutating the original payment. |
 | Supplier purchase + payments | Inventory acquisition, payable balance and disbursement are separate; purchase is not automatically period P&L expense. |
 | Customer-to-mill purchase | Ownership acquisition is recognized once; existing custody stock is not physically received twice. |
