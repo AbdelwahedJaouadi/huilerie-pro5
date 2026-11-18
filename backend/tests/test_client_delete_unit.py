@@ -85,6 +85,7 @@ async def test_client_without_history_is_hard_deleted(monkeypatch):
     fake = FakeDB(
         loads=FakeLoads([], calls),
         clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        invoices=FakeCollection(calls=calls),
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
@@ -111,6 +112,7 @@ async def test_client_referenced_in_gs_without_traditional_load_is_deactivated(m
     fake = FakeDB(
         loads=FakeLoads([], calls),
         clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        invoices=FakeCollection(calls=calls),
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection([{"phone": "21600000000", "id": "buyer-1"}], calls),
         commercial_custody_owners=FakeCollection(calls=calls),
@@ -136,6 +138,7 @@ async def test_delete_unknown_client_returns_404(monkeypatch):
     fake = FakeDB(
         loads=FakeLoads([], calls),
         clients=FakeCollection([], calls),
+        invoices=FakeCollection(calls=calls),
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
@@ -160,6 +163,7 @@ async def test_customer_custody_receipt_phone_reference_prevents_hard_delete(mon
     fake = FakeDB(
         loads=FakeLoads([], calls),
         clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        invoices=FakeCollection(calls=calls),
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
