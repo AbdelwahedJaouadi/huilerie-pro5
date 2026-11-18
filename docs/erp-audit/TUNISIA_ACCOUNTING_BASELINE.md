@@ -1,8 +1,8 @@
 # Tunisia Accounting and Tax Design Baseline
 
 Project: Oro Verde / huilerie-pro5  
-Decision supplied by the owner: the company is registered in Tunisia.  
-Status: jurisdiction selected; entity-specific tax configuration remains unapproved.
+Decisions supplied by the owner: the company is registered in Tunisia and its legal form is SUARL (Société Unipersonnelle à Responsabilité Limitée).  
+Status: jurisdiction and legal form selected; entity-specific tax configuration remains unapproved.
 
 ## 1. Governing accounting framework
 
@@ -45,7 +45,7 @@ Therefore:
 ## 4. Mandatory business decisions before tax posting goes live
 
 The jurisdiction is settled (Tunisia), but the following remain unknown and must be confirmed by the owner/accountant:
-1. Legal form: SUARL, SARL, SA, individual enterprise, cooperative, or another form.
+1. ~~Legal form~~ **Resolved: SUARL (Société Unipersonnelle à Responsabilité Limitée)**. The sole shareholder may be a natural or legal person under Article 149 of the Tunisian Commercial Companies Code. The SUARL is governed by the SARL regime subject to the specific SUARL provisions (Article 148).
 2. Tax regime: real regime or another applicable regime.
 3. Tax registration: VAT-liable, VAT suspension/exemption, or not liable; relevant activity registrations.
 4. Applicable activity codes and the company's precise tax treatment for olive purchase, toll pressing, customer-owned oil custody, bulk oil sales and by-products.
@@ -53,6 +53,15 @@ The jurisdiction is settled (Tunisia), but the following remain unknown and must
 6. Whether statutory auditor/commissaire aux comptes requirements apply.
 7. Opening balances date and approved opening trial balance.
 8. Accountant-approved chart of accounts, tax mappings, invoice legal fields and numbering series.
+
+### SUARL-specific accounting and governance requirements
+
+- Maintain a clear separation between the company's assets/liabilities and the sole shareholder's personal transactions. Record shareholder contributions, shareholder current-account movements, reimbursements, loans and distributions as distinct, documented transaction types; never treat a shareholder withdrawal as an ordinary operating expense by default.
+- Support the sole shareholder's signed decisions and a dedicated register of decisions, rather than assuming multi-member shareholder meeting workflows.
+- Under Article 153, the sole shareholder establishes the management report, inventory and annual accounts (with the statutory auditor's report where applicable) and approves them within three months of the accounts' closing date.
+- Under Article 154, resolutions are signed by the sole shareholder or the authorized proxy and recorded in the special register prescribed by law.
+- Determine statutory auditor requirements from the company's actual size, activity and current law; do not assume that SUARL status automatically exempts or requires an auditor.
+- These are system requirements, not a substitute for confirmation by the company's Tunisian accountant or legal adviser.
 
 No rate, tax liability, account mapping or statutory filing should be activated solely from this document.
 
