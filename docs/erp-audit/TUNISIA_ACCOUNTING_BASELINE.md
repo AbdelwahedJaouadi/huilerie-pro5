@@ -1,8 +1,8 @@
 # Tunisia Accounting and Tax Design Baseline
 
 Project: Oro Verde / huilerie-pro5  
-Decisions supplied by the owner: the company is registered in Tunisia and its legal form is SUARL (Société Unipersonnelle à Responsabilité Limitée).  
-Status: jurisdiction and legal form selected; entity-specific tax configuration remains unapproved.
+Decisions supplied by the owner: the company is registered in Tunisia, its legal form is SUARL (Société Unipersonnelle à Responsabilité Limitée), and it operates under the régime réel.  
+Status: jurisdiction, legal form and declared tax regime selected; VAT status, detailed tax profile and entity-specific tax configuration remain unapproved.
 
 ## 1. Governing accounting framework
 
@@ -39,14 +39,14 @@ Therefore:
 - Keep VAT rates, exemptions, suspension, withholding, stamp duty and tax treatment by product/service/document configurable.
 - Store the applied tax-rule version on each posted document.
 - Preserve tax base, rate, amount, exemption/suspension reason and supporting legal reference separately.
-- Do not infer the mill's VAT status, corporate tax rate, withholding profile, or agricultural/industrial tax treatment from its business description.
+- The owner selected the régime réel. Do not infer the mill's VAT status, applicable corporate income-tax rate, withholding profile, minimum tax, or agricultural/industrial tax treatment from this selection or from its business description.
 - Do not treat a generic olive-oil purchase, pressing service, customer-custody operation or sale as having a tax result until the accountant confirms the exact transaction classification.
 
 ## 4. Mandatory business decisions before tax posting goes live
 
 The jurisdiction is settled (Tunisia), but the following remain unknown and must be confirmed by the owner/accountant:
 1. ~~Legal form~~ **Resolved: SUARL (Société Unipersonnelle à Responsabilité Limitée)**. The sole shareholder may be a natural or legal person under Article 149 of the Tunisian Commercial Companies Code. The SUARL is governed by the SARL regime subject to the specific SUARL provisions (Article 148).
-2. Tax regime: real regime or another applicable regime.
+2. ~~Tax regime~~ **Owner-confirmed: régime réel.** As a SUARL, the company is a legal person and must maintain accounting compliant with Tunisian enterprise-accounting legislation. The exact corporate-tax treatment and any special activity-specific provisions still require accountant confirmation.
 3. Tax registration: VAT-liable, VAT suspension/exemption, or not liable; relevant activity registrations.
 4. Applicable activity codes and the company's precise tax treatment for olive purchase, toll pressing, customer-owned oil custody, bulk oil sales and by-products.
 5. Approved accounting year (calendar year assumed only provisionally).
@@ -84,3 +84,10 @@ No rate, tax liability, account mapping or statutory filing should be activated 
 - Order of Experts Accountants of Tunisia — Tunisian accounting system: https://oect.org.tn/systeme-comptable-tunisien/
 
 This is an engineering design baseline, not a tax or legal opinion. Confirm current legislation and company-specific treatment with a Tunisian chartered accountant before posting statutory accounts.
+
+
+## 7. Owner-confirmed tax regime (17 Nov 2026)
+
+The owner confirmed **régime réel** for the SUARL. The Ministry of Finance states that legal entities and individuals taxed under the real BIC regime must keep accounting compliant with enterprise-accounting legislation. The company is therefore designed for full compliant enterprise accounting, not a simplified cash register. The selected regime does not by itself establish VAT registration/status, a specific corporate tax rate, withholding profile, or the tax classification of each mill activity. Those remain versioned configuration items pending accountant confirmation.
+
+Official reference: Ministry of Finance — https://www.finances.gov.tn/fr/node/951
