@@ -410,7 +410,8 @@ async def _ensure_load_is_deletable(load_id: str, session=None, load_doc: dict |
     if doc.get("ownership_transferred") or to_decimal(doc.get("custody_received_kg", 0)) > 0:
         raise HTTPException(409, "load_ownership_or_custody_transferred")
     original = to_decimal(doc.get("olive_kg", 0))
-    available = to_decimal(doc.get("customer_available_olive_kg", original))
+    available_raw = doc.get("customer_available_olive_kg")
+    available = to_decimal(original if available_raw is None else available_raw)
     if available < original:
         raise HTTPException(409, "load_ownership_or_custody_transferred")
 
