@@ -403,3 +403,19 @@ Before tax posting or statutory invoice compliance is enabled:
 6. Keep the current fail-closed `NOT_CONFIGURED` state until approval; do not infer rates or tax outcomes from SUARL or régime réel alone.
 
 **Acceptance gate:** prove valid/in-scope, expired, out-of-scope, historical invoice and credit-note tax scenarios with accountant-approved expected results. No tax rate or suspension treatment may be invented in code.
+
+
+## Treasury / cash and bank reconciliation gate (18 Nov 2026)
+
+The current payment documents identify payment amount/date and, for GS, method/reference. They do not identify a named cash drawer or bank account, and no cashbook, bank statement import/reconciliation, cheque lifecycle or cash-count module was found.
+
+Before treasury go-live:
+1. Configure company cash drawers and bank accounts with opening balances and authorized custodians.
+2. Link each canonical payment/reversal event to exactly one actual treasury movement without duplicating receivable/payable settlement.
+3. Add internal cash/bank transfers as paired balance-sheet movements with no P&L effect.
+4. Implement bank statement import/matching, unmatched-item handling and period reconciliation.
+5. Implement cheque receipt/issue/deposit/clearance/rejection lifecycle and cash drawer counts.
+6. Preserve legacy payments without account identity as `UNALLOCATED_LEGACY`; never infer account from payment method alone.
+7. Enforce dual authorization where required by the bank mandate and approved role matrix.
+
+**Acceptance gate:** cash receipt, supplier payment, partial settlement, internal transfer, bank statement match, cheque clearance/rejection, payment reversal and cash-count variance all reconcile to payment subledgers and GL. See `CASH_AND_BANK_LEDGER_AUDIT.md`.

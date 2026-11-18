@@ -145,3 +145,12 @@ The traditional invoice creation path records oil quantity, tariff, total, paid 
 The GS wholesale invoice explicitly stores `tax_treatment_status = NOT_CONFIGURED`; the inspected flow does not calculate tax or snapshot a suspension authorization. This is a correct fail-closed status and must remain until tax configuration is approved.
 
 The owner-reported suspension de TVA is not documentary-verified. The company must not be treated as non-assujettie or given a blanket VAT exemption. See `TAX_CONFIGURATION_AND_INVOICE_COMPLIANCE.md` for required authorization evidence, transaction-specific tax-rule model and acceptance tests. No tax settings or invoices were changed.
+
+
+## 16. Cash and bank ledger review (18 Nov 2026)
+
+Traditional invoice receipts store amount, timestamp and actor but no method or cash/bank account. GS payment documents store date, amount, method and selected references, with useful PAY/REV idempotency and receivable/payable reconciliation, but no specific cash drawer/bank account identity or statement reconciliation.
+
+A repository-tree scan found no dedicated cashbook, bank-account, cheque-register, cash-count or bank-statement reconciliation module/API. Therefore current payment documents prove settlement against an invoice/payable in the application, but do not provide a complete account-level treasury ledger or external bank clearance evidence.
+
+See `CASH_AND_BANK_LEDGER_AUDIT.md` for target account, treasury transaction, statement line, reconciliation and cash-count structures. No payment or bank data changed.
