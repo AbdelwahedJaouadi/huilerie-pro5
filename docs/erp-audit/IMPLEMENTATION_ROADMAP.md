@@ -171,3 +171,10 @@ The approved client-deletion rule has been implemented in source (not yet merged
 ## Traditional API permission inventory added
 
 `TRADITIONAL_PERMISSION_MATRIX.md` now maps the 85 mounted traditional API routes: 7 intentionally public, 29 available to any authenticated user, and 49 administrator-only. This makes the current role boundary explicit and identifies broad worker write access to loads, production updates, lab creation, client creation and TV management. A role-specific capability matrix remains a Stage 1 decision; do not expand permissions ad hoc.
+
+
+## Financial lifecycle review update (17 Nov 2026)
+
+- Added `FINANCIAL_DOCUMENT_LIFECYCLE.md` documenting traditional invoice receipt handling, a confirmed mismatch between invoice payment totals and the embedded payment-event ledger, the branch-level fix, and remaining invoice/expense/income reversal decisions.
+- Added a targeted unit test for incremental receipt persistence. It has **not** executed because the current GitHub Actions runner-allocation failure remains unresolved.
+- The invoice repricing and physical-delete endpoints remain unchanged pending an approved legal/accounting document lifecycle. Do not infer that a generic audit history makes a posted invoice immutable or compliant.
