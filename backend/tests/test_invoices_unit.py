@@ -135,6 +135,27 @@ async def test_update_recalculates_balance_and_records_history(fake_db):
 
 
 @pytest.mark.asyncio
+async def test_incremental_payment_is_appended_to_payment_ledger(fake_db):
+    created = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"username": "admin"},
+    )
+
+    updated = await invoice_routes.update_invoice(
+        created["id"],
+        {"payment_amount": 0.75},
+        {"username": "cashier"},
+    )
+
+    assert updated["paid_amount"] == 1.25
+    assert updated["balance"] == 1.45
+    assert len(updated["payments"]) == 2
+    assert updated["payments"][-1]["by"] == "cashier"
+    assert updated["payments"][-1]["amount"] == 0.75
+    assert len(updated["history"]) == 2
+
+
+@pytest.mark.asyncio
 async def test_paid_amount_cannot_exceed_total(fake_db):
     with pytest.raises(HTTPException) as exc:
         await invoice_routes.create_invoice(
