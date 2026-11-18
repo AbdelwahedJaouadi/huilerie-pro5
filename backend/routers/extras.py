@@ -880,8 +880,11 @@ async def list_client_options(
 @router.post("/clients", response_model=ClientSummary)
 async def create_client(body: ClientCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
+    existing_client = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1})
+    if existing_client and existing_client.get("active") is False:
+        raise HTTPException(409, "client_inactive")
     existing = await db.loads.find_one({"phone": phone}, {"_id": 0, "client_name": 1})
-    if existing or await db.clients.find_one({"phone": phone}):
+    if existing or existing_client:
         raise HTTPException(409, "client_exists")
     now = datetime.now(timezone.utc)
     await db.clients.insert_one({"phone": phone, "client_name": body.client_name.strip(), "active": True, "created_at": now})
