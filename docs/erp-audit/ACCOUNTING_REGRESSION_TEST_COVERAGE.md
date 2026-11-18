@@ -101,3 +101,20 @@ Before any runtime financial fix is merged:
 ## 5. Non-negotiable testing principle
 
 A green unit test for invoice balance is not proof of a correct cash report. A green stock quantity test is not proof of monetary inventory valuation. A green payment reversal test is not proof of bank reconciliation. Each accounting projection must reconcile its own source-event identities and balances.
+
+## 6. CI execution evidence rechecked (18 Nov 2026)
+
+The recorded GitHub Actions run `44212833785` was inspected again through the job and step endpoints. It contains these jobs:
+
+- `runner-smoke`
+- `backend-syntax`
+- `mongodb-transaction-integration`
+- `frontend-build`
+- `commercial-unit-tests`
+- `invoice-unit-tests`
+
+All six jobs report `conclusion=failure`, but each has `steps=null` in the job response and the runner-smoke step query returns an empty step list. No job logs are available. Therefore this run proves neither a code failure nor a successful test execution; it is an infrastructure/no-execution result.
+
+The latest inspected `main` commit at this audit point (`85e9e896f10f5c840c903f113983ff69dfa669b6`) has no associated workflow runs and no combined status checks. Do not describe the current branch as CI-green.
+
+**Required next CI action:** identify and repair the runner/workflow trigger configuration so a new pull-request commit receives an assigned runner and actual steps/logs. Then require successful backend syntax, invoice/commercial unit tests, MongoDB transaction integration and frontend build/typecheck before any runtime accounting fix is merged. Do not rerun the historical run as a substitute for validating the current source commit.
