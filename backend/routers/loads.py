@@ -87,6 +87,9 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
+    inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
+    if inactive_client:
+        raise HTTPException(409, "client_inactive")
     now_local = datetime.now(_tz())
     season = await active_season()
     code = await next_load_code(season)
