@@ -246,7 +246,7 @@ The change deactivates the **traditional Oro Verde client registry** and prevent
 
 ### GitHub Actions validation attempt
 
-The existing validation workflow was extended to run on `audit/erp-foundation`. Two push-triggered workflow runs were created. In both runs, all six jobs (runner smoke, backend syntax, targeted backend tests, commercial tests, MongoDB transaction integration and frontend build) failed within seconds, with no job steps reported and no downloadable job logs. The failed jobs therefore do **not** establish a source-code or test failure; the hosted runner did not produce usable execution output. The workflow has not yet validated this implementation. Investigate repository Actions/runner availability or run the commands from a local checkout before release.
+The existing validation workflow was extended to run on `audit/erp-foundation`. Several push-triggered workflow runs were created. In these runs, all six jobs (runner smoke, backend syntax, targeted backend tests, commercial tests, MongoDB transaction integration and frontend build) failed within seconds, with no job steps reported and no downloadable job logs. The failed jobs therefore do **not** establish a source-code or test failure; the hosted runner did not produce usable execution output. The workflow has not yet validated this implementation. Investigate repository Actions/runner availability or run the commands from a local checkout before release.
 
 
 ### Additional identity protection
