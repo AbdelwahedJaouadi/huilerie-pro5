@@ -950,6 +950,7 @@ async def _client_has_linked_history(phone: str, session=None) -> bool:
         ("commercial_buyers", "phone"),
         ("commercial_custody_owners", "client_phone"),
         ("commercial_customer_custody_receipts", "customer_phone"),
+        ("commercial_customer_custody_releases", "customer_phone"),
     ):
         if await db[collection_name].find_one(
             {phone_field: phone}, {"_id": 0, "id": 1}, **options
