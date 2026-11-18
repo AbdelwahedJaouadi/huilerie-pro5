@@ -2,7 +2,7 @@
 
 Project: Oro Verde / huilerie-pro5  
 Decisions supplied by the owner: the company is registered in Tunisia, its legal form is SUARL (Société Unipersonnelle à Responsabilité Limitée), and it operates under the régime réel.  
-Status: jurisdiction, legal form, declared tax regime and VAT suspension status selected; the suspension's legal scope, validity dates, supporting certificates and transaction-specific treatment remain to be verified before tax automation.
+Status: jurisdiction, legal form and declared tax regime are owner-confirmed. VAT suspension is owner-reported but documentary evidence is currently unavailable; legal scope, validity dates and transaction-specific treatment are unverified. No automated suspension treatment may be activated until evidence is reviewed.
 
 ## 1. Governing accounting framework
 
@@ -96,3 +96,19 @@ Official reference: Ministry of Finance — https://www.finances.gov.tn/fr/node/
 ## 8. Owner-confirmed VAT suspension (17 Nov 2026)
 
 The owner reports that the SUARL has a **suspension de TVA**. This is not to be modelled as `non assujettie` and must not be treated as an unlimited or permanent exemption. Until the current authorization/certificate is checked, the ERP must not automatically suppress VAT on every purchase or sale. The tax engine should support a suspension authorization record with at least: authorization/reference number, beneficiary legal identity, scope (eligible transactions/products/services and counterparties as specified), effective-from and expiry dates, any ceilings or conditions, supporting document, and the invoice/document wording required by the authorization and current law. Each transaction must be evaluated against the active authorization and its scope; out-of-scope or expired transactions follow the otherwise applicable tax treatment. Final configuration and invoice wording require the Tunisian accountant's validation.
+
+
+## 9. VAT suspension evidence status (17 Nov 2026)
+
+The owner confirms that the SUARL has a VAT suspension but states that the official certificate/authorization is not currently available.
+
+Implementation status:
+- Tax profile: `suspension_reported_unverified`.
+- Evidence status: `missing`.
+- Do not mark the company as `non_assujettie`.
+- Do not suppress VAT globally, infer that all purchases/sales are covered, or print suspension wording on invoices without the applicable authorization and accountant approval.
+- Keep tax calculation configurable and transaction-specific. Until evidence is supplied, the ERP must flag the tax treatment for accountant review rather than silently applying a suspension.
+- When evidence becomes available, capture the issuing authority, authorization number, beneficiary identity, scope, eligible transaction types/counterparties, effective date, expiry date, ceilings/conditions, required document wording, file reference and reviewer/verification date.
+- Expired, out-of-scope or unverified transactions must not inherit a suspension automatically.
+
+This is a control state for software design, not a legal conclusion that the suspension is valid or invalid.
