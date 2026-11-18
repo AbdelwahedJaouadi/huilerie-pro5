@@ -183,9 +183,9 @@ For every protected route, test:
 
 ### Financial workflow tests
 
-- Purchase maker cannot approve own purchase; checker can approve once; duplicate retry returns the same result; changed payload/key conflicts.
+- For the separate `/olive-purchases` draft/approve workflow, verify its intended approval policy explicitly; do not apply this maker/checker test to direct `/olive-receptions`. For direct supplier reception, test same-key/same-payload retry returns the original purchase and receipt, same-key/changed-payload conflicts, and concurrent duplicate submissions create exactly one purchase, lot set and stock receipt.
 - Supplier-payment maker cannot approve own payment; overpayment and wrong payee are rejected; repeated submission cannot double-settle.
-- Sale maker cannot approve own sale; stock and invoice remain unchanged if approval fails; retry does not duplicate dispatch or invoice.
+- Direct customer-load purchase (`/customer-purchases/loads`) tests must prove same-key retry returns the stored result, changed payload conflicts, concurrent requests cannot transfer the same source load twice, and the direct-purchase record has a unique idempotency index. Sale maker cannot approve own sale; stock and invoice remain unchanged if approval fails; retry does not duplicate dispatch or invoice.
 - Cashier cannot reverse own payment; reversal cannot exceed unreversed original amount; original payment remains immutable.
 - Stock maker cannot approve own adjustment; negative/zeroing adjustments require elevated review; ledger balance equals movement history.
 - Credit note and return approval preserve the source invoice and physical stock history.
