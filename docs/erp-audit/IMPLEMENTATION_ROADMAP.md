@@ -479,3 +479,18 @@ Confirmed:
 - No dedicated endpoint-level regression test for the full daily-situation route exists in the inspected test tree.
 
 **Runtime correction remains blocked** until the hosted runner starts and endpoint-level regression tests execute. CI run `44218616527` attempt 2 again ended with all six jobs at `runner_id=0`, empty steps and no logs. The source-level diagnosis is documented; no live records or runtime code changed.
+
+## Vehicle weighing and future weighbridge contract (18 Nov 2026)
+
+Added `VEHICLE_WEIGHING_AND_SCALE_INTEGRATION.md` after rechecking the current traditional and GS request schemas.
+
+Source facts:
+- Traditional `POST /loads` currently accepts only `olive_kg: float`; it stores no separate gross/tare readings or weighing provenance.
+- GS `POST /commercial/v1/olive-receptions` accepts per-variety Decimal quantities and millime prices, but no vehicle gross/tare snapshot.
+- GS direct purchase of an existing customer load inherits the existing `loads.olive_kg` net and must not weigh or physically receive the same load again.
+
+The target is one reusable, immutable weighing-evidence model for traditional customer-load intake and GS supplier reception, with separate gross/tare timestamps and actors, manual/scale provenance, and server-derived Decimal net. The existing `loads.olive_kg` remains the compatibility alias for net during migration. GS supplier variety-line quantities must reconcile exactly to the measured net before atomic purchase/lot/stock receipt.
+
+A missing tare is an incomplete operational measurement, not a human approval state. No finalized stock quantity may be posted until both readings exist and net is validated; once complete, the designated employee's direct reception proceeds without a second-person review. Historical net-only loads remain unchanged. A future scale adapter must preserve device/ticket/calibration evidence and idempotent offline synchronization; no hardware integration is claimed.
+
+**Before runtime rollout:** confirm that the shared weighing UI/API scope should cover both traditional customer loads and GS supplier receptions, and later select the scale manufacturer/interface. These decisions do not block the data contract or test design. No runtime fields, UI, API, records or permissions were changed.
