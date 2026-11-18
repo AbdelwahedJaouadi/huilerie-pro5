@@ -87,9 +87,6 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
-    inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
-    if inactive_client:
-        raise HTTPException(409, "client_inactive")
     now_local = datetime.now(_tz())
     season = await active_season()
     code = await next_load_code(season)
@@ -105,6 +102,22 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     }
 
     async def operation(session):
+        client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
+        if client_doc and client_doc.get("active") is False:
+            raise HTTPException(409, "client_inactive")
+        if client_doc:
+            guard = await db.clients.update_one(
+                {"phone": phone, "active": {"$ne": False}},
+                {"$inc": {"intake_guard_version": 1}},
+                session=session,
+            )
+            if not guard.matched_count:
+                raise HTTPException(409, "client_inactive")
+        else:
+            await db.clients.insert_one({
+                "phone": phone, "client_name": body.client_name.strip(),
+                "active": True, "intake_guard_version": 1, "created_at": now,
+            }, session=session)
         await db.loads.insert_one(doc, session=session)
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
