@@ -35,6 +35,10 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("phone", ASCENDING), ("created_at", DESCENDING)], name="phone_created"),
         IndexModel([("day", ASCENDING)], name="day"),
     ],
+    "clients": [
+        IndexModel([("phone", ASCENDING)], name="phone_unique", unique=True,
+                   partialFilterExpression={"phone": {"$type": "string"}}),
+    ],
     "sms_log": [IndexModel([("created_at", DESCENDING)], name="created_desc")],
     "lab": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
