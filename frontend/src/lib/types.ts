@@ -237,6 +237,8 @@ export interface ClientUpdate {
 
 export interface ClientDeleteResult {
   deleted: number;
+  deactivated: boolean;
+  loads_retained: number;
 }
 
 // Mirrors DEFAULT_SMS_ARRIVAL / DEFAULT_SMS_READY in backend/models/schemas.py
@@ -305,6 +307,7 @@ export interface ClientSummary {
   oil_kg: number;
   last_visit: string;
   amount: number | null;
+  active: boolean;
 }
 
 export interface ClientHistory {
@@ -316,6 +319,7 @@ export interface ClientHistory {
   avg_yield: number | null;
   amount: number | null;
   loads: Load[];
+  active: boolean;
 }
 
 export interface Certificate {

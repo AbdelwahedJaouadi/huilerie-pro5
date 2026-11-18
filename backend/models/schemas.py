@@ -321,6 +321,8 @@ class ClientUpdate(BaseModel):
 
 class ClientDeleteResult(BaseModel):
     deleted: int
+    deactivated: bool = False
+    loads_retained: int = 0
 
 
 class ClientSummary(BaseModel):
@@ -331,6 +333,7 @@ class ClientSummary(BaseModel):
     oil_kg: float
     last_visit: datetime
     amount: Optional[float] = None
+    active: bool = True
 
 
 class ClientHistory(BaseModel):
@@ -342,6 +345,7 @@ class ClientHistory(BaseModel):
     avg_yield: Optional[float] = None
     amount: Optional[float] = None
     loads: list[Load]
+    active: bool = True
 
 
 class Certificate(BaseModel):

@@ -2,6 +2,7 @@
 
 import io
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -815,6 +816,10 @@ async def list_clients(q: str = "", user: dict = Depends(current_user)):
     async for c in db.clients.find(cflt, {"_id": 0}).sort("created_at", -1).limit(300):
         out.append(ClientSummary(phone=c["phone"], client_name=c["client_name"], loads_count=0, olive_kg=0, oil_kg=0,
                                  last_visit=_aware(c["created_at"]), amount=0 if is_admin else None))
+    inactive_docs = await db.clients.find({"active": False}, {"_id": 0, "phone": 1}).to_list(10000)
+    inactive_phones = {doc["phone"] for doc in inactive_docs}
+    for client in out:
+        client.active = client.phone not in inactive_phones
     return out
 
 
@@ -855,6 +860,9 @@ async def list_client_options(
         {"$limit": limit},
     ]
     is_admin = user["role"] == "admin"
+    inactive_docs = await db.clients.find({"active": False}, {"_id": 0, "phone": 1}).to_list(10000)
+    inactive_phones = {doc["phone"] for doc in inactive_docs}
+    pipeline.insert(-2, {"$match": {"_id": {"$nin": list(inactive_phones)}}})
     return [
         ClientSummary(
             phone=row["_id"],
@@ -872,66 +880,185 @@ async def list_client_options(
 @router.post("/clients", response_model=ClientSummary)
 async def create_client(body: ClientCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
+    existing_client = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1})
+    if existing_client and existing_client.get("active") is False:
+        raise HTTPException(409, "client_inactive")
     existing = await db.loads.find_one({"phone": phone}, {"_id": 0, "client_name": 1})
-    if existing or await db.clients.find_one({"phone": phone}):
+    if existing or existing_client:
         raise HTTPException(409, "client_exists")
     now = datetime.now(timezone.utc)
-    await db.clients.insert_one({"phone": phone, "client_name": body.client_name.strip(), "created_at": now})
+    await db.clients.insert_one({"phone": phone, "client_name": body.client_name.strip(), "active": True, "created_at": now})
     return ClientSummary(phone=phone, client_name=body.client_name.strip(), loads_count=0, olive_kg=0, oil_kg=0,
                          last_visit=now, amount=0 if user["role"] == "admin" else None)
 
 
 @router.put("/clients/{phone}", response_model=ClientUpdate)
-async def update_client(phone: str, body: ClientUpdate, _: dict = Depends(require_admin)):
+async def update_client(phone: str, body: ClientUpdate, user: dict = Depends(require_admin)):
+    old_phone = re.sub(r"\s+", "", phone)
     new_phone = re.sub(r"\s+", "", body.phone)
-    res = await db.loads.update_many(
-        {"phone": phone.strip()}, {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}}
-    )
-    cres = await db.clients.update_one(
-        {"phone": phone.strip()}, {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}}
-    )
-    if not res.matched_count and not cres.matched_count:
-        raise HTTPException(404, "client_not_found")
-    return ClientUpdate(client_name=body.client_name.strip(), phone=new_phone)
+
+    async def operation(session):
+        if new_phone != old_phone:
+            duplicate_load = await db.loads.find_one({"phone": new_phone}, {"_id": 0, "id": 1}, session=session)
+            duplicate_client = await db.clients.find_one({"phone": new_phone}, {"_id": 0, "phone": 1}, session=session)
+            if duplicate_load or duplicate_client:
+                raise HTTPException(409, "client_exists")
+            if await _client_has_linked_history(old_phone, session=session):
+                raise HTTPException(409, "client_has_gs_history")
+
+        res = await db.loads.update_many(
+            {"phone": old_phone},
+            {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}},
+            session=session,
+        )
+        cres = await db.clients.update_one(
+            {"phone": old_phone},
+            {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}},
+            session=session,
+        )
+        if not cres.matched_count and (res.matched_count or old_phone == new_phone):
+            now = datetime.now(timezone.utc)
+            cres = await db.clients.update_one(
+                {"phone": new_phone},
+                {"$set": {"client_name": body.client_name.strip()},
+                 "$setOnInsert": {"phone": new_phone, "active": True, "created_at": now}},
+                upsert=True,
+                session=session,
+            )
+        if not res.matched_count and not cres.matched_count:
+            raise HTTPException(404, "client_not_found")
+        await db.commercial_audit_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "entity_type": "traditional_client",
+            "entity_id": new_phone,
+            "action": "CLIENT_UPDATED",
+            "actor_user_id": user.get("id"),
+            "created_at": datetime.now(timezone.utc),
+            "details": {"previous_phone": old_phone, "new_phone": new_phone,
+                        "client_name": body.client_name.strip()},
+        }, session=session)
+        return ClientUpdate(client_name=body.client_name.strip(), phone=new_phone)
+
+    return await run_transaction(operation)
 
 
-async def _ensure_client_has_no_invoices(load_ids: list[str], session=None) -> None:
-    """Preserve invoice history, using the caller's transaction when supplied."""
-    if not load_ids:
-        return
+async def _client_has_linked_history(phone: str, session=None) -> bool:
     options = {"session": session} if session is not None else {}
-    invoice = await db.invoices.find_one(
-        {"load_id": {"$in": load_ids}},
-        {"_id": 0, "number": 1},
-        **options,
+    # These field names are verified against the current GS collection schemas.
+    for collection_name, phone_field in (
+        ("commercial_suppliers", "phone"),
+        ("commercial_buyers", "phone"),
+        ("commercial_custody_owners", "client_phone"),
+        ("commercial_customer_custody_receipts", "customer_phone"),
+        ("commercial_customer_custody_releases", "customer_phone"),
+    ):
+        if await db[collection_name].find_one(
+            {phone_field: phone}, {"_id": 0, "id": 1}, **options
+        ):
+            return True
+    if await db.invoices.find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
+        return True
+    if await db.sms_log.find_one({"phone": phone}, {"_id": 0, "id": 1}, **options):
+        return True
+    return False
+
+
+async def _deactivate_client_in_transaction(phone: str, client_doc: dict | None, loads: list[dict], user: dict, session):
+    now = datetime.now(timezone.utc)
+    client_name = (
+        (client_doc or {}).get("client_name")
+        or next((load.get("client_name") for load in loads if load.get("client_name")), "")
+        or phone
     )
-    if invoice:
-        raise HTTPException(409, "client_has_invoices")
+    already_inactive = bool(client_doc and client_doc.get("active") is False)
+    await db.clients.update_one(
+        {"phone": phone},
+        {
+            "$set": {
+                "client_name": client_name,
+                "active": False,
+                "deactivated_at": now,
+                "deactivated_by": user.get("username", ""),
+                "updated_at": now,
+            },
+            "$setOnInsert": {"phone": phone, "created_at": now},
+        },
+        upsert=True,
+        session=session,
+    )
+    if not already_inactive:
+        await db.commercial_audit_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "entity_type": "traditional_client",
+            "entity_id": phone,
+            "action": "CLIENT_DEACTIVATED",
+            "actor_user_id": user.get("id"),
+            "created_at": now,
+            "details": {
+                "client_name": client_name,
+                "loads_retained": len(loads),
+                "reason": "client_has_linked_history",
+            },
+        }, session=session)
+    return ClientDeleteResult(deleted=0, deactivated=True, loads_retained=len(loads))
 
 
-async def _delete_client_in_transaction(phone: str, session):
+async def _delete_client_in_transaction(phone: str, session, user: dict):
+    normalized_phone = phone.strip()
     loads = await db.loads.find(
-        {"phone": phone.strip()}, {"_id": 0, "id": 1}, session=session
+        {"phone": normalized_phone},
+        {"_id": 0, "id": 1, "client_name": 1},
+        session=session,
     ).to_list(None)
-    ids = [doc["id"] for doc in loads]
-    await _ensure_client_has_no_invoices(ids, session=session)
+    client_doc = await db.clients.find_one({"phone": normalized_phone}, {"_id": 0}, session=session)
+    has_gs_or_message_history = await _client_has_linked_history(normalized_phone, session=session)
 
-    cres = await db.clients.delete_one({"phone": phone.strip()}, session=session)
-    if not ids and not cres.deleted_count:
+    # A registered load is itself an operational record. Never cascade-delete
+    # its load, lab, SMS, invoice or GS lineage from the client endpoint.
+    if loads or has_gs_or_message_history:
+        return await _deactivate_client_in_transaction(
+            normalized_phone, client_doc, loads, user, session
+        )
+
+    result = await db.clients.delete_one({"phone": normalized_phone}, session=session)
+    if not result.deleted_count:
         raise HTTPException(404, "client_not_found")
-
-    # Keep the client, loads, lab results and SMS history in one commit.
-    await db.lab.delete_many({"load_id": {"$in": ids}}, session=session)
-    await db.sms_log.delete_many({"load_id": {"$in": ids}}, session=session)
-    res = await db.loads.delete_many({"id": {"$in": ids}}, session=session)
-    return ClientDeleteResult(deleted=res.deleted_count)
+    return ClientDeleteResult(deleted=result.deleted_count, deactivated=False, loads_retained=0)
 
 
 @router.delete("/clients/{phone}", response_model=ClientDeleteResult)
-async def delete_client(phone: str, _: dict = Depends(require_admin)):
+async def delete_client(phone: str, user: dict = Depends(require_admin)):
     return await run_transaction(
-        lambda session: _delete_client_in_transaction(phone, session)
+        lambda session: _delete_client_in_transaction(phone, session, user)
     )
+
+
+@router.post("/clients/{phone}/reactivate")
+async def reactivate_client(phone: str, user: dict = Depends(require_admin)):
+    normalized_phone = phone.strip()
+
+    async def operation(session):
+        now = datetime.now(timezone.utc)
+        result = await db.clients.update_one(
+            {"phone": normalized_phone, "active": False},
+            {"$set": {"active": True, "reactivated_at": now,
+                      "reactivated_by": user.get("username", ""), "updated_at": now}},
+            session=session,
+        )
+        if not result.matched_count:
+            raise HTTPException(404, "inactive_client_not_found")
+        await db.commercial_audit_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "entity_type": "traditional_client",
+            "entity_id": normalized_phone,
+            "action": "CLIENT_REACTIVATED",
+            "actor_user_id": user.get("id"),
+            "created_at": now,
+            "details": {},
+        }, session=session)
+        return {"ok": True, "active": True}
+
+    return await run_transaction(operation)
 
 
 @router.get("/clients/{phone}/all-loads")
@@ -969,7 +1096,8 @@ async def client_history(phone: str, user: dict = Depends(current_user)):
         if not c:
             raise HTTPException(404, "client_not_found")
         return ClientHistory(phone=c["phone"], client_name=c["client_name"], loads_count=0, olive_kg=0, oil_kg=0,
-                             avg_yield=None, amount=0 if user["role"] == "admin" else None, loads=[])
+                             avg_yield=None, amount=0 if user["role"] == "admin" else None, loads=[],
+                             active=c.get("active", True))
     labs = await _labs_for([d["id"] for d in docs])
     loads = [to_load(d, user, labs.get(d["id"])) for d in docs]
     valid = [d for d in docs if not d.get("cancelled")]
@@ -979,12 +1107,13 @@ async def client_history(phone: str, user: dict = Depends(current_user)):
     done_olive = sum(d["olive_kg"] for d in done)
     done_oil = sum(d["oil_kg"] for d in done)
     is_admin = user["role"] == "admin"
+    client_record = await db.clients.find_one({"phone": phone.strip()}, {"_id": 0, "active": 1})
     return ClientHistory(
         phone=docs[0]["phone"], client_name=docs[0]["client_name"], loads_count=len(valid),
         olive_kg=round(olive, 2), oil_kg=round(oil, 2),
         avg_yield=round(done_oil / done_olive * 100, 2) if done_olive else None,
         amount=round(sum(l.amount or 0 for l in loads if l.status != "cancelled"), 3) if is_admin else None,
-        loads=loads,
+        loads=loads, active=client_record.get("active", True) if client_record else True,
     )
 
 

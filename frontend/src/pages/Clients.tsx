@@ -6,7 +6,7 @@ import { BookUser, Droplet, FileText, Layers, Pencil, Percent, Phone, Sprout, Tr
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { apiDelete, apiGet } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import type { ClientDeleteResult, ClientHistory, ClientSummary, ClientUpdate } from "@/lib/types";
 import { useMe } from "@/lib/useMe";
 import EditClientDialog from "@/components/EditClientDialog";
@@ -33,6 +33,8 @@ export default function Clients() {
   });
   const rows = list.isError ? [] : (list.data ?? []);
   const h = hist.isError ? null : hist.data;
+  const selectedClient = rows.find((c) => c.phone === phone);
+  const selectedClientActive = h?.active ?? selectedClient?.active ?? true;
   const invoices = useQuery({ queryKey: ["invoices", "load-links"], queryFn: () => apiGet<Array<{ id: string; load_id: string; number: string }>>("/invoices") });
   const invoiceByLoad = new Map((invoices.data ?? []).map((invoice) => [invoice.load_id, invoice]));
   const isAdmin = useMe().data?.role === "admin";
@@ -40,10 +42,18 @@ export default function Clients() {
   const [editing, setEditing] = useState<ClientUpdate | null>(null);
   const del = useMutation({
     mutationFn: (p: string) => apiDelete<ClientDeleteResult>(`/clients/${encodeURIComponent(p)}`),
+    onSuccess: (result) => {
+      toast.success(result.deactivated ? t("client_deactivated") : t("client_deleted"));
+      if (!result.deactivated) setParams({});
+      for (const k of ["clients", "client", "loads", "stats", "sms"]) qc.invalidateQueries({ queryKey: [k] });
+    },
+    onError: (e) => toast.error(errMsg(e)),
+  });
+  const reactivate = useMutation({
+    mutationFn: (p: string) => apiPost<{ ok: boolean; active: boolean }>(`/clients/${encodeURIComponent(p)}/reactivate`),
     onSuccess: () => {
-      toast.success(t("client_deleted"));
-      setParams({});
-      for (const k of ["clients", "loads", "stats", "sms"]) qc.invalidateQueries({ queryKey: [k] });
+      toast.success(t("client_reactivated"));
+      for (const k of ["clients", "client"]) qc.invalidateQueries({ queryKey: [k] });
     },
     onError: (e) => toast.error(errMsg(e)),
   });
@@ -76,6 +86,7 @@ export default function Clients() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate font-medium text-stone-900">{c.client_name}</span>
                     <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">{c.loads_count}×</span>
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", c.active ? "bg-teal-100 text-teal-800" : "bg-stone-200 text-stone-700")}>{c.active ? t("client_active") : t("client_inactive")}</span>
                   </div>
                   <div className="mt-0.5 flex justify-between text-xs text-stone-500">
                     <span dir="ltr">{c.phone}</span>
@@ -101,20 +112,39 @@ export default function Clients() {
                   <div className="font-heading text-2xl font-bold text-stone-900" data-testid="client-history-name">{h.client_name}</div>
                   <div className="mt-1 flex items-center gap-2 text-sm text-stone-600"><Phone className="size-4" /><span dir="ltr">{h.phone}</span></div>
                 </div>
+                <div className="mt-1">
+                  <span className={cn("rounded-full px-2 py-1 text-xs font-semibold", selectedClientActive ? "bg-teal-100 text-teal-800" : "bg-stone-200 text-stone-700")}>
+                    {selectedClientActive ? t("client_active") : t("client_inactive")}
+                  </span>
+                </div>
                 {isAdmin && (
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setEditing({ client_name: h.client_name, phone: h.phone })} data-testid="client-edit-button" className="rounded-xl border-teal-300 text-teal-800 hover:bg-teal-50">
-                      <Pencil className="size-4" /> {t("edit")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.confirm(t("confirm_delete_client")) && del.mutate(h.phone)}
-                      disabled={del.isPending}
-                      data-testid="client-delete-button"
-                      className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="size-4" /> {t("delete")}
-                    </Button>
+                    {selectedClientActive ? (
+                      <>
+                        <Button variant="outline" onClick={() => setEditing({ client_name: h.client_name, phone: h.phone })} data-testid="client-edit-button" className="rounded-xl border-teal-300 text-teal-800 hover:bg-teal-50">
+                          <Pencil className="size-4" /> {t("edit")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => window.confirm(t("confirm_delete_client")) && del.mutate(h.phone)}
+                          disabled={del.isPending}
+                          data-testid="client-delete-button"
+                          className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="size-4" /> {t("deactivate_client")}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => reactivate.mutate(h.phone)}
+                        disabled={reactivate.isPending}
+                        data-testid="client-reactivate-button"
+                        className="rounded-xl border-teal-300 text-teal-800 hover:bg-teal-50"
+                      >
+                        {t("reactivate_client")}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>

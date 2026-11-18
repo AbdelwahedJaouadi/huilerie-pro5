@@ -62,7 +62,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const allClients = useQuery({ queryKey: ["clients", "__all"], queryFn: () => apiGet<ClientSummary[]>("/clients") });
-  const clientList = allClients.isError ? [] : [...(allClients.data ?? [])].sort((a, b) => a.client_name.localeCompare(b.client_name));
+  const clientList = allClients.isError ? [] : [...(allClients.data ?? [])].filter((client) => client.active).sort((a, b) => a.client_name.localeCompare(b.client_name));
   const normalizeClientSearch = (value: string) => value.trim().toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const searchTerm = normalizeClientSearch(clientSearch);
   const filteredClients = clientList.filter((c) =>
