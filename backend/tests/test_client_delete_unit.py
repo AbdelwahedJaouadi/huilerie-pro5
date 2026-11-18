@@ -30,7 +30,10 @@ class FakeCollection:
 
     async def delete_one(self, query, **kwargs):
         self.calls.append(("delete", query))
-        return SimpleNamespace(deleted_count=1)
+        matched = next((doc for doc in self.docs if all(doc.get(k) == v for k, v in query.items())), None)
+        if matched:
+            self.docs.remove(matched)
+        return SimpleNamespace(deleted_count=1 if matched else 0)
 
     async def insert_one(self, doc, **kwargs):
         self.calls.append(("insert", dict(doc)))
