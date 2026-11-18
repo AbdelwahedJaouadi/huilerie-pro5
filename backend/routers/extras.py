@@ -913,6 +913,15 @@ async def update_client(phone: str, body: ClientUpdate, user: dict = Depends(req
             {"$set": {"client_name": body.client_name.strip(), "phone": new_phone}},
             session=session,
         )
+        if not cres.matched_count and (res.matched_count or old_phone == new_phone):
+            now = datetime.now(timezone.utc)
+            cres = await db.clients.update_one(
+                {"phone": new_phone},
+                {"$set": {"client_name": body.client_name.strip()},
+                 "$setOnInsert": {"phone": new_phone, "active": True, "created_at": now}},
+                upsert=True,
+                session=session,
+            )
         if not res.matched_count and not cres.matched_count:
             raise HTTPException(404, "client_not_found")
         await db.commercial_audit_events.insert_one({
