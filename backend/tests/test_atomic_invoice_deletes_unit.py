@@ -246,7 +246,7 @@ async def test_client_delete_deactivates_and_preserves_all_load_records(monkeypa
         return await operation(session)
 
     monkeypatch.setattr(extras, "db", FakeDB(
-        loads=Loads(), clients=Clients(), sms_log=Related(),
+        loads=Loads(), clients=Clients(), invoices=Related(), sms_log=Related(),
         commercial_buyers=Related(), commercial_custody_owners=Related(),
         commercial_customer_custody_receipts=Related(),
         commercial_audit_events=FakeAuditEvents(calls),
