@@ -316,3 +316,34 @@ The source review confirms the following implementation boundaries:
 5. Add idempotent retry tests for traditional load creation and GS direct reception, including concurrent duplicate submissions.
 6. Do not retrofit gross/tare into historical records that contain only `olive_kg`; classify them as legacy net-only/unknown gross and tare.
 7. Keep runtime untouched until the tariff basis is confirmed and the weight/precision migration contract plus regression tests are approved.
+
+
+## Critical accounting reconciliation gate — duplicate receipt projection (18 Nov 2026)
+
+Static source inspection of `backend/routers/invoices.py` and `backend/routers/accounting.py` confirms that an incremental traditional invoice receipt currently has two representations:
+- `invoices.payments[]` receives the new payment item.
+- `invoices.history[]` receives an `updated` event whose paid-amount delta is the same receipt.
+
+The daily-situation report currently projects both representations as receipt events. A single incremental receipt can therefore be counted twice in the report even though the invoice paid balance itself advances once. The client statement helper uses a different precedence rule, creating a further reconciliation risk between reports.
+
+**Gate (must pass before financial reporting is treated as authoritative):**
+1. Define one canonical payment-event identity and one source of truth for each receipt.
+2. Change daily-situation projection so payment items and generic history deltas cannot both create the same receipt.
+3. Preserve a legacy fallback only where itemized payment events are absent; mark inferred dates/amounts as legacy estimates.
+4. Add tests for itemized-only, history-only, both-present, partial payments, and payment replacement compatibility. The TND 50.000 incremental payment test must show exactly TND 50.000 receipt once.
+5. Reconcile daily-situation totals, invoice paid/balance snapshots, and client statement totals against the same underlying receipt IDs.
+6. Do not edit historical financial records in place as a shortcut; any migration must be deterministic, auditable and separately approved.
+
+This is a confirmed reporting defect, not a proposed accounting preference. Runtime code remains unchanged pending regression coverage and a runnable CI environment.
+
+
+## Fiscal-year separation gate
+
+The current accounting overview and daily-situation report are season-scoped through `active_season()` / `season_prefix()`. A date filter narrows the active-season dataset; it does not provide a fiscal-year ledger across seasons. This is a mill operations report boundary, not a valid substitute for a legal entity's annual accounting period.
+
+Before implementing statutory GL reporting:
+- Add a configurable fiscal year independent of the olive season.
+- Require explicit start/end dates, opening balances, period status and close/reopen controls.
+- Store business date, recorded timestamp and posted timestamp separately.
+- Permit prior-period comparative reports across seasons without relying on current `active_season()`.
+- Do not infer a calendar-year fiscal period. The user has deliberately deferred the dates.

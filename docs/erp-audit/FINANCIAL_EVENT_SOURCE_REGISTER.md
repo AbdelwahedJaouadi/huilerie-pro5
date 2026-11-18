@@ -142,3 +142,30 @@ These manual-entry endpoints are operational season-based records, not a double-
 ## 12. Scope limitations
 
 This register is based on static source inspection. It does not prove every endpoint, every legacy data shape, or every collection's live population. Before migration/posting, compare the register with live documents and all route/service writers, then validate each mapping with the Tunisian accountant. No GL collection or posting API is implemented by this document.
+
+
+## 8. Confirmed duplicate traditional receipt projection
+
+The traditional invoice write path stores an incremental receipt in `invoices.payments[]` and also records the same paid-amount delta in `invoices.history[]`. The current daily-situation read model interprets both as separate receipt events. This creates a duplicate cash-receipt projection for the same economic event.
+
+**Posting-source rule:** the future GL must never post from both embedded payment entries and generic history deltas. Generic history is audit evidence only. A payment must have one stable event ID and one canonical source identity. The daily-situation report must follow the same source-of-truth rule as the client statement and future payment subledger.
+
+For legacy invoices, aggregate `paid_amount` and history snapshots are not independent receipts. Where no itemized receipt exists, any fallback is an estimated legacy event, must be marked as such, and must be excluded from duplicate posting when an equivalent payment record is present.
+
+## 9. Operational accounting report boundary
+
+The current `/accounting/overview` computes headline monetary totals with database aggregation helpers over the full active-season source collections. Its recent-document lists are bounded (normally 200 records) for display. The date-filtered view removes that display cap for the selected range. This distinction should be preserved: a bounded recent list must never become the source for a financial total.
+
+The `/accounting/daily-situation` endpoint is a derived operational report, not a journal or immutable ledger. It currently projects invoices, embedded receipts, purchase documents, payment documents, reversals, passive incomes and expenses into revenue/expense/receipt/disbursement categories. Its receipt projection has the duplicate-event defect described above. Do not treat its output as a balanced trial balance or statutory statement.
+
+
+## 10. Fiscal-period scope is not yet a legal accounting period
+
+Both traditional accounting endpoints derive their dataset from `active_season()` / `season_prefix()`:
+- Traditional invoices are selected through load IDs belonging to the active season.
+- GS documents and payment events are selected by the active season code.
+- Passive incomes and expenses are selected by the active season label.
+
+A user-selected date range filters records already selected for the active season; it does not turn the endpoint into an all-years general ledger. This is appropriate for a season-oriented mill dashboard but insufficient for statutory annual accounts, opening balances, prior-year comparatives, period locking, or an independently configured fiscal year.
+
+The fiscal year must be an independent entity/configuration, with explicit period start/end, status (open/closed), posting date, business date, and close/reopen authority. Do not assume it equals the olive season or the calendar year. Until the user/accountant sets the fiscal year, keep it explicitly unconfigured and do not perform a fiscal close.

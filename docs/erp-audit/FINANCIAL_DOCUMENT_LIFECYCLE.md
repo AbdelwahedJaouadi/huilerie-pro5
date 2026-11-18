@@ -51,3 +51,30 @@ Before implementing the general ledger or financial correction workflows, obtain
 - No live API behavior was deployed.
 - The payment-event synchronization fix is isolated to the audit branch.
 - Do not merge or deploy until the test suite, frontend checks and affected workflow regression tests have actually run successfully.
+
+
+## Newly confirmed defect: one traditional receipt can be counted twice in daily situation
+
+**Severity: high — financial reporting correctness.** Confirmed by tracing the current `main` source in `backend/routers/invoices.py` and `backend/routers/accounting.py`.
+
+The invoice PATCH path for `payment_amount > 0` performs both of the following in the same transaction:
+
+1. Appends a payment item to `invoices.payments[]`.
+2. Appends a generic `history` item with `action="updated"` and before/after `paid_amount` snapshots.
+
+The daily-situation report then independently interprets both sources as cash receipts:
+- It emits every item in `payments[]` as an `Encaissement facture`.
+- It also computes `after.paid_amount - before.paid_amount` for every `history[action="updated"]` item and emits that delta as another `Encaissement facture`.
+
+Therefore, for a normal incremental payment of TND 50.000 through the current `payment_amount` path, the report can emit TND 100.000 of receipt events: once from the payment item and once from the matching history delta. The invoice's stored `paid_amount` and balance can still be correct while the daily cash report is overstated. This is not merely a theoretical architecture concern; the two code paths currently overlap by construction.
+
+The separate client statement helper `_payment_events` uses the itemized payments array when consistent and does not add the generic history delta in the same way. Consequently, the daily-situation report and client statement can disagree for the same invoice.
+
+**Required correction before relying on daily-situation cash totals:**
+- Select exactly one canonical receipt-event source for new invoices (prefer a stable, first-class payment record/ID; alternatively use the embedded payment item only).
+- Keep generic invoice history for audit/display, but never interpret its paid-amount delta as a second receipt when a corresponding payment event exists.
+- For legacy records that have history deltas but no itemized payment event, use a controlled migration/fallback with stable deduplication and an explicit legacy marker.
+- Add a regression test: invoice paid initially TND 20.000; PATCH `payment_amount=50.000`; invoice paid becomes TND 70.000, balance falls by TND 50.000, and the daily-situation report contains exactly one additional receipt of TND 50.000.
+- Add mixed-history tests: old records with only history deltas, itemized-only records, and records with both representations must each yield the true receipt exactly once.
+
+No production invoice, payment or report data was changed during this audit. No runtime fix has been applied yet.
