@@ -56,6 +56,7 @@ async def test_client_with_load_history_is_deactivated_and_all_records_are_retai
     fake = FakeDB(
         loads=FakeLoads([{"id": "load-1", "phone": "21600000000", "client_name": "Client"}], calls),
         clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        invoices=FakeCollection(calls=calls),
         sms_log=FakeCollection(calls=calls),
         commercial_buyers=FakeCollection(calls=calls),
         commercial_custody_owners=FakeCollection(calls=calls),
