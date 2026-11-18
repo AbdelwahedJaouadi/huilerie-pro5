@@ -2,7 +2,7 @@
 
 Project: Oro Verde / huilerie-pro5  
 Decisions supplied by the owner: the company is registered in Tunisia, its legal form is SUARL (Société Unipersonnelle à Responsabilité Limitée), and it operates under the régime réel.  
-Status: jurisdiction, legal form and declared tax regime selected; VAT status, detailed tax profile and entity-specific tax configuration remain unapproved.
+Status: jurisdiction, legal form, declared tax regime and VAT suspension status selected; the suspension's legal scope, validity dates, supporting certificates and transaction-specific treatment remain to be verified before tax automation.
 
 ## 1. Governing accounting framework
 
@@ -36,7 +36,7 @@ The Ministry of Finance lists VAT, corporate income tax, personal income tax, co
 
 Therefore:
 - Build a versioned tax-rules configuration with effective dates.
-- Keep VAT rates, exemptions, suspension, withholding, stamp duty and tax treatment by product/service/document configurable.
+- Keep VAT rates, exemptions, suspension, withholding, stamp duty and tax treatment by product/service/document configurable. A VAT suspension must be represented separately from ordinary exemption and non-registration, with supporting authorization, scope, validity interval, conditions and documentary references.
 - Store the applied tax-rule version on each posted document.
 - Preserve tax base, rate, amount, exemption/suspension reason and supporting legal reference separately.
 - The owner selected the régime réel. Do not infer the mill's VAT status, applicable corporate income-tax rate, withholding profile, minimum tax, or agricultural/industrial tax treatment from this selection or from its business description.
@@ -47,7 +47,7 @@ Therefore:
 The jurisdiction is settled (Tunisia), but the following remain unknown and must be confirmed by the owner/accountant:
 1. ~~Legal form~~ **Resolved: SUARL (Société Unipersonnelle à Responsabilité Limitée)**. The sole shareholder may be a natural or legal person under Article 149 of the Tunisian Commercial Companies Code. The SUARL is governed by the SARL regime subject to the specific SUARL provisions (Article 148).
 2. ~~Tax regime~~ **Owner-confirmed: régime réel.** As a SUARL, the company is a legal person and must maintain accounting compliant with Tunisian enterprise-accounting legislation. The exact corporate-tax treatment and any special activity-specific provisions still require accountant confirmation.
-3. Tax registration: VAT-liable, VAT suspension/exemption, or not liable; relevant activity registrations.
+3. ~~VAT status~~ **Owner-confirmed: the company has a VAT suspension (`suspension de TVA`).** Record the suspension as a distinct, evidence-backed tax status; do not treat it as permanent non-liability or a blanket exemption. Verify the official suspension certificate/authorization, beneficiary identity, covered purchases or transactions, suppliers/customers where relevant, effective and expiry dates, ceilings/conditions, and required invoice wording before enabling automated treatment.
 4. Applicable activity codes and the company's precise tax treatment for olive purchase, toll pressing, customer-owned oil custody, bulk oil sales and by-products.
 5. Approved accounting year (calendar year assumed only provisionally).
 6. Whether statutory auditor/commissaire aux comptes requirements apply.
@@ -91,3 +91,8 @@ This is an engineering design baseline, not a tax or legal opinion. Confirm curr
 The owner confirmed **régime réel** for the SUARL. The Ministry of Finance states that legal entities and individuals taxed under the real BIC regime must keep accounting compliant with enterprise-accounting legislation. The company is therefore designed for full compliant enterprise accounting, not a simplified cash register. The selected regime does not by itself establish VAT registration/status, a specific corporate tax rate, withholding profile, or the tax classification of each mill activity. Those remain versioned configuration items pending accountant confirmation.
 
 Official reference: Ministry of Finance — https://www.finances.gov.tn/fr/node/951
+
+
+## 8. Owner-confirmed VAT suspension (17 Nov 2026)
+
+The owner reports that the SUARL has a **suspension de TVA**. This is not to be modelled as `non assujettie` and must not be treated as an unlimited or permanent exemption. Until the current authorization/certificate is checked, the ERP must not automatically suppress VAT on every purchase or sale. The tax engine should support a suspension authorization record with at least: authorization/reference number, beneficiary legal identity, scope (eligible transactions/products/services and counterparties as specified), effective-from and expiry dates, any ceilings or conditions, supporting document, and the invoice/document wording required by the authorization and current law. Each transaction must be evaluated against the active authorization and its scope; out-of-scope or expired transactions follow the otherwise applicable tax treatment. Final configuration and invoice wording require the Tunisian accountant's validation.
