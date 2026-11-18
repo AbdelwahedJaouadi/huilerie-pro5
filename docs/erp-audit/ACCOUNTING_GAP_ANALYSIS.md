@@ -71,3 +71,21 @@ These are proposed names, not existing collections. Do not create them until the
 - Every entry records source document, actor, timestamps, currency and fiscal period.
 - Fiscal-period closure blocks unauthorized backdated postings.
 - All money is stored and calculated using Decimal128 or integer minor units; never binary floating point.
+
+
+## Financial source-event register completed (17 Nov 2026)
+
+Added `FINANCIAL_EVENT_SOURCE_REGISTER.md` after inspecting the traditional invoice routes and GS purchase, production, sale, payment, reversal, credit-application, return, custody and stock-ledger services.
+
+Additional source-level risks confirmed:
+- Traditional invoice PATCH still accepts legacy `paid_amount` as a replacement aggregate. It can change the cumulative paid snapshot without creating a corresponding immutable payment event. Restrict/retire this path before GL posting.
+- Traditional invoice repricing and physical deletion remain incompatible with immutable posted accounting documents.
+- Traditional invoice payment events are embedded objects without their own immutable payment ID; legacy aggregate fallback cannot establish the actual receipt date.
+- Traditional invoice quantity conversion passes through Python float before amount calculation; standardize Decimal arithmetic end-to-end.
+- GS sales invoice currently stores `tax_treatment_status = NOT_CONFIGURED`; tax treatment must remain blocked until accountant-approved tax rules are configured.
+- Manual passive-income and expense endpoints create season-scoped records but physically delete them. Their schemas also do not clearly separate expense/income recognition from the related cash settlement.
+- Customer custody receipts/releases and stock movements are physical/ownership subledger events, not automatically company purchases, revenue or cash.
+- Buyer credit application settles receivables using existing credit; it is not a cash payment or new revenue.
+- Payment reversal reverses a settlement event and must not be treated as a sales return/revenue reversal by default.
+
+The register is based on static source inspection. It does not imply a GL implementation or prove every legacy document shape.
