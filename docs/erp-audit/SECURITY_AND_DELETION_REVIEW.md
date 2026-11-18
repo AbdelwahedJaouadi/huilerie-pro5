@@ -256,3 +256,6 @@ The existing validation workflow was extended to run on `audit/erp-foundation`. 
 
 
 The latest run's GitHub job metadata confirms `runner_id=0`, empty `runner_name`, and `steps=[]` for all six jobs. This narrows the CI failure to job/runner allocation before step execution; it is not a failed pytest assertion, Python compile error, or TypeScript diagnostic.
+
+
+The actual intake selector in `frontend/src/components/IntakePanel.tsx` reads `GET /clients` (not `/clients/options`), so it was also updated to filter `active=false` clients. The server still independently rejects an inactive phone for both `POST /clients` and `POST /loads`; UI filtering is not the security control.
