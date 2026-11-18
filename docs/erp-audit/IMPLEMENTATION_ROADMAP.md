@@ -244,3 +244,7 @@ Confirmed:
 - Traditional manual income/expense writes are direct inserts and deletes are physical; traditional invoice updates/deletes are transactional but still permit unsafe posted-document lifecycle behavior.
 
 No runtime permissions were changed. Stage 1 now requires owner-approved job roles, independent checker assignments, financial visibility rules and thresholds, followed by backend service-level authorization, frontend capability alignment and API regression tests. Do not merge or deploy until the existing CI runner issue is resolved and tests execute.
+
+### One-step purchase approval and weighing evidence follow-up
+
+The financial-role review found that `POST /commercial/v1/olive-receptions` internally constructs an approval command and creates the purchase, lot and stock receipt in one transaction under the initiating actor. This preserves atomicity but provides no independent purchase checker. Stage 1 must split submission from approval while keeping approval-time stock posting atomic. The approval snapshot must bind gross, tare, server-derived net, measurement provenance, supplier, price, variety and receiving location. A change to the submitted snapshot must invalidate approval and require resubmission. This also preserves the future weighbridge integration requirement.
