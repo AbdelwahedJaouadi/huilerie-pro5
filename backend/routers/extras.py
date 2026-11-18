@@ -903,7 +903,7 @@ async def update_client(phone: str, body: ClientUpdate, user: dict = Depends(req
             duplicate_client = await db.clients.find_one({"phone": new_phone}, {"_id": 0, "phone": 1}, session=session)
             if duplicate_load or duplicate_client:
                 raise HTTPException(409, "client_exists")
-            if await _client_has_gs_history(old_phone, session=session):
+            if await _client_has_linked_history(old_phone, session=session):
                 raise HTTPException(409, "client_has_gs_history")
 
         res = await db.loads.update_many(
@@ -942,7 +942,7 @@ async def update_client(phone: str, body: ClientUpdate, user: dict = Depends(req
     return await run_transaction(operation)
 
 
-async def _client_has_gs_history(phone: str, session=None) -> bool:
+async def _client_has_linked_history(phone: str, session=None) -> bool:
     options = {"session": session} if session is not None else {}
     # These field names are verified against the current GS collection schemas.
     for collection_name, phone_field in (
@@ -1009,7 +1009,7 @@ async def _delete_client_in_transaction(phone: str, session, user: dict):
         session=session,
     ).to_list(None)
     client_doc = await db.clients.find_one({"phone": normalized_phone}, {"_id": 0}, session=session)
-    has_gs_or_message_history = await _client_has_gs_history(normalized_phone, session=session)
+    has_gs_or_message_history = await _client_has_linked_history(normalized_phone, session=session)
 
     # A registered load is itself an operational record. Never cascade-delete
     # its load, lab, SMS, invoice or GS lineage from the client endpoint.
