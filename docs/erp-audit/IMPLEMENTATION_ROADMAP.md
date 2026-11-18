@@ -283,3 +283,10 @@ Source review traced the traditional intake quantity through GS and pressing:
 5. Traditional `/stats` currently calculates revenue from `olive_kg × price_per_kg`. This differs from invoice creation and requires a business-definition decision before either formula is changed.
 
 The full field lineage, float/Decimal boundaries and the 12,450 / 4,250 / 8,200 kg acceptance case are recorded in `DATABASE_MAP.md`. Do not enable weighing or claim a scale integration until those tests pass and gross/tare/net are persisted with auditable provenance.
+
+
+## Reporting and tariff-basis gate (18 Nov 2026)
+
+The quantity-lineage review found that the traditional invoice total uses `oil_kg × price_per_kg`, while `/stats`, worker-report revenue and client-summary amount use `olive_kg × price_per_kg`. The revenue report instead sums cash payment events by payment date, and the client statement uses invoice totals and payment credits. These are distinct measures and must not be collapsed into one “revenue” number.
+
+Before changing any formula or building GL posting templates, obtain owner/accountant confirmation of the tariff basis (per kg olives received, per kg oil measured/returned, or another service-fee basis) and define which screens show invoice value versus cash collected. Add a cross-report reconciliation test for one sample load with partial payment. This is a decision gate, not a code fix to guess.
