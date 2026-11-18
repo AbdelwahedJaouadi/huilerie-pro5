@@ -255,3 +255,30 @@ async def test_create_client_rejects_an_inactive_phone(monkeypatch):
 
     assert exc.value.status_code == 409
     assert exc.value.detail == "client_inactive"
+
+
+@pytest.mark.asyncio
+async def test_gs_supplier_phone_reference_prevents_client_hard_delete(monkeypatch):
+    calls = []
+    fake = FakeDB(
+        loads=FakeLoads([], calls),
+        clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        commercial_suppliers=FakeCollection([{"phone": "21600000000", "id": "supplier-1"}], calls),
+        commercial_buyers=FakeCollection(calls=calls),
+        commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(calls=calls),
+        invoices=FakeCollection(calls=calls),
+        sms_log=FakeCollection(calls=calls),
+        commercial_audit_events=FakeCollection(calls=calls),
+    )
+    monkeypatch.setattr(extras, "db", fake)
+
+    async def run(operation):
+        return await operation(object())
+
+    monkeypatch.setattr(extras, "run_transaction", run)
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
+
+    assert result.deactivated is True
+    assert result.deleted == 0
+    assert not any(call[0] == "delete" for call in calls)
