@@ -166,3 +166,8 @@ The approved client-deletion rule has been implemented in source (not yet merged
 
 
 **CI status:** the validation workflow now includes `audit/erp-foundation`, but two push runs ended before any job step started; no logs were produced. This is an infrastructure/runner validation blocker, not evidence that the code passed or failed. Keep the branch unmerged until the runner issue is resolved and backend tests plus frontend build actually execute.
+
+
+## Traditional API permission inventory added
+
+`TRADITIONAL_PERMISSION_MATRIX.md` now maps the 85 mounted traditional API routes: 7 intentionally public, 29 available to any authenticated user, and 49 administrator-only. This makes the current role boundary explicit and identifies broad worker write access to loads, production updates, lab creation, client creation and TV management. A role-specific capability matrix remains a Stage 1 decision; do not expand permissions ad hoc.
