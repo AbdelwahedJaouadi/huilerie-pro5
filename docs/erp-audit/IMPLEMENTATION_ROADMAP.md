@@ -248,3 +248,8 @@ No runtime permissions were changed. Stage 1 now requires owner-approved job rol
 ### One-step purchase approval and weighing evidence follow-up
 
 The financial-role review found that `POST /commercial/v1/olive-receptions` internally constructs an approval command and creates the purchase, lot and stock receipt in one transaction under the initiating actor. This preserves atomicity but provides no independent purchase checker. Stage 1 must split submission from approval while keeping approval-time stock posting atomic. The approval snapshot must bind gross, tare, server-derived net, measurement provenance, supplier, price, variety and receiving location. A change to the submitted snapshot must invalidate approval and require resubmission. This also preserves the future weighbridge integration requirement.
+
+
+### Owner decision — direct olive purchase entry (17 Nov 2026)
+
+The owner clarified that the employee must register the olive purchase and gross/tare/net weights directly, without submitting the operation for review. Do not add a purchase approval queue or hold the stock receipt pending supervisor approval. Stage 1 must make direct registration available to a designated employee capability, calculate and validate net weight server-side, and atomically commit purchase + traceability lot + stock receipt + audit evidence. Corrections must be explicit, reasoned and auditable. This direct-entry exception applies only to olive purchase/reception; it does not remove controls for payments, reversals, sales approval, stock adjustments or GL journals.
