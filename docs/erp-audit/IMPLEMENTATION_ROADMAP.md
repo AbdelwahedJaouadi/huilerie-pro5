@@ -46,7 +46,9 @@ Target decisions:
 
 ## Stage 2 — Accounting foundation (design before UI)
 
-- Confirm legal jurisdiction, fiscal-year start, accounting standard, chart of accounts, tax rules and invoice requirements with the company's accountant.
+- [x] Confirm jurisdiction: Tunisia; legal form: SUARL; owner-declared tax regime: régime réel.
+- [x] Record owner-reported VAT suspension as unverified because the official authorization is not currently available; do not automate VAT suspension until scope, validity and supporting evidence are reviewed.
+- [ ] Confirm fiscal-year start, accountant-approved NC 01 chart of accounts, activity-specific tax rules and invoice requirements.
 - Design chart of accounts and account classes.
 - Define journal types (sales, purchases, cash, bank, payroll, inventory, general).
 - Define posting templates for each source event.
@@ -185,3 +187,11 @@ The approved client-deletion rule has been implemented in source (not yet merged
 The owner confirmed that the company is registered in Tunisia, selected **SUARL (Société Unipersonnelle à Responsabilité Limitée)** as its legal form, and confirmed **régime réel**. The accounting design baseline is documented in `TUNISIA_ACCOUNTING_BASELINE.md`, using the Tunisian Enterprise Accounting System (Law 96-112, conceptual framework and NC 01) rather than the public-sector state chart or a generic IFRS-only chart.
 
 The SUARL decision adds explicit requirements for separating company and shareholder transactions, recording signed sole-shareholder decisions, maintaining the prescribed decision register, and supporting annual inventory, management report and accounts approval within the statutory period. The legal form, country framework, owner-declared régime réel and owner-reported **suspension de TVA** are settled. The exact scope, validity and documentary conditions of the VAT suspension, activity-specific tax treatment, applicable tax rates, accounting year, auditor applicability and opening balances remain unverified. The ERP must distinguish suspension from non-liability and ordinary exemption; do not apply it automatically to every transaction until the authorization is checked and the accountant approves the rules.
+
+
+## Tunisia tax-profile decisions (17 Nov 2026)
+
+- Confirmed by owner: Tunisia, SUARL, régime réel.
+- Reported by owner: suspension de TVA.
+- Evidence gap: owner does not currently have the official suspension certificate/authorization. Treat the status as reported but unverified; do not treat it as non-assujettissement, a blanket exemption, or permission to suppress VAT on all transactions.
+- Continue non-tax ERP foundation work. Keep tax automation behind an evidence-and-accountant-approval gate.
