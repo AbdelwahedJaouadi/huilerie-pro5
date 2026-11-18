@@ -262,3 +262,16 @@ The actual intake selector in `frontend/src/components/IntakePanel.tsx` reads `G
 
 
 The GS phone-reference checks also include `commercial_suppliers.phone`; the Atlas schema confirms that field. This prevents a traditional client who is also a GS supplier from being hard-deleted or having their phone identity changed while the supplier record remains linked.
+
+
+## Status reconciliation after implementation review (17 Nov 2026)
+
+Some findings above describe the pre-fix source and must be read together with the implementation sections below:
+
+- The client-wide deletion bypass described earlier is **superseded**: the current `DELETE /clients/{phone}` path deactivates the client and retains all loads whenever any load exists; it no longer bulk-deletes loads, labs or SMS records.
+- The current single-load deletion guard is shared by the traditional single-load delete entry point and checks invoices, ownership/custody state, operational status, GS direct-load purchases, GS customer-custody receipts, GS lots, lab history and SMS history.
+- The client deactivation path preserves the source loads and their linked records, and is intentionally separate from the single-load hard-delete path.
+- These controls are source-reviewed only. Their tests remain unexecuted until a runner/local validation environment is available.
+- Financial lifecycle risks remain open: invoice repricing/deletion and passive-income/expense deletion still mutate or remove financial source documents. See `FINANCIAL_DOCUMENT_LIFECYCLE.md` for the verified payment-event defect and branch fix, plus the accounting decisions that must be approved before implementing reversals.
+
+Do not treat the historical description of the old client cascade-delete implementation as the current behavior.
