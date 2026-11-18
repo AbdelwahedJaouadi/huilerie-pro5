@@ -28,7 +28,7 @@ The target accounting engine must be a genuine accrual, double-entry ledger:
 - Cost accounting for olive intake, customer-owned custody, purchases, production batches, tanks, losses, sales and returns.
 - All amounts use decimal-safe storage; never binary floating-point for posted financial values.
 
-The accounting period is not the olive season. The default calendar-year assumption may be used for a draft design only; the company's approved accounting year must be confirmed before closing logic is implemented.
+The accounting period is independent of the olive season. The owner has not selected the fiscal-year start/end and explicitly deferred that decision. Store fiscal-year boundaries as required company configuration with no hard-coded calendar-year default; do not enable annual closing or statutory annual reports until the dates are approved.
 
 ## 3. Tax design must be configurable, not hard-coded
 
@@ -112,3 +112,13 @@ Implementation status:
 - Expired, out-of-scope or unverified transactions must not inherit a suspension automatically.
 
 This is a control state for software design, not a legal conclusion that the suspension is valid or invalid.
+
+
+## 10. Fiscal-year decision status (17 Nov 2026)
+
+The owner explicitly deferred selecting the fiscal-year closing date. Therefore:
+- Do not assume 1 January–31 December.
+- Do not derive fiscal periods from the olive season.
+- The future company profile must require an explicitly configured fiscal-year start and end before enabling posting to a fiscal year, annual financial statements, year-end close or opening-balance carry-forward.
+- Until configured, allow design and non-statutory operational reporting only; block statutory year-end close workflows with a clear configuration error.
+- Support configurable periods and a controlled year-end transition; do not silently change fiscal-year dates after posted entries exist.
