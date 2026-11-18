@@ -155,3 +155,24 @@ Do not simply add all administrator permissions to the worker allowlist. Before 
 5. Review frontend visibility and backend enforcement together; hiding a button is not authorization.
 
 No runtime permission behavior was changed by this documentation update.
+
+## Direct olive purchase registration — owner instruction reconciliation (18 Nov 2026)
+
+The owner explicitly requires designated employees to register olive purchases and weighing data directly, without a second-person approval queue.
+
+Current source does not yet allow an ordinary worker to do this:
+- `POST /olive-receptions` requires `commercial.manage_purchases`.
+- The route's purchase-draft and approval service calls independently require the same capability.
+- `commercial.manage_purchases` is not in the worker assignment allowlist.
+
+Therefore the current route is effectively administrator-only for workers, despite using an authenticated-user dependency. This is a confirmed mismatch with the intended employee workflow.
+
+Recommended dedicated capability: `commercial.register_olive_purchase`.
+- Explicitly assignable to selected worker accounts only.
+- Permits the one atomic direct-reception operation (supplier if new, purchase, traceability lot, stock receipt and audit).
+- Does not grant generic draft editing/approval, supplier payments, payment reversals, stock adjustments, sales, tank management or GL posting.
+- Requires a dedicated service-layer authorization boundary; do not simply remove the `manage_purchases` checks globally or make all purchase management worker-assignable.
+- Keep the physical purchase direct and no-review as instructed. Payment, correction and reversal remain separately controlled.
+- Owner has not yet named the authorized employees; do not assign the capability to any account until that list is explicit.
+
+See `DIRECT_OLIVE_PURCHASE_CAPABILITY.md` for the service boundary, atomicity rules and API permission test matrix. No runtime permission or employee account was changed.
