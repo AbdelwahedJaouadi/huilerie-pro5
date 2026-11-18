@@ -253,3 +253,6 @@ The existing validation workflow was extended to run on `audit/erp-foundation`. 
 
 - Client history detection also checks `invoices.phone`; Atlas schema inspection confirmed this field exists, so an invoice can preserve a client record even if its original load link is missing.
 - Client profile updates now run in a transaction. A phone change is rejected if the new phone is already used by a client/load or if the old phone has a GS buyer/custody reference; the API does not silently rewrite GS identity snapshots. The update is audited, and legacy clients with load history receive a canonical client-registry record.
+
+
+The latest run's GitHub job metadata confirms `runner_id=0`, empty `runner_name`, and `steps=[]` for all six jobs. This narrows the CI failure to job/runner allocation before step execution; it is not a failed pytest assertion, Python compile error, or TypeScript diagnostic.
