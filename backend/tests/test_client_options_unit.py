@@ -20,6 +20,9 @@ class FakeCursor:
         except StopIteration:
             raise StopAsyncIteration
 
+    async def to_list(self, _length):
+        return list(self.rows)
+
 
 class FakeLoads:
     def __init__(self, rows):
@@ -37,14 +40,18 @@ async def test_client_options_are_global_deduplicated_and_paginated(monkeypatch)
         {"_id": "+21611111111", "client_name": "Client A", "last_visit": datetime(2026, 10, 1, tzinfo=timezone.utc)},
         {"_id": "+21622222222", "client_name": "Client B", "last_visit": datetime(2026, 10, 2, tzinfo=timezone.utc)},
     ])
-    monkeypatch.setattr(extras, "db", SimpleNamespace(loads=loads))
+    class FakeClients:
+        def find(self, query, projection=None):
+            return FakeCursor([])
+
+    monkeypatch.setattr(extras, "db", SimpleNamespace(loads=loads, clients=FakeClients()))
 
     rows = await extras.list_client_options(
         limit=2, skip=500, user={"role": "employee"}
     )
 
     assert [row.phone for row in rows] == ["+21611111111", "+21622222222"]
-    assert all(row.loads_count == 0 and row.amount is None for row in rows)
+    assert all(row.loads_count == 0 and row.amount is None and row.active for row in rows)
     stages = loads.pipeline
     assert any("$unionWith" in stage and stage["$unionWith"]["coll"] == "clients" for stage in stages)
     assert any(stage == {"$skip": 500} for stage in stages)
