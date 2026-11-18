@@ -995,7 +995,7 @@ async def _deactivate_client_in_transaction(phone: str, client_doc: dict | None,
             "details": {
                 "client_name": client_name,
                 "loads_retained": len(loads),
-                "reason": "client_has_operational_history",
+                "reason": "client_has_linked_history",
             },
         }, session=session)
     return ClientDeleteResult(deleted=0, deactivated=True, loads_retained=len(loads))
