@@ -23,6 +23,11 @@ class FakeClient:
         return FakeSession()
 
 
+class FakeDB(SimpleNamespace):
+    def __getitem__(self, name):
+        return getattr(self, name)
+
+
 class FakeCursor:
     def __init__(self, docs):
         self.docs = docs
@@ -117,7 +122,7 @@ async def test_invoice_creation_writes_source_load_and_invoice_in_same_session(m
 
 
 @pytest.mark.asyncio
-async def test_load_delete_checks_invoice_and_deletes_with_same_session(monkeypatch):
+async def test_load_delete_checks_all_downstream_references_before_deleting(monkeypatch):
     session = object()
     calls = []
 
@@ -138,16 +143,20 @@ async def test_load_delete_checks_invoice_and_deletes_with_same_session(monkeypa
             calls.append("load-delete")
             return SimpleNamespace(deleted_count=1)
 
-    class Lab:
-        async def delete_many(self, query, **kwargs):
+    class Related:
+        async def find_one(self, query, projection=None, **kwargs):
             assert kwargs["session"] is session
-            calls.append("lab-delete")
+            calls.append("reference-check")
+            return None
 
     async def run(operation):
         return await operation(session)
 
-    monkeypatch.setattr(loads, "db", SimpleNamespace(
-        invoices=Invoices(), loads=Loads(), lab=Lab(),
+    monkeypatch.setattr(loads, "db", FakeDB(
+        invoices=Invoices(), loads=Loads(), lab=Related(), sms_log=Related(),
+        commercial_direct_load_purchases=Related(),
+        commercial_customer_custody_receipts=Related(),
+        commercial_lots=Related(),
         commercial_audit_events=FakeAuditEvents(calls),
     ))
     monkeypatch.setattr(loads, "run_transaction", run)
@@ -155,97 +164,139 @@ async def test_load_delete_checks_invoice_and_deletes_with_same_session(monkeypa
     result = await loads.delete_load("load-1", {})
 
     assert result == {"ok": True}
-    assert calls == ["invoice-check", "load-read", "load-delete", "lab-delete", "audit-event"]
+    assert calls == [
+        "load-read", "invoice-check",
+        "reference-check", "reference-check", "reference-check",
+        "reference-check", "reference-check",
+        "load-delete", "audit-event",
+    ]
 
 
 @pytest.mark.asyncio
-async def test_client_delete_checks_invoice_before_any_deletion(monkeypatch):
+async def test_load_delete_rejects_gs_reference_without_deleting(monkeypatch):
+    session = object()
+    calls = []
+
+    class Invoices:
+        async def find_one(self, query, projection=None, **kwargs):
+            return None
+
+    class Loads:
+        async def find_one(self, query, projection=None, **kwargs):
+            return {"id": query["id"], "olive_kg": 100}
+
+        async def delete_one(self, query, **kwargs):
+            calls.append("load-delete")
+            return SimpleNamespace(deleted_count=1)
+
+    class Related:
+        async def find_one(self, query, projection=None, **kwargs):
+            return {"id": "gs-ref"} if query.get("source_load_id") == "load-1" else None
+
+    async def run(operation):
+        return await operation(session)
+
+    monkeypatch.setattr(loads, "db", FakeDB(
+        invoices=Invoices(), loads=Loads(), lab=Related(), sms_log=Related(),
+        commercial_direct_load_purchases=Related(),
+        commercial_customer_custody_receipts=Related(),
+        commercial_lots=Related(),
+        commercial_audit_events=FakeAuditEvents(calls),
+    ))
+    monkeypatch.setattr(loads, "run_transaction", run)
+
+    with pytest.raises(HTTPException) as exc:
+        await loads.delete_load("load-1", {})
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "load_has_gs_reference"
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_client_delete_deactivates_and_preserves_all_load_records(monkeypatch):
     session = object()
     calls = []
 
     class Loads:
         def find(self, query, projection=None, **kwargs):
             assert kwargs["session"] is session
-            return FakeCursor([{"id": "load-1"}])
-
-        async def delete_many(self, query, **kwargs):
-            assert kwargs["session"] is session
-            calls.append("loads-delete")
-            return SimpleNamespace(deleted_count=1)
-
-    class Invoices:
-        async def find_one(self, query, projection=None, **kwargs):
-            assert kwargs["session"] is session
-            calls.append("invoice-check")
-            return {"number": "FAC-2627101"}
+            return FakeCursor([{"id": "load-1", "client_name": "Client"}])
 
     class Clients:
+        async def find_one(self, query, projection=None, **kwargs):
+            assert kwargs["session"] is session
+            return {"phone": "21600000000", "client_name": "Client", "active": True}
+
+        async def update_one(self, query, update, **kwargs):
+            assert kwargs["session"] is session
+            calls.append("client-deactivate")
+            return SimpleNamespace(matched_count=1)
+
         async def delete_one(self, query, **kwargs):
             calls.append("client-delete")
             return SimpleNamespace(deleted_count=1)
 
     class Related:
-        async def delete_many(self, query, **kwargs):
-            calls.append("related-delete")
+        async def find_one(self, query, projection=None, **kwargs):
+            assert kwargs["session"] is session
+            return None
 
     async def run(operation):
         return await operation(session)
 
-    monkeypatch.setattr(extras, "db", SimpleNamespace(
-        loads=Loads(), invoices=Invoices(), clients=Clients(),
-        lab=Related(), sms_log=Related()
+    monkeypatch.setattr(extras, "db", FakeDB(
+        loads=Loads(), clients=Clients(), sms_log=Related(),
+        commercial_buyers=Related(), commercial_custody_owners=Related(),
+        commercial_audit_events=FakeAuditEvents(calls),
     ))
     monkeypatch.setattr(extras, "run_transaction", run)
 
-    with pytest.raises(HTTPException) as exc:
-        await extras.delete_client("21600000000", {})
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
 
-    assert exc.value.status_code == 409
-    assert exc.value.detail == "client_has_invoices"
-    assert calls == ["invoice-check"]
+    assert result.deleted == 0
+    assert result.deactivated is True
+    assert result.loads_retained == 1
+    assert calls == ["client-deactivate", "audit-event"]
 
 
 @pytest.mark.asyncio
-async def test_client_delete_groups_all_deletes_in_one_transaction(monkeypatch):
+async def test_client_without_history_can_be_deleted_in_one_transaction(monkeypatch):
     session = object()
     calls = []
 
     class Loads:
         def find(self, query, projection=None, **kwargs):
             assert kwargs["session"] is session
-            return FakeCursor([{"id": "load-1"}])
+            return FakeCursor([])
 
-        async def delete_many(self, query, **kwargs):
+    class Clients:
+        async def find_one(self, query, projection=None, **kwargs):
             assert kwargs["session"] is session
-            calls.append("loads")
+            return {"phone": "21600000000", "client_name": "Client"}
+
+        async def delete_one(self, query, **kwargs):
+            assert kwargs["session"] is session
+            calls.append("client-delete")
             return SimpleNamespace(deleted_count=1)
 
-    class Invoices:
+    class Related:
         async def find_one(self, query, projection=None, **kwargs):
             assert kwargs["session"] is session
             return None
 
-    class Clients:
-        async def delete_one(self, query, **kwargs):
-            assert kwargs["session"] is session
-            calls.append("client")
-            return SimpleNamespace(deleted_count=1)
-
-    class Related:
-        async def delete_many(self, query, **kwargs):
-            assert kwargs["session"] is session
-            calls.append("related")
-
     async def run(operation):
         return await operation(session)
 
-    monkeypatch.setattr(extras, "db", SimpleNamespace(
-        loads=Loads(), invoices=Invoices(), clients=Clients(),
-        lab=Related(), sms_log=Related()
+    monkeypatch.setattr(extras, "db", FakeDB(
+        loads=Loads(), clients=Clients(), sms_log=Related(),
+        commercial_buyers=Related(), commercial_custody_owners=Related(),
+        commercial_audit_events=FakeAuditEvents(calls),
     ))
     monkeypatch.setattr(extras, "run_transaction", run)
 
-    result = await extras.delete_client("21600000000", {})
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
 
     assert result.deleted == 1
-    assert calls == ["client", "related", "related", "loads"]
+    assert result.deactivated is False
+    assert calls == ["client-delete"]
