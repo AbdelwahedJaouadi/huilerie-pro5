@@ -194,3 +194,29 @@ Source inspection confirms the production schema rejects oil output greater than
 5. Correcting a recorded gross/tare reading creates an immutable correction event with actor, time, reason and before/after values.
 6. Retrying the same intake request cannot create a duplicate load or duplicate audit/stock effects.
 7. Existing records containing only `olive_kg` remain readable and are not retroactively assigned invented gross/tare values.
+
+
+## Client registry and safe deletion update (17 Nov 2026)
+
+The traditional `clients` collection now acts as the canonical client activation registry:
+
+- `phone` is the unique client key for string-valued phone numbers.
+- `active` defaults to true for existing records without the field; deactivation writes `active=false`.
+- `deactivated_at`, `deactivated_by`, `reactivated_at`, `reactivated_by` retain lifecycle metadata.
+- `intake_guard_version` is incremented during new-load creation so the activation check participates in the same transaction as the new load.
+- Application startup index configuration now includes a unique partial index on `clients.phone` for string-valued phone numbers. A read-only duplicate scan of existing string phone values returned zero duplicates before this change.
+
+A client with any traditional load history or a verified GS buyer/custody identity is deactivated, not deleted. The source loads, analyses, invoices, SMS records and GS references remain intact. Inactive clients are excluded from the new-load client selector, and the API rejects new traditional loads until reactivation.
+
+### Load deletion references now guarded
+
+The shared traditional-load deletion eligibility check verifies:
+- `invoices.load_id`
+- `commercial_direct_load_purchases.source_load_id`
+- `commercial_customer_custody_receipts.source_load_id`
+- `commercial_lots.source_load_id`
+- `lab.load_id`
+- `sms_log.load_id`
+- ownership/custody transfer and load processing state in the source `loads` document.
+
+The GS source-reference fields were verified from the current Atlas collection schemas. This is an explicit reference list; it should be expanded whenever a new collection begins storing a traditional load ID.
