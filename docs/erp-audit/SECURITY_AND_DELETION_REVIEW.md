@@ -237,3 +237,8 @@ These field names were checked against the current `huilerie-pro3` database sche
 - Transaction tests preserve the audit-event and deletion transaction boundary.
 
 **Validation limitation:** the repository was edited through GitHub source operations; no local checkout or executable test runner was available in this session. The test files were updated, but pytest, TypeScript build and Render deployment have not been run. Do not treat this branch as release-ready until CI or a local checkout runs the affected test suite and frontend build.
+
+
+### Boundary of this client deactivation change
+
+The change deactivates the **traditional Oro Verde client registry** and prevents new traditional load intake. It does not modify the separate GS `commercial_buyers` or `commercial_custody_owners` master records; those records are used by distinct GS workflows and are preserved as-is. Their phone values are used to detect historical GS references and decide against hard deletion. A future unified customer master would need an explicit cross-module activation policy rather than silently changing independent GS entities.
