@@ -335,3 +335,15 @@ The daily-situation report currently projects both representations as receipt ev
 6. Do not edit historical financial records in place as a shortcut; any migration must be deterministic, auditable and separately approved.
 
 This is a confirmed reporting defect, not a proposed accounting preference. Runtime code remains unchanged pending regression coverage and a runnable CI environment.
+
+
+## Fiscal-year separation gate
+
+The current accounting overview and daily-situation report are season-scoped through `active_season()` / `season_prefix()`. A date filter narrows the active-season dataset; it does not provide a fiscal-year ledger across seasons. This is a mill operations report boundary, not a valid substitute for a legal entity's annual accounting period.
+
+Before implementing statutory GL reporting:
+- Add a configurable fiscal year independent of the olive season.
+- Require explicit start/end dates, opening balances, period status and close/reopen controls.
+- Store business date, recorded timestamp and posted timestamp separately.
+- Permit prior-period comparative reports across seasons without relying on current `active_season()`.
+- Do not infer a calendar-year fiscal period. The user has deliberately deferred the dates.
