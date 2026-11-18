@@ -184,3 +184,17 @@ The fiscal year must be an independent entity/configuration, with explicit perio
 | Customer custody | Customer owner dimension + custody receipts/releases + stock movements | Customer-owned product held, moved or processed | Not mill inventory by default. A documented ownership transfer/purchase starts mill acquisition valuation; custody alone does not. |
 
 The physical stock subledger and the monetary valuation subledger must remain distinct but reconcilable. Do not derive monetary stock value from dashboard totals or quantity-only balances.
+
+
+## 12. Manual expenses, passive income and payroll boundary
+
+| Event | Current source | Current report projection | Accounting limitation |
+|---|---|---|---|
+| Manual expense | `accounting_expenses` | Expense + disbursement on the same `expense_date` | No payable/invoice lifecycle or separate payment event/date; cannot represent unpaid/part-paid obligations or prepayments. |
+| Passive income | `accounting_passive_incomes` | Revenue + receipt on the same `income_date` | No receivable/earning lifecycle or separate collection event/date. |
+| Wages | Generic `accounting_expenses` category `WAGES` | Expense + same-day disbursement | Not a payroll register or employee-level payroll/payable/contribution subledger. |
+| Fixed assets | No dedicated source module found in inspected repository | No depreciation/asset posting projection | Frontend-only `AccountingInvestment` type is not a backend asset register or accounting source. |
+
+The current `/daily-situation` also labels approved supplier olive purchases and customer-to-mill olive/oil purchases as expenses. Their source workflows create company-owned inventory/ownership acquisition. The future posting adapter must recognize inventory acquisition separately from consumption/COGS, subject to the approved NC 04 policy.
+
+For future accounting, obligation/earned-income recognition and cash/bank settlement must be separate events with stable IDs. A generic method field on the obligation is not evidence that the amount was paid on that date.

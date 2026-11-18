@@ -124,3 +124,15 @@ A dedicated source review of `commercial/services/purchases.py`, `purchase_appro
 - The owner dimension distinguishes mill-owned from customer-owned custody stock; preserve this distinction in any valuation subledger.
 
 A new design-only document, `INVENTORY_VALUATION_AND_COST_ACCOUNTING.md`, records the evidence, required cost-layer and production-cost model, policy decisions requiring Tunisian accountant approval, and acceptance tests. No live stock or financial records were changed.
+
+
+## 14. Operating expense, payroll and fixed-asset review (18 Nov 2026)
+
+A source review of the mounted accounting API and frontend confirmed that:
+- Manual expenses are generic records with category, description, date, amount, payment method, beneficiary and notes. There is no obligation/invoice identity, due date, payment status, partial settlement ledger, or independent settlement date.
+- Daily-situation projects each manual expense as both an expense and a disbursement on the same expense date. Passive income is similarly projected as both revenue and receipt on the income date. The separate totals are not necessarily duplicate counting, but accrual recognition and cash settlement cannot be dated or reconciled independently.
+- The `WAGES` category is a generic expense only. No dedicated payroll run, employee-level gross/net pay, deductions, employer contributions, payroll liabilities, payslip or payroll settlement subledger was found in the inspected repository.
+- No dedicated fixed-asset register, depreciation, impairment or disposal module/API was found. The frontend's `AccountingInvestment` type has no matching backend route in the inspected accounting module.
+- The daily-situation endpoint classifies approved supplier olive purchases and customer-to-mill olive/oil purchases as expenses at full purchase amount, while these workflows create company-owned inventory/ownership acquisition records. This can overstate period expenses and understate the reported net result until inventory consumption/COGS is recognized. Treat the current `net_result` as a source-document operational indicator, not statutory profit.
+
+See `OPERATING_EXPENSES_PAYROLL_AND_FIXED_ASSETS.md` for source details, target event model and acceptance tests. No runtime code or live records changed.

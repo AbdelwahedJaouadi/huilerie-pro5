@@ -368,3 +368,20 @@ Before full-accounting go-live:
 **Acceptance gate:** the 10 test scenarios in `INVENTORY_VALUATION_AND_COST_ACCOUNTING.md` pass, including purchase-to-lot valuation, production input/output cost conservation, mixed-tank dispatch, returns, customer custody, retry idempotency and GL reconciliation. Legacy lots without reliable source cost remain explicitly unvalued; do not invent costs.
 
 No runtime code or production data was changed in this audit.
+
+
+## Expense recognition, payroll and fixed-asset gates (18 Nov 2026)
+
+The existing manual expense/income forms do not separate recognition from settlement. The daily report treats each manual expense as incurred and paid on the same date, and each passive income as earned and collected on the same date. A generic WAGES category is not a payroll module; no dedicated payroll or fixed-asset/depreciation API was found.
+
+The current daily-situation report also places approved olive inventory acquisitions (supplier purchases and customer-to-mill ownership purchases) in the expense bucket. Do not rely on its `net_result` as statutory profit until inventory acquisition, consumption and COGS are separated.
+
+Before accounting go-live:
+1. Introduce source documents/obligations separately from cash/bank settlement events, supporting due dates, partial payments, advances, and outstanding balances.
+2. Reclassify company-owned olive/oil purchases as inventory acquisitions when recognition criteria are met; recognize costs on consumption/COGS or approved write-off, not merely on purchase.
+3. Replace hard-delete of posted expenses/incomes with auditable reversal/adjustment events.
+4. Design payroll only after Tunisian payroll specialist validation; support employee-level gross/net, employer charges, deductions, liabilities, payments and cost-centre allocations.
+5. Add fixed-asset register, in-service date, cost basis, useful life, depreciation, impairment, disposal and GL reconciliation, subject to accountant-approved policies.
+6. Keep the operational daily report distinct from statutory P&L, cashflow, receivables/payables and inventory valuation reports.
+
+**Acceptance gate:** unpaid and partially paid supplier expense; earned but uncollected income; inventory purchase not immediately expensed; employee payroll reconciliation; asset depreciation/disposal; and all reversals must pass source-event reconciliation tests. No accounting policy or payroll rate should be invented in application code.
