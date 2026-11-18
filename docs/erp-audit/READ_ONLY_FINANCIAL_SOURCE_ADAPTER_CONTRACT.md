@@ -68,8 +68,9 @@ Hard rules:
 1. Never derive revenue from a client statement, daily-situation total or load alone.
 2. Never create a receipt from cumulative `paid_amount`.
 3. The same incremental payment may appear in both `payments[]` and `history[]`. The payment array is the current canonical itemized evidence; history is not another receipt.
-4. If an invoice has no itemized payments, emit a `LEGACY_UNRESOLVED` reconciliation item for the unexplained paid aggregate. Do not invent payment IDs, receipt dates, method or cash account.
-5. A payment object with no stable immutable ID is not ready for authoritative posting. A deterministic fingerprint can support read-only comparison but must not be misrepresented as a durable payment identity.
+4. If an invoice has no itemized payments, do not promote a positive delta in `history[]` into an authoritative receipt. Emit a `LEGACY_UNRESOLVED` reconciliation item containing the observed history delta and timestamp as audit evidence only, plus any unexplained aggregate `paid_amount`. The timestamp is not proof of a cash/bank receipt date. Do not invent payment IDs, receipt dates, method or cash account.
+5. If no itemized payments exist, the full unexplained paid aggregate remains unallocated and is not included in authoritative cash receipts. If itemized payments exist, compare their sum with the paid snapshot and report any remainder as unresolved; do not count history deltas again.
+6. A payment object with no stable immutable ID is not ready for authoritative posting. A deterministic fingerprint can support read-only comparison but must not be misrepresented as a durable payment identity.
 6. Current invoice total uses `oil_kg × tariff`, while other statistics use `olive_kg × tariff`. The adapter reports both source quantities and stored invoice total but must not recalculate/replace the invoice total until the contractual tariff basis is decided.
 7. Preserve the difference between invoice business date, payment date and recorded timestamp.
 
