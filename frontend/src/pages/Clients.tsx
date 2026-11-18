@@ -85,6 +85,7 @@ export default function Clients() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate font-medium text-stone-900">{c.client_name}</span>
+                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">{c.loads_count}×</span>
                     <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", c.active ? "bg-teal-100 text-teal-800" : "bg-stone-200 text-stone-700")}>{c.active ? t("client_active") : t("client_inactive")}</span>
                   </div>
                   <div className="mt-0.5 flex justify-between text-xs text-stone-500">
