@@ -242,3 +242,8 @@ These field names were checked against the current `huilerie-pro3` database sche
 ### Boundary of this client deactivation change
 
 The change deactivates the **traditional Oro Verde client registry** and prevents new traditional load intake. It does not modify the separate GS `commercial_buyers` or `commercial_custody_owners` master records; those records are used by distinct GS workflows and are preserved as-is. Their phone values are used to detect historical GS references and decide against hard deletion. A future unified customer master would need an explicit cross-module activation policy rather than silently changing independent GS entities.
+
+
+### GitHub Actions validation attempt
+
+The existing validation workflow was extended to run on `audit/erp-foundation`. Two push-triggered workflow runs were created. In both runs, all six jobs (runner smoke, backend syntax, targeted backend tests, commercial tests, MongoDB transaction integration and frontend build) failed within seconds, with no job steps reported and no downloadable job logs. The failed jobs therefore do **not** establish a source-code or test failure; the hosted runner did not produce usable execution output. The workflow has not yet validated this implementation. Investigate repository Actions/runner availability or run the commands from a local checkout before release.
