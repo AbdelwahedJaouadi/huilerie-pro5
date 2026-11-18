@@ -163,3 +163,12 @@ The test tree contains invoice mutation unit tests, client statement payment-hel
 In particular, `test_incremental_payment_is_appended_to_payment_ledger` confirms an incremental traditional payment appends both an item in `payments[]` and a generic `history` entry. The client-account helper tests cover their own deduplication behavior, but do not exercise the separate daily-situation endpoint that projects both representations. The accounting aggregation tests cover helper/pipeline behavior, not cross-source event reconciliation.
 
 See `ACCOUNTING_REGRESSION_TEST_COVERAGE.md` for the source-based test inventory and required regression matrix. This is static inspection only; tests were not executed and no test pass is claimed.
+
+
+## 18. Cross-domain party identity and subledger review (18 Nov 2026)
+
+Traditional clients are primarily keyed by phone; GS suppliers and buyers are separate collections with normalized-name uniqueness; custody owners link to legacy clients by legacy client ID and phone. Separate read models exist for traditional client statements, supplier payables, buyer receivables, customer-to-mill purchase payables and custody balances.
+
+No canonical party ID spanning all roles was found in the inspected model. This does not prove live duplicate records, but it means the same real-world party can exist in several domains without guaranteed shared identity. Cross-domain search is not identity resolution.
+
+A future canonical party master should link role-specific records while preserving separate receivable/payable/custody subledgers. Never auto-merge by phone/name and never automatically net receivables against payables. See `PARTY_MASTER_AND_SUBLEDGER_RECONCILIATION.md`. No live party records changed.
