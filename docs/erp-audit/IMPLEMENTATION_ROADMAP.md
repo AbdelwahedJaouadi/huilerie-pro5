@@ -32,6 +32,15 @@ Target decisions:
 
 **Exit gate:** verified source/runtime map, permission matrix, relationship/integrity report and a regression-tested list of existing behavior that must not regress.
 
+### Weighing and intake integrity gate (must precede scale integration)
+
+- [ ] Extend traditional customer-load intake to capture gross and tare separately; derive net server-side using Decimal-safe arithmetic.
+- [ ] Apply the same reception-level weighing snapshot to supplier vehicle deliveries; require supplier line quantities to reconcile to the measured net before posting stock.
+- [ ] Keep `olive_kg` equal to validated net for existing downstream traditional and GS integrations; never map gross into it.
+- [ ] Add request idempotency to traditional `POST /loads`; add complete-command fingerprinting and concurrent retry recovery to GS `POST /olive-receptions`.
+- [ ] Add immutable correction events and explicit manual/scale provenance. Do not populate historical gross/tare values.
+- [ ] Prove that the same net quantity flows through intake, GS stock, production and invoices before enabling the electronic scale interface.
+
 ## Stage 1 — Stabilize the existing operational platform
 
 - Define ownership and contracts for traditional loads, invoices, lab and GS documents.
