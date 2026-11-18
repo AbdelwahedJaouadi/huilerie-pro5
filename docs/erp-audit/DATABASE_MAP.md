@@ -241,3 +241,32 @@ The shared traditional-load deletion eligibility check verifies:
 - ownership/custody transfer and load processing state in the source `loads` document.
 
 The GS source-reference fields were verified from the current Atlas collection schemas. This is an explicit reference list; it should be expanded whenever a new collection begins storing a traditional load ID.
+
+
+## End-to-end quantity lineage: traditional intake, GS and production (18 Nov 2026)
+
+This section records the source-of-truth boundaries verified after the current ERP foundation changes were merged.
+
+| Workflow | Authoritative quantity at this stage | Derived / downstream quantity | Integrity rule and current gap |
+|---|---|---|---|
+| Traditional customer intake | `loads.olive_kg`, currently accepted as a positive `float` by `LoadCreate` and persisted by `POST /loads` | Intake lists, client history, traditional statistics and yield denominator read this field | It is a single manually entered quantity today; gross/tare, vehicle identity, scale provenance and request idempotency are not implemented. |
+| Traditional pressing completion | `loads.oil_kg`, entered independently by the pressing completion endpoint | Traditional yield = oil output / `olive_kg`; SMS-ready information and invoice source use the recorded oil output | Traditional pressing does not consume a GS stock lot. The oil output is a separate actual measurement, not calculated from olive input. |
+| GS purchase of an existing customer load | Source `loads.olive_kg`, converted to `Decimal` using the stored value's string representation | Direct purchase creates the customer-custody receipt/olive lot and an ownership-transfer stock movement using that quantity | This is the critical compatibility path: after weighing is introduced, `olive_kg` must equal validated net. Do not use gross or calculate net a second time. The route requires a positive source quantity and a registered variety. |
+| GS supplier vehicle reception | Command line `quantity_kg` per variety, validated as `Decimal` | Purchase draft lines; approval creates each olive lot's `quantity_received_kg` and a stock receipt movement with the line quantity | Gross/tare are absent and there is no vehicle-level net reconciliation today. Future acceptance requires sum(lines) = server-derived net before atomic stock posting. |
+| GS production | `ProductionInputLine.quantity_kg` for each selected olive lot, validated as `Decimal` | Production run total input is the sum of its input lines; consumption movements decrement those lot balances; actual oil output creates a separate oil lot | Production consumes GS lot balances; it does not query the traditional load's `olive_kg` directly. Stock availability and lot identity/ownership/quality gates are the operative controls. Output cannot exceed input, but no realistic yield ceiling is configured. |
+| Traditional invoice | Source load's `oil_kg` and `olive_kg` are copied to the invoice | Current invoice total is `oil_kg × price_per_kg`; the invoice stores both source quantities and the linked `load_id` | Invoice creation is tied to the source load and uses the recorded oil output. Invoice amount calculation must be distinguished from intake statistics. |
+| Traditional statistics | `loads.olive_kg` and `loads.oil_kg` | Current stats code computes revenue as `olive_kg × price_per_kg` | **Confirmed formula mismatch:** invoice creation calculates `oil_kg × price_per_kg`, while `/stats` calculates `olive_kg × price_per_kg`. This may be intentional only if the two values represent different tariffs/metrics, but both use the same field name `price_per_kg`. Confirm the intended business definition before changing either formula; do not silently reconcile the dashboard by guesswork. |
+
+### Numeric boundary review
+
+- Traditional `LoadCreate.olive_kg`, `Load.olive_kg` and `loads.olive_kg` are currently float-based.
+- GS purchase and production command quantities use Python `Decimal`; commercial persisted quantities use BSON `Decimal128` in the reviewed lot/stock paths.
+- The direct customer-load purchase converts the legacy source quantity to `Decimal` via `Decimal(str(value))`. This avoids another binary-float arithmetic step but cannot restore precision already lost when a float was originally accepted/stored.
+- Invoice creation converts source oil quantity through `float(load["oil_kg"]) ` and then the money helper's Decimal conversion. This remains a precision boundary to normalize as part of the weighing/accounting migration.
+- No gross/tare values are presently stored. Do not invent them for historical records.
+
+### Required end-to-end weighing acceptance case
+
+For a new weighed load: gross = 12,450.000 kg; tare = 4,250.000 kg; server-derived net = 8,200.000 kg. Persist the gross/tare evidence and the derived net; keep compatibility `loads.olive_kg = 8,200.000`. Verify that the GS direct-load purchase receives exactly 8,200.000 kg into its receipt/lot/movement, that a production run can consume only the available lot balance and records the same consumed mass, and that the traditional invoice retains the source load's olive quantity as 8,200.000 kg while its billed oil quantity remains the separately measured `oil_kg`. The invoice's charge must continue to follow the approved oil-based tariff rule; never substitute gross or net olive weight for billed oil output. Include retry, conflicting payload, correction-audit and legacy-record cases.
+
+**No runtime behavior was changed by this lineage review.** The formulas and boundaries above are source observations; the weighing model, idempotency improvements and any invoice/statistics tariff correction remain implementation work gated by tests and business confirmation.
