@@ -198,3 +198,15 @@ The physical stock subledger and the monetary valuation subledger must remain di
 The current `/daily-situation` also labels approved supplier olive purchases and customer-to-mill olive/oil purchases as expenses. Their source workflows create company-owned inventory/ownership acquisition. The future posting adapter must recognize inventory acquisition separately from consumption/COGS, subject to the approved NC 04 policy.
 
 For future accounting, obligation/earned-income recognition and cash/bank settlement must be separate events with stable IDs. A generic method field on the obligation is not evidence that the amount was paid on that date.
+
+
+## 13. Tax evidence and posting boundary
+
+| Source document | Current tax evidence in runtime | Posting rule before GL go-live |
+|---|---|---|
+| Traditional pressing invoice | Quantity, tariff and total only in inspected write path; no tax base/rate/amount or rule snapshot | No statutory tax posting can be inferred from the commercial total. Add approved transaction-specific tax treatment and preserve applied rule version. |
+| GS wholesale sales invoice | Explicit `tax_treatment_status = NOT_CONFIGURED`; no tax calculation/snapshot in inspected creation path | Fail closed. Do not post assumed zero VAT or apply reported suspension without verified scope and effective dates. |
+| Olive purchase / customer-to-mill purchase | Commercial price and payable data; no complete transaction-specific tax snapshot in inspected purchase docs | Accountant must determine applicable tax, withholding and documentation by transaction and counterparty. |
+| Manual income/expense | Amount and payment method only; no tax code or supporting tax document structure | Not sufficient for tax reporting or input/output tax ledger. |
+
+The reported suspension de TVA must be represented as a scoped, time-bounded authorization with evidence, not as a global company boolean. No automatic tax calculation should run until the authorization and transaction-specific rules are verified and approved.

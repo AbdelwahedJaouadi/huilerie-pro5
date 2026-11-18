@@ -385,3 +385,21 @@ Before accounting go-live:
 6. Keep the operational daily report distinct from statutory P&L, cashflow, receivables/payables and inventory valuation reports.
 
 **Acceptance gate:** unpaid and partially paid supplier expense; earned but uncollected income; inventory purchase not immediately expensed; employee payroll reconciliation; asset depreciation/disposal; and all reversals must pass source-event reconciliation tests. No accounting policy or payroll rate should be invented in application code.
+
+
+## Tax engine and invoice-compliance gate (18 Nov 2026)
+
+Static source inspection confirms:
+- Traditional pressing invoices do not store tax base/rate/amount, withholding, stamp duty, suspension evidence or a tax-rule version.
+- GS wholesale invoices explicitly carry `tax_treatment_status = NOT_CONFIGURED`; no tax calculation is applied in the inspected sale-invoice flow.
+- The company-reported VAT suspension is not backed by an authorization document available for verification.
+
+Before tax posting or statutory invoice compliance is enabled:
+1. Verify the current official suspension authorization, beneficiary, scope, conditions, quotas and validity.
+2. Obtain accountant-approved tax treatment separately for pressing, olive purchase, custody, ownership purchase, bulk oil sale, by-products, assets and payroll.
+3. Implement versioned effective-dated tax rules and immutable tax snapshots on posted documents.
+4. Distinguish suspension, exemption, non-liability, non-registration and out-of-scope transactions.
+5. Add mandatory legal invoice fields and tax adjustment/credit/debit-note workflows.
+6. Keep the current fail-closed `NOT_CONFIGURED` state until approval; do not infer rates or tax outcomes from SUARL or régime réel alone.
+
+**Acceptance gate:** prove valid/in-scope, expired, out-of-scope, historical invoice and credit-note tax scenarios with accountant-approved expected results. No tax rate or suspension treatment may be invented in code.
