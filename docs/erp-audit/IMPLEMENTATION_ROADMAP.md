@@ -148,3 +148,18 @@ Key confirmed findings:
 - GS supplier deactivation, draft olive-purchase update/cancellation, preproduction cancellation and reviewed-quality immutability already demonstrate safer domain patterns.
 
 **Updated Stage 0 exit gate:** complete the full load-reference inventory (including all direct-purchase, custody, lot and production links); define the client-deletion behavior for mixed histories; and replace the invoice-only deletion rule with shared, tested deletion eligibility used by both single-load and client-wide operations. No production environment or data was changed during this audit.
+
+
+## Client history preservation fix implemented on audit branch
+
+The approved client-deletion rule has been implemented in source (not yet merged/deployed):
+
+- Historical clients are deactivated rather than deleted; all associated loads, lab, SMS, invoices and GS references remain.
+- Clients without operational history can still be hard-deleted.
+- GS buyer and custody identities are checked using schema-verified phone fields.
+- Inactive clients are hidden from new-operation selectors; new load creation is rejected until reactivation.
+- Reactivation and deactivation each write an audit event transactionally.
+- Traditional load deletion now uses one shared eligibility guard and blocks invoice, transfer/custody, processing, GS lot/purchase/receipt, lab and SMS references.
+- A unique partial `clients.phone` index and intake guard version protect client identity and the activation check.
+
+**Validation gate still open:** run backend pytest (including the updated client-delete, client-options, load-delete and atomic-deletion tests), run frontend TypeScript/build checks, inspect CI results, then review the complete branch diff before merging or deploying. No live database documents were modified by this implementation.
