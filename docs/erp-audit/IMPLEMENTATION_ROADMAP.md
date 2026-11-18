@@ -134,7 +134,7 @@ Target decisions:
 ## Delivery rules
 
 - Work only in `huilerie-pro5`.
-- Keep audit documentation isolated on branch `audit/erp-foundation`.
+- Keep ERP audit documentation versioned with the active pro5 codebase; the original audit branch was merged through PR #3 on 18 Nov 2026.
 - No production data changes during source audit.
 - No database split during the initial phases.
 - No large-bang rewrite.
@@ -262,3 +262,24 @@ The financial-role review found that `POST /commercial/v1/olive-receptions` inte
 ### Owner decision — direct olive purchase entry (17 Nov 2026)
 
 The owner clarified that the employee must register the olive purchase and gross/tare/net weights directly, without submitting the operation for review. Do not add a purchase approval queue or hold the stock receipt pending supervisor approval. Stage 1 must make direct registration available to a designated employee capability, calculate and validate net weight server-side, and atomically commit purchase + traceability lot + stock receipt + audit evidence. Corrections must be explicit, reasoned and auditable. This direct-entry exception applies only to olive purchase/reception; it does not remove controls for payments, reversals, sales approval, stock adjustments or GL journals.
+
+
+## Release and audit status after PR #3 (18 Nov 2026)
+
+- The current `audit/erp-foundation` branch was merged into `main` through PR #3. Merge commit: `77af9cbbae845060e52a79fb5420c89f370e1f71`.
+- The active pro5 Render frontend and backend are configured for `main` with automatic deploy on commit. The merge triggered both deployments. At the first post-merge verification, the frontend reached `live`; the backend was still `update_in_progress`. Recheck the backend deploy before declaring the release fully live.
+- GitHub Actions did not execute the required test steps in the latest known run because no runner was assigned (steps/logs were empty). This is not a passing test result. Backend tests, frontend build/typecheck and production smoke tests remain required.
+- The branch audit documentation is now part of `main`; do not keep describing the already-merged audit as isolated/unmerged. Continue adding follow-up audit findings on a new focused branch or directly through the normal reviewed release process.
+- The owner explicitly authorized merging and publishing the current state despite the runner issue. This release authorization does not waive the requirement to validate tests before the next functional implementation/release.
+
+## Quantity-lineage follow-up (18 Nov 2026)
+
+Source review traced the traditional intake quantity through GS and pressing:
+
+1. Traditional intake stores one `loads.olive_kg` float; gross/tare do not exist yet.
+2. GS direct purchase reads that source field, converts it to Decimal, and uses it for the customer-custody receipt, olive lot and ownership-transfer movement.
+3. GS production consumes explicit Decimal quantities from GS olive lots; it does not read traditional load quantity directly. Lot balance/owner/quality checks govern consumption.
+4. Traditional invoice creation copies both source `olive_kg` and measured `oil_kg`, and calculates its total from `oil_kg × price_per_kg`.
+5. Traditional `/stats` currently calculates revenue from `olive_kg × price_per_kg`. This differs from invoice creation and requires a business-definition decision before either formula is changed.
+
+The full field lineage, float/Decimal boundaries and the 12,450 / 4,250 / 8,200 kg acceptance case are recorded in `DATABASE_MAP.md`. Do not enable weighing or claim a scale integration until those tests pass and gross/tare/net are persisted with auditable provenance.
