@@ -1053,7 +1053,8 @@ async def client_history(phone: str, user: dict = Depends(current_user)):
         if not c:
             raise HTTPException(404, "client_not_found")
         return ClientHistory(phone=c["phone"], client_name=c["client_name"], loads_count=0, olive_kg=0, oil_kg=0,
-                             avg_yield=None, amount=0 if user["role"] == "admin" else None, loads=[])
+                             avg_yield=None, amount=0 if user["role"] == "admin" else None, loads=[],
+                             active=c.get("active", True))
     labs = await _labs_for([d["id"] for d in docs])
     loads = [to_load(d, user, labs.get(d["id"])) for d in docs]
     valid = [d for d in docs if not d.get("cancelled")]
@@ -1063,12 +1064,13 @@ async def client_history(phone: str, user: dict = Depends(current_user)):
     done_olive = sum(d["olive_kg"] for d in done)
     done_oil = sum(d["oil_kg"] for d in done)
     is_admin = user["role"] == "admin"
+    client_record = await db.clients.find_one({"phone": phone.strip()}, {"_id": 0, "active": 1})
     return ClientHistory(
         phone=docs[0]["phone"], client_name=docs[0]["client_name"], loads_count=len(valid),
         olive_kg=round(olive, 2), oil_kg=round(oil, 2),
         avg_yield=round(done_oil / done_olive * 100, 2) if done_olive else None,
         amount=round(sum(l.amount or 0 for l in loads if l.status != "cancelled"), 3) if is_admin else None,
-        loads=loads,
+        loads=loads, active=client_record.get("active", True) if client_record else True,
     )
 
 
