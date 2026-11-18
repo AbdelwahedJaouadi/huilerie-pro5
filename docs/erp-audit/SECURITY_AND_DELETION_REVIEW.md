@@ -259,3 +259,6 @@ The latest run's GitHub job metadata confirms `runner_id=0`, empty `runner_name`
 
 
 The actual intake selector in `frontend/src/components/IntakePanel.tsx` reads `GET /clients` (not `/clients/options`), so it was also updated to filter `active=false` clients. The server still independently rejects an inactive phone for both `POST /clients` and `POST /loads`; UI filtering is not the security control.
+
+
+The GS phone-reference checks also include `commercial_suppliers.phone`; the Atlas schema confirms that field. This prevents a traditional client who is also a GS supplier from being hard-deleted or having their phone identity changed while the supplier record remains linked.
