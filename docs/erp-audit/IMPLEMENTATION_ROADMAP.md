@@ -347,3 +347,24 @@ Before implementing statutory GL reporting:
 - Store business date, recorded timestamp and posted timestamp separately.
 - Permit prior-period comparative reports across seasons without relying on current `active_season()`.
 - Do not infer a calendar-year fiscal period. The user has deliberately deferred the dates.
+
+
+## Inventory valuation and production-cost audit gate (18 Nov 2026)
+
+Static source inspection confirms the GS stock ledger is quantity/ownership-based. Purchase lines retain acquisition price, but purchase-created lots and stock movements do not carry monetary value. Production records input/output quantities and extraction rate but no input-cost roll-up or conversion-cost allocation. Wholesale sale uses FIFO physical dispatch allocation, but the inspected flow does not post monetary inventory relief / COGS.
+
+Before full-accounting go-live:
+1. Keep the physical stock ledger authoritative for quantity, location, lot and ownership.
+2. Add a separate append-only valuation subledger with cost layers linked to purchase/production source events and physical movement IDs.
+3. Carry acquisition cost from approved olive purchase lines into company-owned olive cost layers.
+4. Consume olive cost layers in production and allocate eligible conversion costs into oil/by-product outputs under the approved NC 04 policy.
+5. Relieve oil carrying value on dispatch and reconcile returns/credit notes to the original cost layers.
+6. Keep customer-owned custody outside mill-owned inventory valuation until an effective ownership transfer.
+7. Preserve cost-layer identity through tank mixing; physical FIFO dispatch must not be mistaken for a statutory cost formula.
+8. Reconcile valuation subledger totals to GL inventory control accounts at each fiscal close.
+
+**Policy gate:** obtain written Tunisian accountant approval for cost formula, attributable acquisition costs, conversion overhead allocation, by-product and abnormal-loss treatment, impairment/NRV policy, and customer-custody/toll-processing treatment. Do not infer the cost formula from the current FIFO dispatch allocator.
+
+**Acceptance gate:** the 10 test scenarios in `INVENTORY_VALUATION_AND_COST_ACCOUNTING.md` pass, including purchase-to-lot valuation, production input/output cost conservation, mixed-tank dispatch, returns, customer custody, retry idempotency and GL reconciliation. Legacy lots without reliable source cost remain explicitly unvalued; do not invent costs.
+
+No runtime code or production data was changed in this audit.

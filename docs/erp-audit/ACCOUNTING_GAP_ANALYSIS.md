@@ -111,3 +111,16 @@ Target controls now specify role-specific action capabilities, no self-approval 
 A further route-level review found that `POST /commercial/v1/olive-receptions` internally builds an approval command and performs purchase approval, lot creation and stock receipt within the same transaction initiated by one actor. This is atomic but not maker/checker. The workflow must be split into submitted draft and independent approval, with approval posting purchase + lot + stock + audit atomically.
 
 The approved snapshot must include gross, tare and server-calculated net weights, weighing provenance, supplier, varieties, prices and receiving location. Any change after submission must invalidate the approval. This is also the required foundation for future scale integration; no scale integration is claimed today.
+
+
+## 13. Inventory valuation and production-cost audit (18 Nov 2026)
+
+A dedicated source review of `commercial/services/purchases.py`, `purchase_approval.py`, `production.py`, `sales.py`, `stock_ledger.py` and the inventory schemas confirms that GS currently maintains a **quantity/ownership stock ledger**, not a complete monetary valuation subledger.
+
+- Olive purchase lines store Decimal128 quantity, unit price and line total.
+- Purchase approval creates an olive lot and a quantity-only receipt movement. The inspected lot does not retain acquisition unit cost or carrying value.
+- Production stores olive input quantities, oil output quantity and extraction rate, then posts olive consumption and oil receipt movements. It does not accumulate input carrying value or conversion costs into the produced oil lot.
+- Sale approval uses FIFO stock allocations for physical dispatch, but the inspected flow does not relieve a monetary inventory value or post COGS. FIFO quantity allocation is not proof that FIFO is the approved statutory cost formula.
+- The owner dimension distinguishes mill-owned from customer-owned custody stock; preserve this distinction in any valuation subledger.
+
+A new design-only document, `INVENTORY_VALUATION_AND_COST_ACCOUNTING.md`, records the evidence, required cost-layer and production-cost model, policy decisions requiring Tunisian accountant approval, and acceptance tests. No live stock or financial records were changed.

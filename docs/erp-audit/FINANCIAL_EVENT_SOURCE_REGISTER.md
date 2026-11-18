@@ -169,3 +169,18 @@ Both traditional accounting endpoints derive their dataset from `active_season()
 A user-selected date range filters records already selected for the active season; it does not turn the endpoint into an all-years general ledger. This is appropriate for a season-oriented mill dashboard but insufficient for statutory annual accounts, opening balances, prior-year comparatives, period locking, or an independently configured fiscal year.
 
 The fiscal year must be an independent entity/configuration, with explicit period start/end, status (open/closed), posting date, business date, and close/reopen authority. Do not assume it equals the olive season or the calendar year. Until the user/accountant sets the fiscal year, keep it explicitly unconfigured and do not perform a fiscal close.
+
+
+## 11. Inventory quantity versus monetary valuation sources
+
+| Event | Current authoritative source | What it proves today | Monetary accounting boundary |
+|---|---|---|---|
+| Company-owned olive acquisition | Approved `commercial_olive_purchases` line + `commercial_lots` + `commercial_stock_movements` | Supplier, purchase quantity, unit price/line total, lot, owner, location and receipt movement | Purchase line has price, but current lot/movement/balance ledger does not carry a valued cost layer. Future inventory valuation must begin at the recognized ownership/acceptance event. |
+| Olive consumption in production | `commercial_production_runs.inputs[]` + `CONSUMPTION` movement | Source olive lot, owner, location and quantity consumed | Must relieve the corresponding olive carrying value once and transfer eligible cost to production WIP/output; current service is quantity-only. |
+| Oil production output | Production run + output oil lot + `RECEIPT` movement | Actual oil quantity, traceability and destination tank | Current output has no derived unit cost or carrying value; conversion cost and by-product allocation are absent. |
+| Tank transfer/mixing | `commercial_stock_movements` | Quantity/owner/location movement and audit link | Future cost layers must travel with stock value; internal transfer is not revenue/expense. Preserve source layers even when physical lots are mixed. |
+| Wholesale dispatch | Approved sale + FIFO dispatch allocations + `DISPATCH` movement | Quantity dispatched and source lot allocation | No inspected monetary COGS/cost-layer relief. Physical FIFO allocation is not automatically the statutory valuation method. |
+| Accepted sale return | Return + credit note + return stock movement | Quantity returned, original sale/invoice and credit amount | Restore or adjust the original cost layer consistently; do not use the sales credit amount as inventory cost. |
+| Customer custody | Customer owner dimension + custody receipts/releases + stock movements | Customer-owned product held, moved or processed | Not mill inventory by default. A documented ownership transfer/purchase starts mill acquisition valuation; custody alone does not. |
+
+The physical stock subledger and the monetary valuation subledger must remain distinct but reconcilable. Do not derive monetary stock value from dashboard totals or quantity-only balances.
