@@ -270,3 +270,21 @@ This section records the source-of-truth boundaries verified after the current E
 For a new weighed load: gross = 12,450.000 kg; tare = 4,250.000 kg; server-derived net = 8,200.000 kg. Persist the gross/tare evidence and the derived net; keep compatibility `loads.olive_kg = 8,200.000`. Verify that the GS direct-load purchase receives exactly 8,200.000 kg into its receipt/lot/movement, that a production run can consume only the available lot balance and records the same consumed mass, and that the traditional invoice retains the source load's olive quantity as 8,200.000 kg while its billed oil quantity remains the separately measured `oil_kg`. The invoice's charge must continue to follow the approved oil-based tariff rule; never substitute gross or net olive weight for billed oil output. Include retry, conflicting payload, correction-audit and legacy-record cases.
 
 **No runtime behavior was changed by this lineage review.** The formulas and boundaries above are source observations; the weighing model, idempotency improvements and any invoice/statistics tariff correction remain implementation work gated by tests and business confirmation.
+
+
+### Financial quantity-basis reconciliation (18 Nov 2026)
+
+The broader reporting review confirms that the invoice/statistics difference is not limited to `/stats`:
+
+| Surface | Current calculation/source | Meaning that must be confirmed |
+|---|---|---|
+| Traditional invoice total | `oil_kg × price_per_kg` at invoice creation | Billed amount based on measured oil output. |
+| Traditional `/stats` revenue | `olive_kg × price_per_kg` from load documents | A load-based valuation, not the invoice formula. |
+| Worker report revenue | `olive_kg × price_per_kg` from load documents | Worker-attributed load valuation, not necessarily invoiced revenue or cash received. |
+| Client summary amount | Aggregation of `olive_kg × price_per_kg` | Load-based amount; it can differ from the invoice and client-account ledger. |
+| Revenue report | Sum of invoice payment events by payment date | Cash receipts during the reporting period, including partial payments; not invoices issued or production value. |
+| Client account statement | Invoice totals as debits and payment events as credits | Customer receivable ledger, subject to the known legacy payment-event gaps documented in the financial lifecycle review. |
+
+These outputs are not interchangeable: billed revenue, cash collected, load-based operational valuation and customer receivables are distinct measures. The current naming/UI may present some of them all as “revenue” or “amount”, which risks misleading management decisions. The exact commercial tariff basis remains a business decision; do not change formulas until the owner confirms whether the tariff is per kg of olives received, per kg of oil returned/pressed, or a separate service/commission rate, and which screens should report invoiced versus collected amounts.
+
+**Required reconciliation test before accounting implementation:** for one sample load with a known olive input, measured oil output, tariff and partial/full payment, assert the expected values independently for invoice total, client statement debit, cash-received report, client summary and worker report. The test must explicitly encode the approved tariff basis and must not silently equate cash collected with invoice value.
