@@ -87,7 +87,7 @@ The following is a proposed least-privilege target. It is not active runtime pol
 | Target role | May prepare / record | May approve / post | Must not do |
 |---|---|---|---|
 | Reception operator | Load intake, gross/tare capture, client lookup, receiving evidence | No financial approval | Approve own intake exceptions, alter posted invoices |
-| Purchasing operator | Supplier draft, olive purchase draft, delivery/weight/quality evidence, supplier-payment request | No purchase approval; no supplier payment authorization | Approve own purchase or payment |
+| Purchasing / reception operator | Direct olive purchase registration, supplier and delivery evidence, gross/tare/net capture, supplier-payment request | No authority to approve supplier payments or payment reversals | Alter posted weighing evidence without a correction event; authorize own supplier payment |
 | Lab analyst | Sample and quality measurements, correction request | No quality release unless separately designated | Release own assessment |
 | Quality approver | Review evidence and release/reject quality | Quality release only | Rewrite analyst measurements without trace |
 | Production operator | Production run measurements, machine/pump progress | No inventory adjustment or sale approval | Post manual stock correction |
@@ -205,7 +205,7 @@ The design can proceed without blocking ordinary source audit. Before runtime au
 
 Until these are decided, keep current runtime access unchanged on the audit branch and do not merge/deploy the policy design.
 
-## 10. Additional high-risk workflow finding: one-step olive reception
+## 10. Additional high-risk workflow finding: one-step olive reception (current source behavior)
 
 The route `POST /commercial/v1/olive-receptions` is not merely a draft-creation endpoint. Its documented purpose and handler flow create the supplier (when requested), olive purchase, traceability lot and stock receipt in one transaction. It constructs an approval command internally and calls the purchase approval service during that same operation. Therefore the same authenticated actor who initiates the reception also approves the purchase and posts the stock receipt.
 
@@ -221,15 +221,15 @@ The route also uses `current_user` plus `commercial.manage_purchases`, which is 
 
 Other direct-posting paths that need explicit review/approval states include supplier purchase payment, customer sale payment, payment reversal, buyer-credit application, custody release/receipt and stock adjustment. A transaction and idempotency key protect data consistency; neither proves a second person approved the business decision.
 
-## 11. Weight evidence and approval snapshot
+## 11. Weight evidence and direct-registration snapshot
 
-For olive purchase/reception, approval must bind to the exact submitted weighing evidence:
+For olive purchase/reception, the saved purchase record must preserve the exact weighing evidence at the time of direct registration:
 - gross weight, tare weight and server-calculated net weight;
 - weighing source (manual or later scale integration), scale/device identifier when applicable, measurement timestamps and operator;
 - correction history with old/new values, actor, time and reason;
 - net quantity used by purchase totals, lot receipt and stock movement.
 
-The approver must see and approve the same immutable submitted snapshot. If gross/tare/net or supplier/price/variety/location changes after submission, invalidate the approval request and require resubmission. Never trust a client-supplied net value or allow an approval to silently apply to a changed payload. This preserves the future weighbridge integration without pretending it is already connected.
+Because no review step is required for this operation, there is no approver snapshot. Preserve the original registered values and identify the employee who entered them. Never trust a client-supplied net value. Any later change must create an auditable correction with old/new values, actor, timestamp and reason. This preserves the future weighbridge integration without pretending it is already connected.
 
 
 ## 12. Owner clarification: direct olive purchase registration
