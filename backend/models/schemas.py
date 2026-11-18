@@ -345,6 +345,7 @@ class ClientHistory(BaseModel):
     avg_yield: Optional[float] = None
     amount: Optional[float] = None
     loads: list[Load]
+    active: bool = True
 
 
 class Certificate(BaseModel):
