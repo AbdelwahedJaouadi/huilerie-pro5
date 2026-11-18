@@ -449,3 +449,19 @@ Before consolidated ERP party reporting:
 5. Reconcile all legacy statements and preserve historical document snapshots during migration.
 
 **Acceptance gate:** a party with multiple roles has one canonical identity and separate reconciled role balances; ambiguous legacy matches remain unlinked. See `PARTY_MASTER_AND_SUBLEDGER_RECONCILIATION.md`.
+
+## Read-only source-adapter contract (17 Nov 2026)
+
+Added `READ_ONLY_FINANCIAL_SOURCE_ADAPTER_CONTRACT.md` as the next technical design gate. It specifies a deterministic, versioned candidate-event envelope, source-specific adapters, eligibility states, stable blocking reasons, source fingerprints, and reconciliation reports.
+
+The contract explicitly prevents the current `/accounting/daily-situation` projection from being reused as a GL feed. It records the confirmed duplicate traditional receipt projection (itemized payment plus history delta), the unallocated legacy paid-amount problem, the incorrect expense classification of inventory acquisitions, and the same-day accrual/settlement conflation in manual income and expense records.
+
+**Next implementation sequence (still non-posting):**
+1. Establish runnable backend/frontend CI and endpoint-level regression coverage before runtime financial changes.
+2. Implement pure Decimal/date/unit normalization and deterministic fingerprints with unit tests.
+3. Implement read-only adapters first for traditional invoice/receipt and GS supplier purchase/payment sources.
+4. Add report-only reconciliation with explicit unresolved records and prove the adapter performs zero database writes.
+5. Extend to sales, credits/returns, custody and stock only after event identities and lifecycle tests are available.
+6. Keep all GL posting, tax calculation, inventory monetary valuation and treasury posting disabled until their separate policy and accountant gates pass.
+
+No runtime code, permissions, database documents, financial records or Render services were changed by this design update.
