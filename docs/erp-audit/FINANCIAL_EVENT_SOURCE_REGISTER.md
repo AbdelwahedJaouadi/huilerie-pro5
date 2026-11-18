@@ -210,3 +210,15 @@ For future accounting, obligation/earned-income recognition and cash/bank settle
 | Manual income/expense | Amount and payment method only; no tax code or supporting tax document structure | Not sufficient for tax reporting or input/output tax ledger. |
 
 The reported suspension de TVA must be represented as a scoped, time-bounded authorization with evidence, not as a global company boolean. No automatic tax calculation should run until the authorization and transaction-specific rules are verified and approved.
+
+
+## 14. Treasury / cash and bank source boundary
+
+| Payment source | Current source fields | Missing treasury evidence |
+|---|---|---|
+| Traditional pressing receipt | Embedded amount, timestamp and actor in `invoices.payments[]` | No method, cash drawer, bank account, cheque or external settlement reference. |
+| GS sale receipt | PAY document with date, amount, method and optional reference | No named cash/bank account, bank value date, clearance status or matched statement line. |
+| Supplier/customer purchase settlement | Payment document with date, amount, method and reference | No account-level cash/bank movement or statement reconciliation. |
+| Payment reversal | REV document linked to original payment, amount and evidence reference | Does not itself prove external bank/cash refund/return or identify the account movement. |
+
+A future treasury subledger must reference the canonical payment event; it must not create a second receivable/payable settlement. Internal transfers between cash and bank are balance-sheet movements, not revenue or expense. See `CASH_AND_BANK_LEDGER_AUDIT.md`.
