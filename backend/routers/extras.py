@@ -884,7 +884,7 @@ async def create_client(body: ClientCreate, user: dict = Depends(current_user)):
     if existing or await db.clients.find_one({"phone": phone}):
         raise HTTPException(409, "client_exists")
     now = datetime.now(timezone.utc)
-    await db.clients.insert_one({"phone": phone, "client_name": body.client_name.strip(), "created_at": now})
+    await db.clients.insert_one({"phone": phone, "client_name": body.client_name.strip(), "active": True, "created_at": now})
     return ClientSummary(phone=phone, client_name=body.client_name.strip(), loads_count=0, olive_kg=0, oil_kg=0,
                          last_visit=now, amount=0 if user["role"] == "admin" else None)
 
@@ -986,23 +986,29 @@ async def delete_client(phone: str, user: dict = Depends(require_admin)):
 @router.post("/clients/{phone}/reactivate")
 async def reactivate_client(phone: str, user: dict = Depends(require_admin)):
     normalized_phone = phone.strip()
-    result = await db.clients.update_one(
-        {"phone": normalized_phone, "active": False},
-        {"$set": {"active": True, "reactivated_at": datetime.now(timezone.utc),
-                  "reactivated_by": user.get("username", ""), "updated_at": datetime.now(timezone.utc)}},
-    )
-    if not result.matched_count:
-        raise HTTPException(404, "inactive_client_not_found")
-    await db.commercial_audit_events.insert_one({
-        "id": str(uuid.uuid4()),
-        "entity_type": "traditional_client",
-        "entity_id": normalized_phone,
-        "action": "CLIENT_REACTIVATED",
-        "actor_user_id": user.get("id"),
-        "created_at": datetime.now(timezone.utc),
-        "details": {},
-    })
-    return {"ok": True, "active": True}
+
+    async def operation(session):
+        now = datetime.now(timezone.utc)
+        result = await db.clients.update_one(
+            {"phone": normalized_phone, "active": False},
+            {"$set": {"active": True, "reactivated_at": now,
+                      "reactivated_by": user.get("username", ""), "updated_at": now}},
+            session=session,
+        )
+        if not result.matched_count:
+            raise HTTPException(404, "inactive_client_not_found")
+        await db.commercial_audit_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "entity_type": "traditional_client",
+            "entity_id": normalized_phone,
+            "action": "CLIENT_REACTIVATED",
+            "actor_user_id": user.get("id"),
+            "created_at": now,
+            "details": {},
+        }, session=session)
+        return {"ok": True, "active": True}
+
+    return await run_transaction(operation)
 
 
 @router.get("/clients/{phone}/all-loads")
