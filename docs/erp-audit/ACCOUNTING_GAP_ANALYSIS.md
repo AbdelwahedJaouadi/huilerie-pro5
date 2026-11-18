@@ -89,3 +89,19 @@ Additional source-level risks confirmed:
 - Payment reversal reverses a settlement event and must not be treated as a sales return/revenue reversal by default.
 
 The register is based on static source inspection. It does not imply a GL implementation or prove every legacy document shape.
+
+## Financial roles, approvals and source-level controls (17 Nov 2026)
+
+Added `FINANCIAL_ROLE_AND_APPROVAL_MATRIX.md` after reviewing current route dependencies and the underlying GS and traditional services.
+
+The key distinction is between transaction atomicity and segregation of duties: several GS flows correctly transact their source document, stock/payment changes and audit event together, but the same administrator can still create and approve the transaction. The code does not yet enforce maker/checker identity separation.
+
+Current blockers include:
+- The worker allowlist cannot grant purchasing, sales, custody, production or stock-posting capabilities; some routes with `current_user` therefore remain inaccessible to workers, while other high-risk routes explicitly require an administrator.
+- Lot balance adjustment is available through broad worker-edit permissions without independent approval.
+- Pump selection/status mutate state under `commercial.read`.
+- Traditional load, oil-output, status, delivery, lab creation and client creation routes are available to any authenticated user rather than job-specific roles.
+- Manual passive income/expense creation is a direct insert and deletion is physical; no review/post/reversal state exists.
+- Traditional invoice update/delete are transactional but still allow repricing and physical removal of financial source documents.
+
+Target controls now specify role-specific action capabilities, no self-approval for purchases, sales, payments, reversals, stock adjustments or GL journals, audit evidence, exception handling, and route-level tests. This remains a design/source-audit result only; runtime authorization and live data were not changed.
