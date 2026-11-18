@@ -146,6 +146,22 @@ These checks establish that the sampled/current documents do not contain danglin
 5. Do not rename, drop, merge or bulk-rewrite collections during this audit.
 ## Weighbridge / load-weight contract (verified against current source)
 
+### Verified scope across the three intake paths
+
+1. **Traditional customer load** — `POST /loads` currently accepts one `olive_kg: float`. The UI has no gross/tare inputs and the request contains no idempotency key. The backend generates a new load ID/code for each call. A network retry can therefore create a second load; the existing MongoDB transaction protects the client-registry/load/audit write set, but it does not make the HTTP command idempotent.
+2. **Supplier physical reception in GS** — `POST /commercial/v1/olive-receptions` accepts one or more variety lines with `quantity_kg`, plus supplier, purchase date, receiving location and request key. It currently has no vehicle gross/tare fields. The idempotency key is required, but the inner purchase fingerprint does not cover the entire outer command (notably new-supplier contact/tax metadata and receiving location); concurrent duplicate-key recovery is also incomplete.
+3. **Purchase of an existing customer load into GS** — `POST /commercial/v1/customer-purchases/loads` consumes the existing load quantity. It must inherit the source load's validated net value and must never calculate a second net weight or use gross weight as stock quantity.
+
+The weighing contract should therefore be a shared **weighing snapshot** that can be attached to the relevant physical reception/load document, not a replacement for the business documents themselves. It should record the vehicle identity when available, gross and tare readings, unit, source, separate timestamps and operator identities, and an immutable correction trail. A truck tare must not be silently reused for a different vehicle or a later trip.
+
+For a supplier delivery with multiple variety lines, the reception-level net weight is the physical total. The sum of the accepted line quantities must reconcile exactly to that net weight before posting stock. If the delivery is physically weighed as one vehicle load but the operator does not yet know the variety split, do not post speculative line quantities; retain a controlled unposted/incomplete state or capture the verified split before atomic posting. The traditional single-variety customer load maps its net weight directly to `olive_kg`.
+
+**Canonical compatibility rule:** `net_weight` is the canonical measured quantity for new weighing-enabled records; `olive_kg` remains the legacy API/downstream compatibility field and must equal that validated net quantity. Existing historical records with only `olive_kg` remain legacy records with unknown gross/tare—not records with inferred measurements. Use Decimal-safe calculations at input, validation and persistence boundaries; do not use client-submitted net as authoritative. The current traditional schema's float type is a migration gap that must be removed or safely isolated before enabling gross/tare capture.
+
+**Idempotency gap to close before rollout:** add a stable request key to traditional load intake and persist a canonical fingerprint plus unique scoped key; the same key/same payload returns the original load, and same key/different payload conflicts. For GS supplier reception, fingerprint the complete normalized command (including supplier identity/contact/tax values, date, every line, location and notes) rather than only the inner purchase draft, and recover a concurrent unique-key collision by reading and returning the winning committed result. Keep request-idempotency identity distinct from the eventual GL posting identity.
+
+
+
 The current traditional reception form (`frontend/src/components/IntakePanel.tsx`) submits a single `olive_kg` value. The `LoadCreate` schema currently validates only `olive_kg` (plus bags, variety, notes and initial status), and `backend/routers/loads.py` persists that value as the load's olive quantity. The current code therefore does **not yet** persist separate gross and tare readings.
 
 The required target model is:
