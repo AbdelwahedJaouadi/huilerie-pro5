@@ -101,7 +101,17 @@ The codebase includes separate source collections for:
 
 Each family needs a dedicated source-event adapter, unique source ID, event type, event date, actor, currency, amount basis, reversal/void semantics and an approved journal template.
 
-## 9. Cross-cutting source-of-truth rules
+## 9. Manual passive income and expense entries
+
+| Event | Authoritative source | Current behavior | Posting design / gate |
+|---|---|---|---|
+| Manual passive income | `accounting_passive_incomes` | Admin creates one season-scoped record with date, category, description, amount, payment method, notes and creator; DELETE physically removes it | Treat only as a manually entered source record after evidence/account classification. Determine whether it is income earned or cash received; current schema does not distinguish accrual from settlement. Replace delete with void/reversal and retain receipt evidence. |
+| Manual operating expense | `accounting_expenses` | Admin creates season-scoped expense with date, category, amount, payment method, beneficiary, notes and creator; DELETE physically removes it | Determine expense recognition versus cash payment and supplier payable. Add counterparty/document evidence, payment reference and cash/bank account. Replace delete with void/reversal. |
+| Manual other outflow | `accounting_expenses` (shared collection path) | The helper supports a supplier field for non-expense outflow types, but current mounted expense route uses the expense type path | Verify all callers and data shape before migration; do not assume the supplier branch is active or populated. |
+
+These manual-entry endpoints are operational season-based records, not a double-entry subledger. They currently do not provide a separate accrual event and settlement event, a stable external receipt/document number, or an immutable correction lifecycle. Do not auto-post them to the GL until these fields and policies are designed.
+
+## 10. Cross-cutting source-of-truth rules
 
 1. Invoice revenue is posted from the invoice recognition event, not again from its payments.
 2. Cash receipt is posted from the payment event, not from a cumulative paid snapshot.
@@ -114,7 +124,7 @@ Each family needs a dedicated source-event adapter, unique source ID, event type
 9. Every source adapter must be idempotent on immutable source-event identity.
 10. Every posted event must be traceable back to the source document and its audit trail.
 
-## 10. Readiness blockers before accounting postings
+## 11. Readiness blockers before accounting postings
 
 - [ ] Traditional invoice repricing/deletion lifecycle replaced by credit/debit adjustments and reversals.
 - [ ] Legacy `paid_amount` replacement API retired or restricted to controlled reconciliation.
@@ -124,11 +134,11 @@ Each family needs a dedicated source-event adapter, unique source ID, event type
 - [ ] NC 04 inventory valuation and production conversion-cost allocation approved.
 - [ ] Customer custody/title-transfer contracts and loss policy documented.
 - [ ] All GS return/credit-note states mapped, including rejection and partial acceptance.
-- [ ] Expense/passive-income deletion replaced with cancellation/reversal lifecycle.
+- [ ] Expense/passive-income deletion replaced with cancellation/reversal lifecycle and accrual-versus-payment semantics.
 - [ ] Payment method mapped to explicit cash/bank accounts; cheque/transfer references and evidence retained.
 - [ ] Fiscal year, opening balances and approved chart configured.
 - [ ] Source-event adapters tested for retries, concurrency, reversal and duplicate posting.
 
-## 11. Scope limitations
+## 12. Scope limitations
 
 This register is based on static source inspection. It does not prove every endpoint, every legacy data shape, or every collection's live population. Before migration/posting, compare the register with live documents and all route/service writers, then validate each mapping with the Tunisian accountant. No GL collection or posting API is implemented by this document.
