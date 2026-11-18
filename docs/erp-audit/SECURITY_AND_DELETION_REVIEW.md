@@ -275,3 +275,10 @@ Some findings above describe the pre-fix source and must be read together with t
 - Financial lifecycle risks remain open: invoice repricing/deletion and passive-income/expense deletion still mutate or remove financial source documents. See `FINANCIAL_DOCUMENT_LIFECYCLE.md` for the verified payment-event defect and branch fix, plus the accounting decisions that must be approved before implementing reversals.
 
 Do not treat the historical description of the old client cascade-delete implementation as the current behavior.
+
+
+### Additional custody-release identity reference (source-verified)
+
+A second pass through `backend/commercial/services/customer_custody.py` confirmed that customer oil-custody releases snapshot both `customer_id` and `customer_phone` into `commercial_customer_custody_releases`. The Atlas collection currently has no sample documents from which to infer a schema, so the field contract was verified from the writer implementation rather than live records.
+
+The client-history guard now also checks `commercial_customer_custody_releases.customer_phone`. A regression test was added to ensure a client referenced only by a custody-release document is deactivated rather than hard-deleted. This test is not yet executed.
