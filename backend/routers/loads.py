@@ -86,13 +86,17 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
+    phone = re.sub(r"\s+", "", body.phone)
+    inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
+    if inactive_client:
+        raise HTTPException(409, "client_inactive")
     now_local = datetime.now(_tz())
     season = await active_season()
     code = await next_load_code(season)
     now = datetime.now(timezone.utc)
     doc = {
         "id": str(uuid.uuid4()), "code": code, "season_id": season, "client_name": body.client_name.strip(),
-        "phone": re.sub(r"\s+", "", body.phone), "olive_kg": body.olive_kg, "oil_kg": None,
+        "phone": phone, "olive_kg": body.olive_kg, "oil_kg": None,
         "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
         "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
         "price_per_kg": money_db(await _price()),
