@@ -205,21 +205,51 @@ The design can proceed without blocking ordinary source audit. Before runtime au
 
 Until these are decided, keep current runtime access unchanged on the audit branch and do not merge/deploy the policy design.
 
-## 10. Additional high-risk workflow finding: one-step olive reception (current source behavior)
+## 10. Olive-purchase workflows: separate routes, separate controls
 
-The route `POST /commercial/v1/olive-receptions` is not merely a draft-creation endpoint. Its documented purpose and handler flow create the supplier (when requested), olive purchase, traceability lot and stock receipt in one transaction. It constructs an approval command internally and calls the purchase approval service during that same operation. Therefore the same authenticated actor who initiates the reception also approves the purchase and posts the stock receipt.
+The source contains more than one olive-purchase path. They must not be conflated.
 
-This is stronger than the general absence of maker/checker: the current combined reception path structurally has no opportunity for a second person to review the purchase before stock posting. Preserve the useful atomicity of purchase + lot + stock + audit, but redesign the workflow as:
-1. maker submits a reception/purchase draft with measured gross/tare/net, supplier, price, variety, receiving location and evidence;
-2. checker reviews the immutable submitted snapshot and approves or rejects;
-3. approval transaction posts the purchase receipt, lot(s), stock movement(s) and audit event together;
-4. any correction after posting is a linked reversal/adjustment, never an edit to the approved receipt.
+### 10.1 Supplier purchase and physical reception — `POST /commercial/v1/olive-receptions`
 
-The route also uses `current_user` plus `commercial.manage_purchases`, which is not worker-assignable today. It is therefore effectively administrator-only in the current policy, despite not declaring `require_admin`.
+This is the one-step supplier purchase/reception flow relevant to the owner's direct-registration rule:
 
-**Owner decision (17 Nov 2026): olive purchase is an explicit exception to maker/checker.** The employee records the purchase and gross/tare/net weights directly; the employee does not submit it for review. Do not introduce a pending-approval state or block stock receipt waiting for a supervisor. Grant this direct action only to a designated purchasing/reception capability, calculate net on the server, validate the measurements, and commit purchase + lot + stock receipt + audit evidence atomically. Corrections after registration must be separately recorded with actor, timestamp, reason and old/new values; never silently overwrite the original weighing evidence. This exception applies to olive purchase/reception only, not supplier payments, customer payments, reversals, sales, stock adjustments or GL journals.
+- It creates or resolves the supplier, creates an olive-purchase document, allocates the purchase traceability code, creates the lot(s), and posts the stock receipt in one MongoDB transaction.
+- It internally calls the purchase-approval service immediately after creating the draft. The resulting `APPROVED` state is an internal posting transition by the same actor, **not a second-person review**.
+- The command requires an `idempotency_key`. The purchase service scopes it by season and actor, stores a canonical request fingerprint, and the `commercial_olive_purchases` index set defines a unique `(idempotency_scope, idempotency_key)` constraint. A retry with the same key and same purchase payload can return the existing purchase; reuse with a different payload is rejected.
+- The internally derived approval key and approval fingerprint protect the approval transition; they do not create a human checker.
+- Current route authorization is `current_user` plus `commercial.manage_purchases`. That permission is not in the worker-assignable allowlist, so the route is effectively admin-only today.
 
-Other direct-posting paths that need explicit review/approval states include supplier purchase payment, customer sale payment, payment reversal, buyer-credit application, custody release/receipt and stock adjustment. A transaction and idempotency key protect data consistency; neither proves a second person approved the business decision.
+**Required target:** keep this path direct. A specifically authorized employee records the purchase and receiving evidence; there is no pending-review state and no second-person approval gate. Preserve the transaction boundary and request idempotency. Add a dedicated assignable direct-purchase capability only after the authorized employee/role assignment is decided. The current request schema records line quantity, price, variety and location, but does not yet capture separate gross/tare measurements; the weighing-evidence requirement in section 11 remains an implementation gap.
+
+### 10.2 Separate olive-purchase draft — `POST /commercial/v1/olive-purchases`
+
+This is a distinct workflow:
+
+- It creates a `DRAFT` purchase only.
+- A separate `POST /olive-purchases/{purchase_id}/approve` command posts the receipt and stock.
+- Both creation and approval routes currently require administrator access.
+- The approval service checks state/version and an approval request fingerprint, but source inspection does not establish that maker and approver must be different people.
+
+Do not silently substitute this draft/approve workflow for the owner's direct supplier-reception process. Whether this separate draft workflow remains available for exceptional/back-office cases is a separate product decision; it must not add a review queue to section 10.1.
+
+### 10.3 Direct purchase of a customer's existing Oro Verde load — `POST /commercial/v1/customer-purchases/loads`
+
+This is another distinct workflow: it purchases a complete existing traditional load from a customer and transfers ownership into mill-owned GS stock. It closes the source load, records custody/ownership-transfer ledger events, and writes a direct-purchase result in one transaction.
+
+- It has its own idempotency key, season/user scope, deterministic child IDs and request-payload comparison.
+- The source load is conditionally closed only while it remains eligible and not already transferred; this is an additional concurrency guard.
+- The inspected inventory-index declaration does not define a unique idempotency index for `commercial_direct_load_purchases`. Sequential retries are checked in application code, but concurrent same-key submissions therefore need a dedicated unique index (and a duplicate-key recovery test) before claiming race-safe idempotency.
+- This path uses the existing source load's `olive_kg`; it does not capture new gross/tare readings. It is not the same operation as purchasing a fresh supplier delivery.
+
+### 10.4 Idempotency is not approval
+
+For all three paths, keep these concepts distinct:
+
+1. **Request idempotency:** a repeated client command with the same key and same payload must not create another purchase/receipt; same key with a different payload must conflict.
+2. **Business approval:** a policy decision about who may authorize a transaction. For supplier olive reception, the owner's explicit rule is direct registration without human review.
+3. **Accounting posting identity:** a later GL event must have its own unique source-event identity; an HTTP idempotency key is not a journal-posting key.
+
+Atomic transactions protect multi-document consistency. Unique indexes, stable request keys, payload fingerprints and explicit retry handling protect against duplicate commands. None of these mechanisms should be described as independent human approval.
 
 ## 11. Weight evidence and direct-registration snapshot
 
