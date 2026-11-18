@@ -218,3 +218,10 @@ Next technical foundation tasks:
 2. Define canonical posting-source identity and idempotency rules before building journal APIs.
 3. Define fiscal-period configuration as unset/required, honoring the owner's deferred fiscal-year decision.
 4. Build chart/journal/posting only after accountant-approved accounts, tax treatment, opening balances and fiscal-year configuration are available.
+
+
+## Financial source-event audit completed (17 Nov 2026)
+
+Added `docs/erp-audit/FINANCIAL_EVENT_SOURCE_REGISTER.md`. The register maps traditional pressing invoices/receipts; GS olive and oil purchases/payments; wholesale invoices, payments, reversals, credits and returns; custody; production; stock; and manual passive income/expenses to authoritative source records. It explicitly separates revenue from cash settlement, customer custody from mill inventory, credit applications from cash, and stock movements from revenue.
+
+Before GL implementation, resolve the listed traditional invoice replacement-payment and repricing/deletion hazards, give embedded traditional payments stable identities, normalize Decimal arithmetic, and define cancellation/reversal plus accrual/settlement semantics for manual income/expenses. GS tax treatment remains unconfigured. These are Stage 1/2 blockers, not permissions to alter live financial records.
