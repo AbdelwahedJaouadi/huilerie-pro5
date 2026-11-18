@@ -319,6 +319,7 @@ export interface ClientHistory {
   avg_yield: number | null;
   amount: number | null;
   loads: Load[];
+  active: boolean;
 }
 
 export interface Certificate {
