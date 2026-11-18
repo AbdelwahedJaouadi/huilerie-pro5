@@ -288,3 +288,24 @@ The broader reporting review confirms that the invoice/statistics difference is 
 These outputs are not interchangeable: billed revenue, cash collected, load-based operational valuation and customer receivables are distinct measures. The current naming/UI may present some of them all as “revenue” or “amount”, which risks misleading management decisions. The exact commercial tariff basis remains a business decision; do not change formulas until the owner confirms whether the tariff is per kg of olives received, per kg of oil returned/pressed, or a separate service/commission rate, and which screens should report invoiced versus collected amounts.
 
 **Required reconciliation test before accounting implementation:** for one sample load with a known olive input, measured oil output, tariff and partial/full payment, assert the expected values independently for invoice total, client statement debit, cash-received report, client summary and worker report. The test must explicitly encode the approved tariff basis and must not silently equate cash collected with invoice value.
+
+## Intake idempotency and offline retry audit (18 Nov 2026)
+
+Added `INTAKE_IDEMPOTENCY_AND_OFFLINE_SYNC.md` after a second direct review of the traditional intake route, GS supplier reception route, request schemas and current UI.
+
+Confirmed:
+- Traditional `POST /loads` has no client idempotency key or request fingerprint. Each retry reserves a new load code and generates a new load ID; code uniqueness does not prevent duplicate physical intake.
+- The traditional intake UI does not retain a request identity across a timeout. Its arrival SMS is sent after commit, so retry handling must avoid duplicate notification side effects; a transactional outbox is the recommended design.
+- GS supplier reception has two nested fingerprints: the purchase draft fingerprint and approval fingerprint. The approval fingerprint includes receiving location, so a changed location is rejected after approval.
+- However, the GS route does not fingerprint the complete outer command. For a new supplier retried with the same key and normalized name but changed phone or tax identifier, deterministic supplier identity resolves to the existing supplier, contact/tax metadata is not compared, and the retry may return the previous purchase while silently ignoring those changed fields.
+- GS frontend retains its request key after a failed attempt and clears it after success; this is a useful baseline but does not close the server-side outer-command gap.
+
+Required before gross/tare rollout or offline synchronization:
+- Add a durable scoped idempotency identity and canonical payload fingerprint to traditional load creation.
+- Fingerprint the complete GS supplier-reception command, including new-supplier metadata, all purchase lines and location.
+- Same key/same payload returns the original result; same key/different payload returns a deterministic 409.
+- Handle concurrent duplicate-key races by reading the committed winner and comparing fingerprints.
+- Use a durable transactional notification outbox for arrival SMS and a durable local outbox/inbox for future offline synchronization.
+- Include gross/tare/device ticket evidence in the request fingerprint once weighing is implemented.
+
+No runtime code, index, collection, live record or permission was changed. CI runner availability remains a release gate.
