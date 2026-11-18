@@ -182,6 +182,6 @@ The approved client-deletion rule has been implemented in source (not yet merged
 
 ## Tunisia jurisdiction decision (17 Nov 2026)
 
-The owner confirmed that the company is registered in Tunisia. The accounting design baseline is now documented in `TUNISIA_ACCOUNTING_BASELINE.md`, using the Tunisian Enterprise Accounting System (Law 96-112, conceptual framework and NC 01) rather than the public-sector state chart or a generic IFRS-only chart.
+The owner confirmed that the company is registered in Tunisia and selected **SUARL (Société Unipersonnelle à Responsabilité Limitée)** as its legal form. The accounting design baseline is documented in `TUNISIA_ACCOUNTING_BASELINE.md`, using the Tunisian Enterprise Accounting System (Law 96-112, conceptual framework and NC 01) rather than the public-sector state chart or a generic IFRS-only chart.
 
-This settles the country-level accounting framework, but does not settle the company's legal form, tax regime, VAT status, activity-specific tax treatment, accounting year or opening balances. Tax rates and statutory mappings must remain configurable and inactive until confirmed by the Tunisian accountant.
+The SUARL decision adds explicit requirements for separating company and shareholder transactions, recording signed sole-shareholder decisions, maintaining the prescribed decision register, and supporting annual inventory, management report and accounts approval within the statutory period. The legal form and country framework are settled; tax regime, VAT status, activity-specific tax treatment, accounting year, auditor applicability and opening balances remain unconfirmed. Tax rates and statutory mappings must remain configurable and inactive until confirmed by the Tunisian accountant.
