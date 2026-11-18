@@ -230,3 +230,17 @@ Before GL implementation, resolve the listed traditional invoice replacement-pay
 ## Posting identity contract completed (17 Nov 2026)
 
 Added `docs/erp-audit/POSTING_IDENTITY_AND_IDEMPOTENCY.md`. It defines a unique source-event identity separate from API request idempotency, a transactional posting sequence, payload-fingerprint conflict handling, immutable reversals, business-date/fiscal-period separation, Decimal/unit normalization and the minimum concurrency/retry/reversal test matrix. This is a design contract only; no ledger collection or posting endpoint was created.
+
+## Financial roles and maker/checker audit completed (17 Nov 2026)
+
+Added `FINANCIAL_ROLE_AND_APPROVAL_MATRIX.md` after inspecting the actual GS permission implementation, financial route dependencies, service transactions and traditional accounting/invoice handlers.
+
+Confirmed:
+- Traditional API access remains coarse: 29 mounted routes accept any authenticated user, including load intake, oil-output/status/delivery, lab record creation and client creation.
+- GS worker permissions cannot currently express purchase, sales, custody, production or stock-posting duties. Some routes require these non-assignable permissions with `current_user`; other high-risk routes additionally require `require_admin`.
+- Purchase/sale approvals, customer payments, payment reversals, buyer credit and custody receipt/release remain administrator-only.
+- GS stock adjustment can be initiated by a worker assigned broad `edit_records` (and `delete_records` for zeroing) without an independent checker. Pump state mutations use `commercial.read`.
+- Selected GS sale, payment, supplier-payment, stock and custody workflows have useful transaction/idempotency controls, but these do not provide maker/checker separation.
+- Traditional manual income/expense writes are direct inserts and deletes are physical; traditional invoice updates/deletes are transactional but still permit unsafe posted-document lifecycle behavior.
+
+No runtime permissions were changed. Stage 1 now requires owner-approved job roles, independent checker assignments, financial visibility rules and thresholds, followed by backend service-level authorization, frontend capability alignment and API regression tests. Do not merge or deploy until the existing CI runner issue is resolved and tests execute.
