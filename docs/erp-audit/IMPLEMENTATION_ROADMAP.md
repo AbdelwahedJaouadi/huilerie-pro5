@@ -419,3 +419,19 @@ Before treasury go-live:
 7. Enforce dual authorization where required by the bank mandate and approved role matrix.
 
 **Acceptance gate:** cash receipt, supplier payment, partial settlement, internal transfer, bank statement match, cheque clearance/rejection, payment reversal and cash-count variance all reconcile to payment subledgers and GL. See `CASH_AND_BANK_LEDGER_AUDIT.md`.
+
+
+## Accounting regression coverage gate (18 Nov 2026)
+
+Static test-source review found that the repository has useful invoice, client-statement, GS payment-reversal and stock/production tests, but no endpoint-level test for the full `/accounting/daily-situation` cross-source projection.
+
+The traditional incremental-payment unit test explicitly confirms both an itemized payment and an `updated` history record are appended. The client statement helper has deduplication tests, but those do not cover the independent daily-situation projection. The accounting aggregation tests cover helper functions, not end-to-end event reconciliation.
+
+Before any runtime financial fix:
+- Add daily-situation regression tests for itemized/history overlap, legacy fallback, partial payments, GS PAY/REV, purchase inventory-vs-expense classification, unpaid/partial manual expenses, income collection, returns/credit notes and period boundaries.
+- Run backend unit and MongoDB replica-set integration suites.
+- Run frontend typecheck/build and affected e2e smoke tests.
+- Require CI runner execution and logs; an unassigned/no-step workflow is not a pass.
+- Preserve test run IDs and source-event reconciliation assertions.
+
+See `ACCOUNTING_REGRESSION_TEST_COVERAGE.md`. No tests were run as part of this static audit.
