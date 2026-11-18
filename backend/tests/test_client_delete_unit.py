@@ -229,3 +229,23 @@ async def test_invoice_phone_reference_prevents_client_hard_delete(monkeypatch):
     assert result.deactivated is True
     assert result.deleted == 0
     assert not any(call[0] == "delete" for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_create_client_rejects_an_inactive_phone(monkeypatch):
+    from models.schemas import ClientCreate
+
+    class Clients:
+        async def find_one(self, query, projection=None):
+            return {"phone": query["phone"], "active": False}
+
+    monkeypatch.setattr(extras, "db", SimpleNamespace(clients=Clients()))
+
+    with pytest.raises(HTTPException) as exc:
+        await extras.create_client(
+            ClientCreate(client_name="Client", phone="216 0000 0000"),
+            {"role": "worker", "username": "worker"},
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "client_inactive"
