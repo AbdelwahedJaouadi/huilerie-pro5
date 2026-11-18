@@ -167,7 +167,7 @@ All tests must execute in a functioning CI environment and include MongoDB trans
 
 ## 9. Owner/technical decisions not blocking this design
 
-- Confirm whether gross/tare capture is required on both traditional customer-load intake and GS supplier reception, or only on GS supplier reception. Until explicitly decided, preserve a common reusable model but do not silently change either workflow.
+- Working design target: apply the same reusable gross/tare/net evidence model to both traditional customer-load intake and GS supplier vehicle reception, while keeping their business workflows separate. Confirm this scope before runtime form/API changes; do not silently change either live workflow.
 - Select the actual scale manufacturer/model and connection interface later; no device has been selected in this design.
 - Define approved operational tolerance, if any, for small discrepancies between supplier line totals and calculated net. Default is exact equality at 0.001 kg; do not invent a tolerance.
 - Assign the specific employees/roles allowed to register direct supplier purchases. This is a permission assignment decision; it does not create a human purchase approval queue.
