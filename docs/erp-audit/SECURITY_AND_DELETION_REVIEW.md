@@ -185,3 +185,55 @@ The additional router scan found:
 - `POST /admin/reset` can clear explicitly selected operational/audit collections after the exact `RESET` confirmation and writes a separate `admin_reset_audit` record after the transaction. This is a high-impact administrative function and must remain tightly permissioned; it was not invoked in this audit.
 
 These are source-level findings. No delete endpoint was called during the review.
+
+
+## Implemented on `audit/erp-foundation`: client deactivation and shared load-delete guard
+
+The approved rule has now been implemented in source on this audit branch. It has **not** been merged or deployed.
+
+### Client deletion behavior
+
+- `DELETE /clients/{phone}` hard-deletes only a client registry record with no traditional load history, no SMS history and no matching GS buyer/custody references.
+- If any traditional load exists for that phone, the endpoint now deactivates the client record (`active=false`) and preserves every load, lab analysis, SMS record, invoice and GS reference.
+- A client with GS identity history but no traditional load is also deactivated rather than erased.
+- Deactivation and its `CLIENT_DEACTIVATED` audit event are written in the same transaction.
+- The API response distinguishes `deleted` from `deactivated` and reports `loads_retained`.
+- The Clients page displays active/deactivated status and offers an explicit reactivation action. Reactivation and its audit event are transactional.
+- Deactivated clients are removed from `/clients/options`, and new load intake is rejected with `client_inactive`. The intake route checks the client status both before allocating a code and again inside the load-creation transaction.
+- New load creation creates/updates the client registry record and increments an intake guard version. A unique partial index on `clients.phone` prevents duplicate registry identities. A read-only Atlas aggregation verified there were no duplicate string phone values in the existing `clients` collection before adding this index to application startup configuration.
+
+### Shared load deletion policy
+
+Single-load hard deletion now calls `_ensure_load_is_deletable`. It retains the original invoice guard and additionally blocks deletion when:
+- ownership or custody has been transferred, or the customer-available quantity has decreased;
+- the load has entered pressing, has oil output, was delivered or was cancelled;
+- a GS direct-load purchase references it through `commercial_direct_load_purchases.source_load_id`;
+- a GS customer-custody receipt references it through `commercial_customer_custody_receipts.source_load_id`;
+- a GS lot references it through `commercial_lots.source_load_id`;
+- a laboratory analysis or SMS log references it.
+
+The load and linked history are no longer cascade-deleted by the single-load route. Only an unreferenced, unprocessed intake record can be hard-deleted; the deletion itself is audited in the transaction.
+
+### GS identity fields verified against Atlas collection schemas
+
+- `commercial_buyers.phone`
+- `commercial_custody_owners.client_phone`
+- `commercial_customer_custody_receipts.customer_phone`
+- `commercial_direct_load_purchases.source_load_id`
+- `commercial_customer_custody_receipts.source_load_id`
+- `commercial_lots.source_load_id`
+
+These field names were checked against the current `huilerie-pro3` database schema. Client deactivation checks the correct phone field for each customer/custody collection; load deletion checks the three confirmed `source_load_id` references.
+
+### Tests added or updated
+
+- Client with traditional load history is deactivated without deleting related documents.
+- Client without operational history can still be hard-deleted.
+- GS buyer or customer-custody receipt phone reference causes deactivation.
+- Unknown client returns 404.
+- Deactivated client is excluded from the new-client selector.
+- New load intake rejects an inactive client.
+- Single-load deletion checks all confirmed GS, lab and SMS references and rejects a GS-referenced load without deleting it.
+- Transaction tests preserve the audit-event and deletion transaction boundary.
+
+**Validation limitation:** the repository was edited through GitHub source operations; no local checkout or executable test runner was available in this session. The test files were updated, but pytest, TypeScript build and Render deployment have not been run. Do not treat this branch as release-ready until CI or a local checkout runs the affected test suite and frontend build.
