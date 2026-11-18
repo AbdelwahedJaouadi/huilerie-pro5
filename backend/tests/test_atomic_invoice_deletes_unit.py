@@ -292,6 +292,7 @@ async def test_client_without_history_can_be_deleted_in_one_transaction(monkeypa
     monkeypatch.setattr(extras, "db", FakeDB(
         loads=Loads(), clients=Clients(), sms_log=Related(),
         commercial_buyers=Related(), commercial_custody_owners=Related(),
+        commercial_customer_custody_receipts=Related(),
         commercial_audit_events=FakeAuditEvents(calls),
     ))
     monkeypatch.setattr(extras, "run_transaction", run)
