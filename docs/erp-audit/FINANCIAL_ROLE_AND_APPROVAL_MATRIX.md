@@ -106,7 +106,7 @@ For the following events, the creator and approver must be different active user
 
 | Event | Maker | Checker / approver | Posting point |
 |---|---|---|---|
-| Olive purchase | Purchasing operator creates draft and attaches supplier/weight/quality evidence | Purchasing supervisor or delegated owner reviews supplier, quantities, price and evidence | Approve purchase and create stock receipt atomically |
+| Olive purchase / reception | Authorized purchasing or reception employee records the purchase directly, including supplier, gross/tare/net weight, variety, price, receiving location and evidence | **No routine submission or second-person approval**; direct registration is the required operating rule | Save purchase, traceability lot and stock receipt atomically; preserve actor, timestamp and full weighing evidence |
 | Supplier payment | Cashier/purchasing operator records payment request and supporting reference | Authorized finance approver verifies amount, payee, method and supporting proof | Record immutable settlement and update payable atomically |
 | Wholesale sale | Sales operator creates draft | Sales supervisor approves price, buyer, quantity, tank and credit exposure | Approve sale, issue invoice and dispatch FIFO stock atomically |
 | Customer receipt | Cashier records amount/method/reference | Finance approver for configured threshold, unusual method or exception | Post payment event and update receivable atomically |
@@ -134,8 +134,8 @@ Thresholds must be configurable and approved by the owner/accountant. Do not inv
 ## 6. Source-level implementation gaps and route targets
 
 - `backend/commercial/permissions.py`: worker allowlist does not include purchase/sales/custody/stock/production capabilities. Replace broad permission names with action-level capabilities and role mapping only after approval.
-- `backend/commercial/routers.py`: `/olive-receptions` and supplier-payment route require `commercial.manage_purchases` but use `current_user`; the capability is not worker-assignable.
-- `backend/commercial/routers.py`: purchase create/approve, sale create/approve, customer payment, payment reversal, buyer credit and custody receipt/release use `require_admin`; no maker/checker workflow is present at the route/service level.
+- `backend/commercial/routers.py`: `/olive-receptions` requires `commercial.manage_purchases` with `current_user`, but that capability is not worker-assignable today. The route currently performs direct purchase approval and stock receipt in one transaction; the target is to make this direct-registration flow available to specifically authorized employees, without a pending-review step.
+- `backend/commercial/routers.py`: separate purchase create/approve, sale create/approve, customer payment, payment reversal, buyer credit and custody receipt/release routes use `require_admin`; keep their controls distinct from the direct olive-reception rule.
 - `backend/commercial/routers.py`: lot balance adjustment uses `edit_records` and optionally `delete_records`; no independent approval record is required.
 - `backend/commercial/routers.py`: pump selection and pump-status mutation use `commercial.read`; replace with operational pump capabilities.
 - `backend/routers/loads.py`: load creation, oil output, status and delivery are open to any authenticated user. Introduce reception/pressing/delivery capabilities without breaking the current employee workflow.
@@ -217,6 +217,8 @@ This is stronger than the general absence of maker/checker: the current combined
 
 The route also uses `current_user` plus `commercial.manage_purchases`, which is not worker-assignable today. It is therefore effectively administrator-only in the current policy, despite not declaring `require_admin`.
 
+**Owner decision (17 Nov 2026): olive purchase is an explicit exception to maker/checker.** The employee records the purchase and gross/tare/net weights directly; the employee does not submit it for review. Do not introduce a pending-approval state or block stock receipt waiting for a supervisor. Grant this direct action only to a designated purchasing/reception capability, calculate net on the server, validate the measurements, and commit purchase + lot + stock receipt + audit evidence atomically. Corrections after registration must be separately recorded with actor, timestamp, reason and old/new values; never silently overwrite the original weighing evidence. This exception applies to olive purchase/reception only, not supplier payments, customer payments, reversals, sales, stock adjustments or GL journals.
+
 Other direct-posting paths that need explicit review/approval states include supplier purchase payment, customer sale payment, payment reversal, buyer-credit application, custody release/receipt and stock adjustment. A transaction and idempotency key protect data consistency; neither proves a second person approved the business decision.
 
 ## 11. Weight evidence and approval snapshot
@@ -228,3 +230,20 @@ For olive purchase/reception, approval must bind to the exact submitted weighing
 - net quantity used by purchase totals, lot receipt and stock movement.
 
 The approver must see and approve the same immutable submitted snapshot. If gross/tare/net or supplier/price/variety/location changes after submission, invalidate the approval request and require resubmission. Never trust a client-supplied net value or allow an approval to silently apply to a changed payload. This preserves the future weighbridge integration without pretending it is already connected.
+
+
+## 12. Owner clarification: direct olive purchase registration
+
+The owner explicitly requires that an employee records an olive purchase and gross, tare and net weights directly, **without submitting the operation for review**. This overrides the generic maker/checker proposal for olive purchase/reception only.
+
+Required behavior:
+- No pending-review or approval queue for olive purchase.
+- A specifically authorized employee can register the purchase directly.
+- Net weight is calculated and validated server-side from gross minus tare; do not trust a client-supplied net.
+- Purchase, traceability lot, stock receipt and audit evidence are committed atomically.
+- Record the responsible employee, weighing source, measurement times and gross/tare/net values.
+- Corrections remain possible through an explicit, reasoned, auditable correction event; do not silently replace the original measurements.
+- This does not waive independent controls for supplier payments, customer receipts, payment reversals, sale approval, stock adjustments or GL journals.
+- The exact employee role assignment and any exceptional correction authority remain to be defined.
+
+This is an owner-confirmed workflow requirement, not yet a runtime code change.
