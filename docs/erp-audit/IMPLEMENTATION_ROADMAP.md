@@ -202,3 +202,8 @@ The SUARL decision adds explicit requirements for separating company and shareho
 The GS worker assignment allowlist does not currently include the core operational capabilities for tank management, stock posting/reversal, sales, custody, purchases or production, even though administrators possess them. The pump selection/status handlers are guarded by `commercial.read` despite mutating operational state. Traditional routes also grant broad authenticated-worker write access to several intake and production actions. These are documented gaps, not permissions to broaden automatically.
 
 Stage 1 must define job-role capabilities and maker/checker separation, then implement backend route guards and frontend affordances together with authorization regression tests. Do not grant every capability to all workers.
+
+
+## Fiscal-year configuration decision (17 Nov 2026)
+
+The owner deferred choosing the fiscal-year closing date. The ERP must therefore keep the fiscal year configurable and unset until the owner/accountant confirms it. No calendar-year default and no olive-season-derived fiscal year. Statutory annual close and annual financial statements remain blocked until the company profile has approved start/end dates.
