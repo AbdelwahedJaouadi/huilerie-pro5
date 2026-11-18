@@ -178,3 +178,10 @@ The approved client-deletion rule has been implemented in source (not yet merged
 - Added `FINANCIAL_DOCUMENT_LIFECYCLE.md` documenting traditional invoice receipt handling, a confirmed mismatch between invoice payment totals and the embedded payment-event ledger, the branch-level fix, and remaining invoice/expense/income reversal decisions.
 - Added a targeted unit test for incremental receipt persistence. It has **not** executed because the current GitHub Actions runner-allocation failure remains unresolved.
 - The invoice repricing and physical-delete endpoints remain unchanged pending an approved legal/accounting document lifecycle. Do not infer that a generic audit history makes a posted invoice immutable or compliant.
+
+
+## Tunisia jurisdiction decision (17 Nov 2026)
+
+The owner confirmed that the company is registered in Tunisia. The accounting design baseline is now documented in `TUNISIA_ACCOUNTING_BASELINE.md`, using the Tunisian Enterprise Accounting System (Law 96-112, conceptual framework and NC 01) rather than the public-sector state chart or a generic IFRS-only chart.
+
+This settles the country-level accounting framework, but does not settle the company's legal form, tax regime, VAT status, activity-specific tax treatment, accounting year or opening balances. Tax rates and statutory mappings must remain configurable and inactive until confirmed by the Tunisian accountant.
