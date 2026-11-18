@@ -105,3 +105,9 @@ Current blockers include:
 - Traditional invoice update/delete are transactional but still allow repricing and physical removal of financial source documents.
 
 Target controls now specify role-specific action capabilities, no self-approval for purchases, sales, payments, reversals, stock adjustments or GL journals, audit evidence, exception handling, and route-level tests. This remains a design/source-audit result only; runtime authorization and live data were not changed.
+
+### One-step purchase and weighing approval control
+
+A further route-level review found that `POST /commercial/v1/olive-receptions` internally builds an approval command and performs purchase approval, lot creation and stock receipt within the same transaction initiated by one actor. This is atomic but not maker/checker. The workflow must be split into submitted draft and independent approval, with approval posting purchase + lot + stock + audit atomically.
+
+The approved snapshot must include gross, tare and server-calculated net weights, weighing provenance, supplier, varieties, prices and receiving location. Any change after submission must invalidate the approval. This is also the required foundation for future scale integration; no scale integration is claimed today.
