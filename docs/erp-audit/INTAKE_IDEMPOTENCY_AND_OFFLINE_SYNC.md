@@ -179,3 +179,15 @@ Do not deploy the idempotency or weighing runtime changes until:
 - outbox behavior is tested independently from load transaction success.
 
 No runtime code, collection, index, live data, permission or Render service is changed by this audit document.
+
+
+## 8. Verified SMS failure semantics (source-level clarification)
+
+The arrival-SMS path has a narrower failure mode than a generic provider outage:
+
+- `backend/lib/sms.py::_deliver` catches `httpx.HTTPError` and returns status `failed` with an error string. Non-200/201 Twilio responses also return `failed`; they do not raise an exception.
+- `send_load_sms` then attempts to persist the SMS result in `sms_log` and returns the log record. Therefore an ordinary Twilio rejection/timeout is recorded as a failed notification while the already-created load request can still return successfully.
+- Exceptions from reading SMS settings/credentials or writing the `sms_log` record are not swallowed by `send_load_sms`. Since `create_load` awaits it after the load transaction has committed, such a local database/settings exception can still produce an HTTP error after the load exists.
+- The traditional intake form disables its submit button while the mutation is pending, but it does not send or retain a request key. That protects against ordinary double-clicks in one mounted form, not retries after timeout, reload, lost response or another device.
+
+Consequently, the primary duplicate-load risk remains the missing server-side idempotency key, not an ordinary Twilio provider failure. The outbox is still the correct durable notification design, but its dispatcher must record provider failures without changing the committed intake result.
