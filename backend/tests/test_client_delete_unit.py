@@ -148,3 +148,30 @@ async def test_delete_unknown_client_returns_404(monkeypatch):
         await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
     assert exc.value.status_code == 404
     assert exc.value.detail == "client_not_found"
+
+
+@pytest.mark.asyncio
+async def test_customer_custody_receipt_phone_reference_prevents_hard_delete(monkeypatch):
+    calls = []
+    fake = FakeDB(
+        loads=FakeLoads([], calls),
+        clients=FakeCollection([{"phone": "21600000000", "client_name": "Client", "active": True}], calls),
+        sms_log=FakeCollection(calls=calls),
+        commercial_buyers=FakeCollection(calls=calls),
+        commercial_custody_owners=FakeCollection(calls=calls),
+        commercial_customer_custody_receipts=FakeCollection(
+            [{"customer_phone": "21600000000", "id": "receipt-1"}], calls
+        ),
+        commercial_audit_events=FakeCollection(calls=calls),
+    )
+    monkeypatch.setattr(extras, "db", fake)
+
+    async def run(operation):
+        return await operation(object())
+
+    monkeypatch.setattr(extras, "run_transaction", run)
+    result = await extras.delete_client("21600000000", {"id": "admin", "username": "admin"})
+
+    assert result.deactivated is True
+    assert result.deleted == 0
+    assert not any(call[0] == "delete" for call in calls)
