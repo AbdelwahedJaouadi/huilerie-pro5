@@ -128,3 +128,30 @@ Do not expand this allowlist just to make a screen or button work. Define the jo
 3. Decide whether edit/delete permissions should be entity-specific rather than global.
 4. Test anonymous, inactive, worker-no-permission, worker-with-permission and administrator access at API level.
 5. Re-run the inventory after any router changes.
+
+
+## Additional authorization findings — assignability and state-changing reads
+
+Source reviewed: `backend/commercial/permissions.py` and the route handlers in `backend/commercial/routers.py`.
+
+The worker assignment allowlist currently contains only:
+- `commercial.read`
+- `commercial.lab_record`
+- `commercial.quality_release`
+- `commercial.view_audit`
+- `commercial.manage_preproduction_samples`
+- `commercial.edit_records`
+- `commercial.delete_records`
+
+The administrator permission set additionally contains `commercial.manage_tanks`, `commercial.post_stock`, `commercial.reverse_stock`, `commercial.manage_sales`, `commercial.manage_custody`, `commercial.manage_purchases` and `commercial.manage_production`. These operational capabilities cannot currently be assigned to workers through the assignment schema/allowlist. Consequently, the existing worker permission UI cannot express the full set of job duties proposed for reception, purchasing, production, warehouse or sales.
+
+A second issue is that the pump selection and pump status handlers are inventoried with `commercial.read`; these operations mutate operational state and should not be authorized by a read-only capability in the target role model.
+
+Do not simply add all administrator permissions to the worker allowlist. Before changing runtime authorization:
+1. Define capabilities by action (create, edit, submit, approve, post stock, reverse, cancel, view financial data).
+2. Separate maker/checker duties for quality release, stock adjustments, sales approval, payment reversal and financial posting.
+3. Assign capabilities to named job roles and verify the actual user-to-role data model.
+4. Add route tests for anonymous, inactive, worker without capability, worker with capability, and administrator.
+5. Review frontend visibility and backend enforcement together; hiding a button is not authorization.
+
+No runtime permission behavior was changed by this documentation update.
