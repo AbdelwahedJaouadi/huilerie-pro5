@@ -157,7 +157,7 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
             "phone": doc.get("phone"), "initial_status": body.initial_status,
             "weight_measurement": ({
-                "gross_kg": str(net_kg + Decimal(str(body.tare_weight_kg))),
+                "gross_kg": str(body.gross_weight_kg),
                 "tare_kg": str(body.tare_weight_kg), "net_kg": str(net_kg),
                 "source": "manual",
             } if body.gross_weight_kg is not None else None),
