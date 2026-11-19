@@ -3,6 +3,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from lib.weighing import derive_net_weight_kg
+
 Role = Literal["admin", "worker"]
 Grade = Literal["extra_vierge", "vierge", "lampante"]
 
@@ -115,6 +117,29 @@ class LoadCreate(BaseModel):
     variety: Optional[str] = Field(default=None, max_length=60)
     notes: Optional[str] = Field(default=None, max_length=500)
     initial_status: Literal["pending", "pressing"] = "pending"
+
+    @model_validator(mode="after")
+    def validate_weight_evidence(self):
+        has_gross = self.gross_weight_kg is not None
+        has_tare = self.tare_weight_kg is not None
+
+        if has_gross != has_tare:
+            raise ValueError("gross_and_tare_must_be_provided_together")
+
+        if has_gross and has_tare:
+            try:
+                net_kg = derive_net_weight_kg(
+                    self.gross_weight_kg,
+                    self.tare_weight_kg,
+                )
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
+            # The API never trusts a client-supplied net when scale readings exist.
+            self.olive_kg = float(net_kg)
+        elif self.olive_kg is None:
+            raise ValueError("olive_kg_or_gross_and_tare_required")
+
+        return self
 
 
 class StatusUpdate(BaseModel):
