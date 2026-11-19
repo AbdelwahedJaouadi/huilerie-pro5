@@ -299,7 +299,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
             <p className="text-xs text-stone-500">{ar ? "متاح للتوافق مع التسجيل اليدوي القديم عند عدم توفر قياس الإجمالي والفارغ." : "Conservé pour compatibilité lorsque les pesées brut/tare ne sont pas disponibles."}</p>
           </div>
-        }
+        )}
         {weightBad && <p className="text-xs text-red-600" data-testid="intake-weight-error">{ar ? "أدخل الإجمالي والفارغ معاً، مع كون الإجمالي أكبر، ودقة لا تتجاوز 0.001 كغ." : "Saisissez brut et tare ensemble ; le brut doit dépasser la tare, avec une précision maximale de 0,001 kg."}</p>}
         <div className="space-y-1">
           <Label htmlFor="bags">{t("bags")}</Label>
