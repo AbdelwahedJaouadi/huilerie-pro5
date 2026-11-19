@@ -54,6 +54,16 @@ def test_traditional_intake_derives_olive_kg_from_gross_and_tare():
     assert command.olive_kg == 8300.1
 
 
+def test_traditional_intake_rejects_boolean_scale_readings_before_float_coercion():
+    with pytest.raises(Exception, match="gross_weight_invalid"):
+        LoadCreate(
+            client_name="Test Client",
+            phone="+21600000000",
+            gross_weight_kg=True,
+            tare_weight_kg=10,
+        )
+
+
 def test_traditional_intake_keeps_legacy_net_only_payload_compatible():
     command = LoadCreate(
         client_name="Test Client",
