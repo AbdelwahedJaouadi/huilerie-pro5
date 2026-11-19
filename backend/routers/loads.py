@@ -49,6 +49,15 @@ async def _price() -> float:
     return money_float(s["price_per_kg"]) if s else 0.0
 
 
+def _weight_measurement_value(measurement: dict, key: str) -> Optional[float]:
+    value = measurement.get(key)
+    if value is None:
+        return None
+    if isinstance(value, Decimal128):
+        value = value.to_decimal()
+    return float(value)
+
+
 def to_load(doc: dict, user: dict, lab: Optional[dict] = None) -> Load:
     is_admin = user["role"] == "admin"
     raw_oil = doc.get("oil_kg")
@@ -57,14 +66,15 @@ def to_load(doc: dict, user: dict, lab: Optional[dict] = None) -> Load:
     available_olive_kg = money_float(
         to_decimal(doc.get("customer_available_olive_kg", doc["olive_kg"]) or 0)
     )
+    weight_measurement = doc.get("weight_measurement") or {}
     return Load(
         id=doc["id"], code=doc["code"], client_name=doc["client_name"], phone=doc["phone"],
         olive_kg=olive_kg, available_olive_kg=available_olive_kg,
-        gross_weight_kg=(float(doc["weight_measurement"]["gross_kg"].to_decimal()) if isinstance(doc.get("weight_measurement", {}).get("gross_kg"), Decimal128) else (float(doc["weight_measurement"]["gross_kg"]) if doc.get("weight_measurement", {}).get("gross_kg") is not None else None)),
-        tare_weight_kg=(float(doc["weight_measurement"]["tare_kg"].to_decimal()) if isinstance(doc.get("weight_measurement", {}).get("tare_kg"), Decimal128) else (float(doc["weight_measurement"]["tare_kg"]) if doc.get("weight_measurement", {}).get("tare_kg") is not None else None)),
-        weight_source=doc.get("weight_measurement", {}).get("source"),
-        weighed_at=_aware(doc["weight_measurement"]["measured_at"]) if doc.get("weight_measurement", {}).get("measured_at") else None,
-        weighed_by=doc.get("weight_measurement", {}).get("operator_username"),
+        gross_weight_kg=_weight_measurement_value(weight_measurement, "gross_kg"),
+        tare_weight_kg=_weight_measurement_value(weight_measurement, "tare_kg"),
+        weight_source=weight_measurement.get("source"),
+        weighed_at=_aware(weight_measurement["measured_at"]) if weight_measurement.get("measured_at") else None,
+        weighed_by=weight_measurement.get("operator_username"),
         ownership_transferred=bool(doc.get("ownership_transferred", False)), ownership_transferred_at=_aware(doc["ownership_transferred_at"]) if doc.get("ownership_transferred_at") else None, oil_kg=oil,
         yield_pct=round(oil / olive_kg * 100, 2) if oil is not None and olive_kg else None,
         status="cancelled" if doc.get("cancelled") else (
@@ -146,6 +156,11 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
             "phone": doc.get("phone"), "initial_status": body.initial_status,
+            "weight_measurement": ({
+                "gross_kg": str(net_kg + Decimal(str(body.tare_weight_kg))),
+                "tare_kg": str(body.tare_weight_kg), "net_kg": str(net_kg),
+                "source": "manual",
+            } if body.gross_weight_kg is not None else None),
         }, session=session)
 
     await run_transaction(operation)
