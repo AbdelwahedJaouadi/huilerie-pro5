@@ -78,6 +78,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [kg, setKg] = useState("");
+  const [grossKg, setGrossKg] = useState("");
+  const [tareKg, setTareKg] = useState("");
   const [created, setCreated] = useState<Load | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
@@ -155,6 +157,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       setName("");
       setPhone("");
       setKg("");
+      setGrossKg("");
+      setTareKg("");
       setBags("");
       setVariety("");
       setNotes("");
@@ -170,10 +174,18 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   });
 
   const kgVal = parseFloat(kg.replace(",", "."));
+  const grossVal = parseFloat(grossKg.replace(",", "."));
+  const tareVal = parseFloat(tareKg.replace(",", "."));
+  const hasGross = grossKg.trim() !== "";
+  const hasTare = tareKg.trim() !== "";
+  const hasNetOnly = kg.trim() !== "" && !hasGross && !hasTare;
+  const grossTareValid = hasGross && hasTare && Number.isFinite(grossVal) && Number.isFinite(tareVal) && grossVal > tareVal && grossVal <= 1_000_000 && tareVal > 0 && Number.isInteger(grossVal * 1000) && Number.isInteger(tareVal * 1000);
   const bagsVal = bags.trim() ? parseInt(bags, 10) : null;
   const bagsOk = bagsVal === null || (Number.isInteger(bagsVal) && bagsVal >= 0 && /^\d+$/.test(bags.trim()));
   const kgBad = kg.trim() !== "" && !(kgVal > 0);
-  const valid = name.trim() && phone.trim().length >= 4 && kgVal > 0 && bagsOk;
+  const weightBad = (hasGross !== hasTare) || (hasGross && !grossTareValid) || (!hasGross && !hasTare && !(kgVal > 0));
+  const netPreview = grossTareValid ? grossVal - tareVal : null;
+  const valid = !!name.trim() && phone.trim().length >= 4 && !weightBad && bagsOk;
 
   return (
     <div className={stacked ? "grid gap-4" : "grid gap-4 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]"}>
@@ -185,7 +197,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, olive_kg: kgVal, bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) m.mutate({ client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossVal, tare_weight_kg: tareVal } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
@@ -265,10 +277,28 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           <Input id="ph" dir="ltr" inputMode="tel" data-testid="intake-client-phone-input" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-11 rounded-xl bg-white text-start" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="kg">{t("olive_kg")} *</Label>
-          <Input id="kg" inputMode="decimal" data-testid="intake-olive-kg-input" value={kg} onChange={(e) => setKg(e.target.value)} aria-invalid={kgBad} className="h-11 rounded-xl bg-white text-lg font-semibold" />
-          {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
+          <Label htmlFor="gross-kg">{ar ? "الوزن الإجمالي للعربة (كغ)" : "Poids brut du véhicule (kg)"}</Label>
+          <Input id="gross-kg" inputMode="decimal" data-testid="intake-gross-kg-input" value={grossKg} onChange={(e) => { setGrossKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasGross && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 12 500,000" />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="tare-kg">{ar ? "وزن العربة فارغة (كغ)" : "Tare / poids à vide (kg)"}</Label>
+          <Input id="tare-kg" inputMode="decimal" data-testid="intake-tare-kg-input" value={tareKg} onChange={(e) => { setTareKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasTare && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 4 200,000" />
+        </div>
+        {netPreview !== null ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3" data-testid="intake-net-preview">
+            <div className="text-xs font-medium text-emerald-800">{ar ? "الصافي المحسوب (معاينة)" : "Poids net calculé (aperçu)"}</div>
+            <div className="text-2xl font-bold text-emerald-900">{fmtNum(netPreview, 3)} kg</div>
+            <div className="text-xs text-emerald-700">{ar ? "سيعيد الخادم احتسابه ويعتمد القيمة النهائية" : "Le serveur recalcule et valide la valeur définitive"}</div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Label htmlFor="kg">{ar ? "الصافي (إدخال يدوي قديم)" : "Poids net (saisie manuelle historique)"}</Label>
+            <Input id="kg" inputMode="decimal" data-testid="intake-olive-kg-input" value={kg} onChange={(e) => { setKg(e.target.value); if (e.target.value) { setGrossKg(""); setTareKg(""); } }} aria-invalid={kgBad} className="h-11 rounded-xl bg-white text-lg font-semibold" />
+            {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
+            <p className="text-xs text-stone-500">{ar ? "متاح للتوافق مع التسجيل اليدوي القديم عند عدم توفر قياس الإجمالي والفارغ." : "Conservé pour compatibilité lorsque les pesées brut/tare ne sont pas disponibles."}</p>
+          </div>
+        }
+        {weightBad && <p className="text-xs text-red-600" data-testid="intake-weight-error">{ar ? "أدخل الإجمالي والفارغ معاً، مع كون الإجمالي أكبر، ودقة لا تتجاوز 0.001 كغ." : "Saisissez brut et tare ensemble ; le brut doit dépasser la tare, avec une précision maximale de 0,001 kg."}</p>}
         <div className="space-y-1">
           <Label htmlFor="bags">{t("bags")}</Label>
           <Input id="bags" inputMode="numeric" data-testid="intake-bags-input" value={bags} onChange={(e) => setBags(e.target.value)} aria-invalid={!bagsOk} className="h-11 rounded-xl bg-white" />
