@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 
 from lib.weighing import derive_net_weight_kg
+from models.schemas import LoadCreate
 
 
 @pytest.mark.parametrize(
@@ -40,3 +41,39 @@ def test_invalid_weight_pairs_are_rejected(gross, tare, error):
 
 def test_decimal_trailing_zeroes_do_not_cause_false_precision_error():
     assert derive_net_weight_kg("100.0000", "25.0000") == Decimal("75.000")
+
+
+
+def test_traditional_intake_derives_olive_kg_from_gross_and_tare():
+    command = LoadCreate(
+        client_name="Test Client",
+        phone="+21600000000",
+        gross_weight_kg="12500.125",
+        tare_weight_kg="4200.025",
+    )
+    assert command.olive_kg == 8300.1
+
+
+def test_traditional_intake_keeps_legacy_net_only_payload_compatible():
+    command = LoadCreate(
+        client_name="Test Client",
+        phone="+21600000000",
+        olive_kg=8300.125,
+    )
+    assert command.olive_kg == 8300.125
+    assert command.gross_weight_kg is None
+    assert command.tare_weight_kg is None
+
+
+@pytest.mark.parametrize(
+    ("payload", "error"),
+    [
+        ({"gross_weight_kg": 12000}, "gross_and_tare_must_be_provided_together"),
+        ({"tare_weight_kg": 4000}, "gross_and_tare_must_be_provided_together"),
+        ({}, "olive_kg_or_gross_and_tare_required"),
+        ({"gross_weight_kg": 4000, "tare_weight_kg": 12000}, "gross_must_exceed_tare"),
+    ],
+)
+def test_traditional_intake_rejects_incomplete_or_invalid_weight_evidence(payload, error):
+    with pytest.raises(Exception, match=error):
+        LoadCreate(client_name="Test Client", phone="+21600000000", **payload)
