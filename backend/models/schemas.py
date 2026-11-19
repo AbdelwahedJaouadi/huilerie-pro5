@@ -118,6 +118,21 @@ class LoadCreate(BaseModel):
     notes: Optional[str] = Field(default=None, max_length=500)
     initial_status: Literal["pending", "pressing"] = "pending"
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_weight_evidence(cls, values):
+        if not isinstance(values, dict):
+            return values
+        gross = values.get("gross_weight_kg")
+        tare = values.get("tare_weight_kg")
+        if (gross is None) != (tare is None):
+            raise ValueError("gross_and_tare_must_be_provided_together")
+        if gross is not None and tare is not None:
+            # Validate the original JSON values before Pydantic can coerce bools
+            # or other input types into floats and hide their original form.
+            derive_net_weight_kg(gross, tare)
+        return values
+
     @model_validator(mode="after")
     def validate_weight_evidence(self):
         has_gross = self.gross_weight_kg is not None
