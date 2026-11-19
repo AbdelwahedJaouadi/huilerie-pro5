@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 Role = Literal["admin", "worker"]
 Grade = Literal["extra_vierge", "vierge", "lampante"]
@@ -74,6 +74,11 @@ class Load(BaseModel):
     phone: str
     olive_kg: float
     available_olive_kg: float
+    gross_weight_kg: Optional[float] = None
+    tare_weight_kg: Optional[float] = None
+    weight_source: Optional[Literal["manual", "scale"]] = None
+    weighed_at: Optional[datetime] = None
+    weighed_by: Optional[str] = None
     ownership_transferred: bool = False
     ownership_transferred_at: Optional[datetime] = None
     oil_kg: Optional[float] = None
@@ -103,7 +108,9 @@ class Load(BaseModel):
 class LoadCreate(BaseModel):
     client_name: str = Field(min_length=1, max_length=100)
     phone: str = Field(min_length=4, max_length=30)
-    olive_kg: float = Field(gt=0, le=1_000_000)
+    olive_kg: Optional[float] = Field(default=None, gt=0, le=1_000_000)
+    gross_weight_kg: Optional[float] = Field(default=None, gt=0, le=1_000_000)
+    tare_weight_kg: Optional[float] = Field(default=None, gt=0, le=1_000_000)
     bags: Optional[int] = Field(default=None, ge=0, le=100_000)
     variety: Optional[str] = Field(default=None, max_length=60)
     notes: Optional[str] = Field(default=None, max_length=500)
