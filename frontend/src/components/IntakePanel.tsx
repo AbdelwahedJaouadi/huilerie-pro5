@@ -173,9 +173,11 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     onError: (e) => toast.error(errMsg(e)),
   });
 
-  const kgVal = parseFloat(kg.replace(",", "."));
-  const grossVal = parseFloat(grossKg.replace(",", "."));
-  const tareVal = parseFloat(tareKg.replace(",", "."));
+  const parseKgInput = (value: string) =>
+    value.trim() === "" ? Number.NaN : Number(value.replace(/\s/g, "").replace(",", "."));
+  const kgVal = parseKgInput(kg);
+  const grossVal = parseKgInput(grossKg);
+  const tareVal = parseKgInput(tareKg);
   const hasGross = grossKg.trim() !== "";
   const hasTare = tareKg.trim() !== "";
   const hasNetOnly = kg.trim() !== "" && !hasGross && !hasTare;
@@ -278,11 +280,11 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
         </div>
         <div className="space-y-1">
           <Label htmlFor="gross-kg">{ar ? "الوزن الإجمالي للعربة (كغ)" : "Poids brut du véhicule (kg)"}</Label>
-          <Input id="gross-kg" inputMode="decimal" data-testid="intake-gross-kg-input" value={grossKg} onChange={(e) => { setGrossKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasGross && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 12 500,000" />
+          <Input id="gross-kg" inputMode="decimal" data-testid="intake-gross-kg-input" value={grossKg} onChange={(e) => { setGrossKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasGross && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 12500,000" />
         </div>
         <div className="space-y-1">
           <Label htmlFor="tare-kg">{ar ? "وزن العربة فارغة (كغ)" : "Tare / poids à vide (kg)"}</Label>
-          <Input id="tare-kg" inputMode="decimal" data-testid="intake-tare-kg-input" value={tareKg} onChange={(e) => { setTareKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasTare && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 4 200,000" />
+          <Input id="tare-kg" inputMode="decimal" data-testid="intake-tare-kg-input" value={tareKg} onChange={(e) => { setTareKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasTare && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 4200,000" />
         </div>
         {netPreview !== null ? (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3" data-testid="intake-net-preview">
