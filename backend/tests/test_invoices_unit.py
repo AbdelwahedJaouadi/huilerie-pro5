@@ -43,6 +43,9 @@ class FakeCollection:
                 return SimpleNamespace(modified_count=1, matched_count=1)
         return SimpleNamespace(modified_count=0, matched_count=0)
 
+    async def count_documents(self, query, **kwargs):
+        return len(self.docs)
+
     async def delete_one(self, query, **kwargs):
         for index, doc in enumerate(self.docs):
             if all(doc.get(key) == value for key, value in query.items()):
@@ -67,6 +70,7 @@ def fake_db(monkeypatch):
         loads=FakeCollection([load]),
         settings=FakeCollection([{"key": "app", "price_per_kg": 0.18}]),
         invoices=FakeCollection(),
+        accounting_treasury_accounts=FakeCollection(),
         commercial_audit_events=FakeCollection(),
     )
     monkeypatch.setattr(invoice_routes, "db", fake)
