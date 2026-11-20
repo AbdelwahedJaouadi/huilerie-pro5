@@ -6,7 +6,7 @@ on:
       - feat/intake-idempotency
 
 concurrency:
-  group: intake-idempotency-\${{ github.ref }}
+  group: intake-idempotency-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
