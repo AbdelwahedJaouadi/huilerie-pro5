@@ -45,6 +45,7 @@ async def test_credit_application_allocates_oldest_credit_notes_and_updates_invo
             await db.commercial_credit_notes.insert_one({
                 "id": note_id, "buyer_id": "buyer-a", "status": "ISSUED",
                 "season_code": "2627", "document_number": f"2627AVO{sequence:04d}",
+                "return_id": f"return-credit-source-{sequence}",
                 "amount_dt": Decimal128(amount), "created_at": datetime(2026, 10, sequence, tzinfo=timezone.utc),
             })
             await db.commercial_buyer_credit_ledger.insert_one({
