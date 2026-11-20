@@ -19,7 +19,10 @@ def _amount(value: Any) -> Decimal:
     result = value if isinstance(value, Decimal) else Decimal(value)
     if not result.is_finite() or result <= 0:
         raise ValueError("Financial amount must be finite and greater than zero")
-    return result.quantize(Decimal("0.001"))
+    normalized = result.quantize(Decimal("0.001"))
+    if normalized != result:
+        raise ValueError("Financial amount has more than three decimal places")
+    return normalized
 
 
 def _candidate(
@@ -71,6 +74,8 @@ def _candidate(
     if currency != "TND":
         blockers.append("PAYMENT_CURRENCY_NOT_TND")
     if method in {"BANK_TRANSFER", "CHEQUE"}:
+        if not str(source.get("reference") or "").strip():
+            blockers.append("BANK_OR_CHEQUE_REFERENCE_MISSING")
         warnings.append("BANK_CLEARANCE_NOT_VERIFIED")
 
     fingerprint_material = f"{source_type}:{source_id}:MONEY_MOVEMENT"
