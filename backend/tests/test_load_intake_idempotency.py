@@ -79,7 +79,7 @@ async def test_same_key_and_same_payload_replays_original_load_without_creating_
     }
     idempotency = FakeCollection(record)
     existing_loads = FakeCollection({"id": "existing-load", "code": "2627A0001"})
-    monkeypatch_db = SimpleNamespace(load_intake_idempotency=idempotency, loads=existing_loads)
+    monkeypatch_db = SimpleNamespace(load_intake_idempotency=idempotency, loads=existing_loads, clients=FakeCollection(None))
     original_db = loads.db
     original_to_load = loads.to_load
     loads.db = monkeypatch_db
