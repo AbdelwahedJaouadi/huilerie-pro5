@@ -71,6 +71,18 @@ def test_traditional_intake_preserves_decimal_scale_of_vehicle_readings():
     assert command.tare_weight_kg == Decimal("4200.000")
 
 
+def test_traditional_intake_accepts_redundant_trailing_decimal_zeroes():
+    command = LoadCreate(
+        client_name="Test Client",
+        phone="+21600000000",
+        gross_weight_kg="12500.0000",
+        tare_weight_kg="4200.0000",
+    )
+    assert command.gross_weight_kg == Decimal("12500.0000")
+    assert command.tare_weight_kg == Decimal("4200.0000")
+    assert command.olive_kg == 8300.0
+
+
 def test_traditional_intake_ignores_client_net_when_gross_and_tare_are_present():
     command = LoadCreate(
         client_name="Test Client",
