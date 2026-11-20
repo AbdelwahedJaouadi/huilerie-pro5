@@ -14,7 +14,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from bson.decimal128 import Decimal128
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from lib.auth import require_admin
@@ -24,6 +24,9 @@ from accounting_foundation.preview import build_reconciliation_preview
 from accounting_foundation.treasury_preview import build_treasury_movement_preview
 from accounting_foundation.treasury_posting import record_source_payment_movement
 from accounting_foundation.treasury_register import build_movement_register_filter
+from accounting_foundation.bank_statement_preview import (
+    classify_statement_line, movement_date_window, parse_bank_statement_csv,
+)
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 RECENT_LIMIT = 200
@@ -468,6 +471,81 @@ async def create_treasury_movement(payload: TreasuryMovementCreateInput, user: d
         if existing:
             return _safe(existing)
         raise HTTPException(status_code=409, detail="Une opération de trésorerie concurrente doit être vérifiée.") from exc
+
+
+@router.post("/treasury/statement-preview")
+async def preview_bank_statement(
+    account_id: str,
+    file: UploadFile = File(...),
+    _: dict = Depends(require_admin),
+):
+    """Preview a normalized bank CSV against recorded movements; never imports or matches."""
+    filename = (file.filename or "").strip().lower()
+    if not filename.endswith(".csv"):
+        raise HTTPException(status_code=415, detail="Veuillez fournir un fichier CSV.")
+    raw = await file.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Le fichier CSV ne doit pas dépasser 2 Mo.")
+    try:
+        statement_lines = parse_bank_statement_csv(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    season = await active_season()
+    season_code = season_prefix(season)
+    account = await db.accounting_treasury_accounts.find_one(
+        {"id": account_id, "active": True, "account_type": "BANK", "currency": "TND"},
+        {"_id": 0, "id": 1, "name": 1, "account_type": 1},
+    )
+    if not account:
+        raise HTTPException(status_code=422, detail="Un compte bancaire actif en TND doit être sélectionné.")
+
+    seen: set[str] = set()
+    results = []
+    for line in statement_lines:
+        duplicate = line["fingerprint"] in seen
+        seen.add(line["fingerprint"])
+        start_day, end_day = movement_date_window(line["transaction_date"])
+        movement_query = {
+            "season_code": season_code,
+            "account_id": account_id,
+            "direction": line["direction"],
+            "amount_tnd": Decimal128(Decimal(line["amount_tnd"])),
+            "movement_date": {"$gte": start_day, "$lte": end_day},
+        }
+        candidates = await db.accounting_treasury_movements.find(
+            movement_query,
+            {"_id": 0, "id": 1, "source_type": 1, "source_id": 1,
+             "source_document_number": 1, "account_name_snapshot": 1,
+             "amount_tnd": 1, "direction": 1, "movement_date": 1,
+             "external_reference": 1, "settlement_status": 1,
+             "reconciliation_status": 1},
+        ).sort([("movement_date", -1), ("id", 1)]).limit(50).to_list(length=50)
+        safe_candidates = _safe(candidates)
+        classification = classify_statement_line(line, safe_candidates)
+        results.append({
+            **{key: value for key, value in line.items() if key != "fingerprint"},
+            "duplicate_in_file": duplicate,
+            **classification,
+            "match_status": "DUPLICATE_IN_FILE" if duplicate else classification["match_status"],
+        })
+
+    counts: dict[str, int] = {}
+    for row in results:
+        counts[row["match_status"]] = counts.get(row["match_status"], 0) + 1
+    return {
+        "account": _safe(account),
+        "active_season": season,
+        "season_code": season_code,
+        "rows": results,
+        "summary": {"line_count": len(results), "statuses": counts},
+        "read_only": True,
+        "database_writes": False,
+        "automatic_match": False,
+        "imported": False,
+        "matching_window_days": 7,
+        "currency": "TND",
+    }
 
 
 @router.get("/treasury/movements")
