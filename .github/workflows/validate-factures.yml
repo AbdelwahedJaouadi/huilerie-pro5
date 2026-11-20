@@ -17,6 +17,7 @@ on:
       - erp/treasury-explicit-movement-recording-phase-11
       - erp/treasury-movement-register-phase-12
       - erp/bank-statement-preview-phase-13
+      - erp/cash-count-evidence-phase-14
   pull_request:
     branches:
       - main
@@ -78,6 +79,8 @@ jobs:
           tests/test_treasury_movement_recording.py
           tests/test_treasury_register.py
           tests/test_bank_statement_preview.py
+          tests/test_cash_count.py
+          tests/test_cash_count_routes.py
 
   vehicle-weighing-tests:
     runs-on: ubuntu-latest
