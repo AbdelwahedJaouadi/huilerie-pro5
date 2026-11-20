@@ -462,7 +462,7 @@ async def create_treasury_movement(payload: TreasuryMovementCreateInput, user: d
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except DuplicateKeyError as exc:
         existing = await db.accounting_treasury_movements.find_one(
-            {"source_type": payload.source_type, "source_id": payload.source_id}, {"_id": 0}
+            {"season_code": season_code, "source_type": payload.source_type, "source_id": payload.source_id}, {"_id": 0}
         )
         if existing:
             return _safe(existing)
