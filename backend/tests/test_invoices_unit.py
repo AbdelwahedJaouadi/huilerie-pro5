@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
+from lib.money import money_float
 from routers import invoices as invoice_routes
 
 
@@ -130,7 +131,7 @@ async def test_update_recalculates_balance_and_records_history(fake_db):
     assert updated["history"][-1]["after"]["balance"] == 2.0
     assert len(fake_db.commercial_audit_events.docs) == 2
     assert fake_db.commercial_audit_events.docs[-1]["action"] == "INVOICE_UPDATED"
-    assert fake_db.commercial_audit_events.docs[-1]["details"]["previous_values"]["balance"] == 2.2
+    assert money_float(fake_db.commercial_audit_events.docs[-1]["details"]["previous_values"]["balance"]) == 2.2
     assert all(session is not None for session in fake_db.commercial_audit_events.insert_sessions)
 
 
@@ -176,7 +177,7 @@ async def test_invoice_keeps_price_snapshot_when_settings_change(fake_db):
 
     assert created["price_per_kg"] == 0.18
     assert created["total"] == 2.7
-    assert fake_db.invoices.docs[0]["price_per_kg"] == 0.18
+    assert money_float(fake_db.invoices.docs[0]["price_per_kg"]) == 0.18
 
 
 @pytest.mark.asyncio
@@ -208,7 +209,7 @@ async def test_non_finite_price_update_is_rejected_without_changing_invoice(fake
         )
 
     assert exc.value.status_code == 422
-    assert fake_db.invoices.docs[0]["price_per_kg"] == 0.18
+    assert money_float(fake_db.invoices.docs[0]["price_per_kg"]) == 0.18
     assert len(fake_db.invoices.docs[0]["history"]) == 1
 
 
@@ -227,7 +228,7 @@ async def test_update_rejects_payment_above_recalculated_total(fake_db):
         )
 
     assert exc.value.status_code == 422
-    assert fake_db.invoices.docs[0]["price_per_kg"] == 0.18
+    assert money_float(fake_db.invoices.docs[0]["price_per_kg"]) == 0.18
     assert fake_db.invoices.docs[0]["paid_amount"] == 0
     assert len(fake_db.invoices.docs[0]["history"]) == 1
 
@@ -302,7 +303,7 @@ async def test_concurrent_invoice_edit_is_rejected_without_overwriting_history(f
 
     assert exc.value.status_code == 409
     assert exc.value.detail == "invoice_changed_retry"
-    assert fake_db.invoices.docs[0]["price_per_kg"] == 0.18
+    assert money_float(fake_db.invoices.docs[0]["price_per_kg"]) == 0.18
     assert len(fake_db.invoices.docs[0]["history"]) == 1
 
 
@@ -320,5 +321,5 @@ async def test_delete_invoice_records_full_snapshot_in_same_transaction(fake_db)
     event = fake_db.commercial_audit_events.docs[-1]
     assert event["action"] == "INVOICE_DELETED"
     assert event["details"]["number"] == "FAC-2627100"
-    assert event["details"]["paid_amount"] == 0.5
+    assert money_float(event["details"]["paid_amount"]) == 0.5
     assert all(session is not None for session in fake_db.commercial_audit_events.insert_sessions)
