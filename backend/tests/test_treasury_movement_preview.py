@@ -108,3 +108,19 @@ def test_payment_requires_explicit_mapped_allocation_status():
         sale_invoices=[{"id":"invoice-1","sale_id":"sale-1"}], treasury_accounts=[account()],
     )
     assert "TREASURY_ALLOCATION_STATUS_INVALID" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_amount_with_excess_precision_is_blocked():
+    result = build_treasury_movement_preview(
+        sale_payments=[sale_payment(amount_dt="25.5001")],
+        sale_invoices=[{"id":"invoice-1","sale_id":"sale-1"}], treasury_accounts=[account()],
+    )
+    assert "AMOUNT_MISSING_OR_INVALID" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_bank_payment_requires_reference():
+    result = build_treasury_movement_preview(
+        sale_payments=[sale_payment(method="BANK_TRANSFER", reference=None)],
+        sale_invoices=[{"id":"invoice-1","sale_id":"sale-1"}], treasury_accounts=[account(account_type="BANK")],
+    )
+    assert "BANK_OR_CHEQUE_REFERENCE_MISSING" in result["candidates"][0]["blocking_reasons"]
