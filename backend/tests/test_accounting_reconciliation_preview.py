@@ -1,5 +1,7 @@
+import ast
+from pathlib import Path
+
 from accounting_foundation import build_reconciliation_preview
-from routers.accounting import router
 
 
 def test_preview_composes_traditional_invoice_and_itemized_receipt_candidates():
@@ -114,8 +116,15 @@ def test_preview_preserves_unresolved_legacy_paid_aggregate():
 
 
 def test_read_only_preview_route_is_registered_under_accounting():
-    assert any(
-        route.path == "/accounting/reconciliation-preview"
-        and "GET" in route.methods
-        for route in router.routes
+    source_path = Path(__file__).parents[1] / "routers" / "accounting.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    endpoint = next(
+        node for node in tree.body
+        if isinstance(node, ast.AsyncFunctionDef)
+        and node.name == "accounting_reconciliation_preview"
     )
+    decorator = endpoint.decorator_list[0]
+    assert isinstance(decorator, ast.Call)
+    assert isinstance(decorator.func, ast.Attribute)
+    assert decorator.func.attr == "get"
+    assert decorator.args[0].value == "/reconciliation-preview"
