@@ -173,3 +173,29 @@ All tests must execute in a functioning CI environment and include MongoDB trans
 - Assign the specific employees/roles allowed to register direct supplier purchases. This is a permission assignment decision; it does not create a human purchase approval queue.
 
 No runtime code, API schema, database records, permissions or Render services are changed by this document.
+
+## 10. Configurable weighbridge profile in application settings
+
+Implementation direction agreed with the owner on 19 Nov 2026:
+
+- Add one shared administrator-managed "Electronic scale" profile under application Settings.
+- The profile is reusable by traditional customer-load intake and GS supplier olive reception; do not create separate per-screen device settings.
+- Configuration fields: enabled state, manufacturer, model, connection transport (USB/serial RS-232/Ethernet), serial port or network host/port as applicable, baud rate, data bits, parity, stop bits, protocol/driver identifier, weight unit, decimal precision, stable-reading requirement, and optional device identifier.
+- Keep credentials/secrets out of ordinary settings responses and never expose them to worker clients.
+- Provide a connection test and a live-reading diagnostic only when a matching driver/adapter is installed and can actually open the configured transport.
+- A saved profile is configuration, not proof of connectivity. The UI must distinguish "Configured", "Connected", "Reading stable", and "Unavailable/unsupported"; never report a successful connection merely because fields were saved.
+- Device support is adapter-based. Unknown manufacturer/model/protocol must remain explicitly unsupported until a tested adapter is implemented. Do not guess a generic serial framing protocol.
+- The browser must not be assumed capable of reading arbitrary local USB/serial devices. If the selected browser/runtime cannot access the transport, use a local mill-side bridge/agent (planned for the Windows mill server) to read the scale and expose authenticated readings to the application.
+- Scale readings enter the same canonical gross/tare/net evidence model in sections 2–4. Device-derived net is independently checked by the server; the server remains authoritative.
+- Manual gross/tare entry remains available as a clearly labelled fallback and is recorded with source=MANUAL. Device readings use source=SCALE and retain device/ticket metadata.
+- No hardware is declared integrated until a physical scale is selected, the adapter is implemented, and end-to-end readings are tested on the actual device.
+
+### Settings and runtime acceptance criteria
+
+1. An administrator can save, edit, disable, and test one shared scale profile without affecting existing load/purchase records.
+2. Invalid transport combinations are rejected (for example, a serial port is required for serial mode; host and port are required for Ethernet mode).
+3. Workers can use the configured scale workflow but cannot edit connection settings.
+4. A missing bridge, unsupported model, disconnected device, unstable reading, malformed payload, wrong unit, or duplicate ticket is reported distinctly and never silently falls back to a fabricated reading.
+5. Both traditional intake and GS supplier reception consume the same validated gross/tare reading interface.
+6. Manual entry remains possible and is explicitly identified as manual.
+7. Existing historical net-only records and the current purchase/load APIs remain backward compatible during rollout.

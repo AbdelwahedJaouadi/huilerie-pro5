@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound, ShieldAlert, UserPlus, Users, Coins, MessageSquareText, Pencil, Trash2, CalendarRange, LogIn, ClipboardList, Warehouse, Fuel, Eye } from "lucide-react";
+import { KeyRound, ShieldAlert, UserPlus, Users, Coins, MessageSquareText, Pencil, Trash2, CalendarRange, LogIn, ClipboardList, Warehouse, Fuel, Eye, Scale } from "lucide-react";
 import SmsSettings from "@/components/SmsSettings";
 import LoginImageSettings from "@/components/LoginImageSettings";
 import TwilioSettings from "@/components/TwilioSettings";
@@ -10,6 +10,7 @@ import CampaignSettings from "@/components/CampaignSettings";
 import VarietiesSettings from "@/components/VarietiesSettings";
 import CommercialTanksSettings from "@/components/CommercialTanksSettings";
 import PumpSettings from "@/components/PumpSettings";
+import ScaleSettings from "@/components/ScaleSettings";
 import CommercialModuleStatus from "@/components/CommercialModuleStatus";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -712,6 +713,8 @@ export default function SettingsPage() {
             <span className="grid size-4 place-items-center"><Warehouse className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Cuves</span></TabsTrigger>
           <TabsTrigger value="commercial-status" data-testid="settings-tab-commercial-status" aria-label="commercial-status" title="commercial-status" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100 data-[state=active]:border-violet-600 data-[state=active]:bg-violet-600 data-[state=active]:text-white">
             <span className="grid size-4 place-items-center"><ShieldAlert className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Module commercial</span></TabsTrigger>
+          <TabsTrigger value="scale" data-testid="settings-tab-scale" aria-label="scale" title="scale" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 data-[state=active]:border-sky-600 data-[state=active]:bg-sky-600 data-[state=active]:text-white">
+            <span className="grid size-4 place-items-center"><Scale className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Balance</span></TabsTrigger>
           <TabsTrigger value="pumps" data-testid="settings-tab-pumps" aria-label="pumps" title="pumps" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 data-[state=active]:border-orange-600 data-[state=active]:bg-orange-600 data-[state=active]:text-white">
             <span className="grid size-4 place-items-center"><Fuel className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Pompes</span></TabsTrigger>
           <TabsTrigger value="sms" data-testid="settings-tab-sms" aria-label="sms" title="sms" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 data-[state=active]:border-amber-600 data-[state=active]:bg-amber-600 data-[state=active]:text-white">
@@ -737,6 +740,7 @@ export default function SettingsPage() {
         <TabsContent value="commercial-status"><CommercialModuleStatus /></TabsContent>
         <TabsContent value="tanks"><CommercialTanksSettings /></TabsContent>
         <TabsContent value="pumps"><PumpSettings /></TabsContent>
+        <TabsContent value="scale"><ScaleSettings /></TabsContent>
                 <TabsContent value="sms"><div className="space-y-6"><div className="grid grid-cols-1 items-start gap-6 sm:grid-cols-2"><div className="min-w-0 sm:col-start-2 sm:row-start-1"><TwilioSettings /></div><div className="min-w-0 sm:col-start-1 sm:row-start-1"><TunisieSmsSettings /></div></div><SmsSettings /></div></TabsContent>
         <TabsContent value="campaign"><CampaignSettings /></TabsContent>
         <TabsContent value="employee-permissions"><EmployeePermissionsPanel /></TabsContent>
