@@ -127,7 +127,14 @@ export default function Loads() {
                 <TableCell className="font-medium">{l.client_name}</TableCell>
                 <TableCell dir="ltr" className="text-start">{l.phone}</TableCell>
                 <TableCell className="text-start">{l.variety || "—"}</TableCell>
-                <TableCell className="text-end font-semibold text-lime-800">{fmtNum(l.available_olive_kg ?? l.olive_kg)}</TableCell>
+                <TableCell className="text-end font-semibold text-lime-800">
+                  {fmtNum(l.available_olive_kg ?? l.olive_kg)}
+                  {l.gross_weight_kg != null && l.tare_weight_kg != null && (
+                    <div className="mt-1 text-[10px] font-normal leading-4 text-stone-500" data-testid={`load-vehicle-weight-${l.code}`}>
+                      {ar ? "إجمالي" : "Brut"}: {fmtNum(l.gross_weight_kg, 3)} · {ar ? "فارغ" : "Tare"}: {fmtNum(l.tare_weight_kg, 3)}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="text-end font-semibold text-amber-700">{fmtNum(l.oil_kg)}</TableCell>
                 <TableCell className="text-end text-sky-700">{l.yield_pct != null ? `${fmtNum(l.yield_pct, 2)}%` : "—"}</TableCell>
                 <TableCell>{l.lab ? <GradeBadge grade={l.lab.classification} /> : <span className="text-xs text-stone-400">—</span>}</TableCell>
