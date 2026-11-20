@@ -81,11 +81,12 @@ async def record_source_payment_movement(
             {"id": source.get("invoice_id"), "season_code": season_code},
             {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1}, session=session,
         )
+        account = await db["accounting_treasury_accounts"].find_one(
+            {"id": source.get("treasury_account_id")}, {"_id": 0}, session=session
+        ) if source.get("treasury_account_id") else None
         preview = build_treasury_movement_preview(
             sale_payments=[source], sale_invoices=[invoice] if invoice else [],
-            treasury_accounts=[await db["accounting_treasury_accounts"].find_one(
-                {"id": source.get("treasury_account_id")}, {"_id": 0}, session=session
-            )] if source.get("treasury_account_id") else [],
+            treasury_accounts=[account] if account else [],
         )
     else:
         source = await db["commercial_supplier_olive_purchase_payments"].find_one(
@@ -97,11 +98,12 @@ async def record_source_payment_movement(
             {"id": source.get("purchase_id"), "season_code": season_code},
             {"_id": 0, "id": 1, "status": 1, "supplier_id": 1}, session=session,
         )
+        account = await db["accounting_treasury_accounts"].find_one(
+            {"id": source.get("treasury_account_id")}, {"_id": 0}, session=session
+        ) if source.get("treasury_account_id") else None
         preview = build_treasury_movement_preview(
             supplier_payments=[source], supplier_purchases=[purchase] if purchase else [],
-            treasury_accounts=[await db["accounting_treasury_accounts"].find_one(
-                {"id": source.get("treasury_account_id")}, {"_id": 0}, session=session
-            )] if source.get("treasury_account_id") else [],
+            treasury_accounts=[account] if account else [],
         )
 
     candidates = preview["candidates"]
