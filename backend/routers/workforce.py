@@ -71,6 +71,7 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_adm
 @router.post("/attendance/check-in")
 async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin)):
     _ensure_today(body.day)
+    _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
@@ -118,6 +119,7 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin))
 
 @router.post("/attendance/check-out")
 async def check_out(body: AttendanceAction, admin: dict = Depends(require_admin)):
+    _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
@@ -147,6 +149,7 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_admin)
 
 @router.post("/attendance/mark-absent")
 async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_admin)):
+    _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
