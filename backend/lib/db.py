@@ -93,6 +93,7 @@ INDEXES.update({
     ],
     "accounting_cash_counts": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("season_code", ASCENDING), ("request_id", ASCENDING)], name="season_request_unique", unique=True),
         IndexModel([("season_code", ASCENDING), ("counted_at", DESCENDING), ("id", ASCENDING)],
                    name="season_counted_at"),
         IndexModel([("season_code", ASCENDING), ("account_id", ASCENDING), ("count_date", DESCENDING)],
