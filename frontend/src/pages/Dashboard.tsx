@@ -15,6 +15,7 @@ import IntakePanel from "@/components/IntakePanel";
 import QrScanDialog from "@/components/QrScanDialog";
 import CommercialOverviewPanel from "@/components/CommercialOverviewPanel";
 import OlivePurchaseTracking from "@/components/OlivePurchaseTracking";
+import ManagerWorkspacePanel from "@/components/ManagerWorkspacePanel";
 
 function KpiCard({ label, value, icon, testId, tint }: { label: string; value: React.ReactNode; icon: React.ReactNode; testId: string; tint: string }) {
   return (
@@ -112,6 +113,8 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {isAdmin && <ManagerWorkspacePanel />}
 
       <CommercialOverviewPanel />
 
