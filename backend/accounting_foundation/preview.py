@@ -94,7 +94,7 @@ def build_reconciliation_preview(
         )
         candidate_events.append(purchase_result["candidate_event"])
         payment_result = adapt_gs_supplier_payments(
-            payments_by_purchase.get(purchase_id, []), purchase=purchase
+            payments_by_purchase.get(purchase_id, []), purchase=purchase, treasury_accounts=treasury_accounts
         )
         candidate_events.extend(payment_result["candidate_events"])
         unresolved_items.extend(payment_result["unresolved_items"])
