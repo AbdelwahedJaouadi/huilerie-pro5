@@ -111,9 +111,9 @@ def _load_intake_fingerprint(body: LoadCreate, phone: str, net_kg: Decimal) -> s
     payload = {
         "client_name": body.client_name.strip(),
         "phone": phone,
-        "net_kg": format(net_kg, "f"),
-        "gross_weight_kg": format(body.gross_weight_kg, "f") if body.gross_weight_kg is not None else None,
-        "tare_weight_kg": format(body.tare_weight_kg, "f") if body.tare_weight_kg is not None else None,
+        "net_kg": format(net_kg.normalize(), "f"),
+        "gross_weight_kg": format(body.gross_weight_kg.normalize(), "f") if body.gross_weight_kg is not None else None,
+        "tare_weight_kg": format(body.tare_weight_kg.normalize(), "f") if body.tare_weight_kg is not None else None,
         "weight_source": "manual" if body.gross_weight_kg is not None else "legacy_net",
         "bags": body.bags,
         "variety": (body.variety or "").strip() or None,
