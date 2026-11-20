@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import re
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -47,8 +48,11 @@ def parse_bank_statement_csv(raw: bytes) -> list[dict[str, Any]]:
             raise ValueError(f"transaction_date must use YYYY-MM-DD on CSV line {line_number}")
         if value_date and value_date.isoformat() != value_date_raw:
             raise ValueError(f"value_date must use YYYY-MM-DD on CSV line {line_number}")
+        amount_raw = row.get("amount", "")
+        if not re.fullmatch(r"\\d+(?:\\.\\d{1,3})?", amount_raw):
+            raise ValueError(f"Amount must use plain decimal notation on CSV line {line_number}")
         try:
-            amount = Decimal(row.get("amount", ""))
+            amount = Decimal(amount_raw)
         except InvalidOperation as exc:
             raise ValueError(f"Invalid amount on CSV line {line_number}") from exc
         if not amount.is_finite() or amount <= 0 or max(0, -amount.as_tuple().exponent) > MAX_AMOUNT_SCALE:
