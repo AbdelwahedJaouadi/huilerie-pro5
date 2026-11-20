@@ -19,7 +19,7 @@ export default function TreasuryAccounts() {
   const empty: Draft = {name:"",account_type:"CASH",bank_name:"",account_suffix:"",location:"",custodian_user_id:"",notes:""};
   const [draft,setDraft] = useState<Draft>(empty);
   const query = useQuery({queryKey:["accounting-treasury-accounts"],queryFn:()=>apiGet<ResponseData>("/accounting/treasury/accounts"),staleTime:15000});
-  const create = useMutation({mutationFn:(body:Draft)=>apiPost<Account>("/accounting/treasury/accounts",body),onSuccess:()=>{void qc.invalidateQueries({queryKey:["accounting-treasury-accounts"]});setDraft(empty);}});
+  const create = useMutation({mutationFn:(body:Draft)=>apiPost<Account>("/accounting/treasury/accounts",{...body,bank_name:body.bank_name||null,account_suffix:body.account_suffix||null,location:body.location||null,custodian_user_id:body.custodian_user_id||null}),onSuccess:()=>{void qc.invalidateQueries({queryKey:["accounting-treasury-accounts"]});setDraft(empty);}});
   const toggle = useMutation({mutationFn:(row:Account)=>apiPatch<Account>("/accounting/treasury/accounts/"+encodeURIComponent(row.id)+"/status",{expected_version:row.version,active:!row.active}),onSuccess:()=>void qc.invalidateQueries({queryKey:["accounting-treasury-accounts"]})});
   const accounts = query.data?.accounts || [];
   return <div className="space-y-5" data-testid="treasury-account-directory">

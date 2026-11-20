@@ -316,7 +316,7 @@ class TreasuryAccountInput(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     account_type: Literal["CASH", "BANK"]
     bank_name: str | None = Field(default=None, max_length=100)
-    account_suffix: str | None = Field(default=None, pattern=r"^\\d{4}$")
+    account_suffix: str | None = Field(default=None, pattern=r"^\d{4}$")
     location: str | None = Field(default=None, max_length=120)
     custodian_user_id: str | None = Field(default=None, max_length=80)
     notes: str = Field(default="", max_length=500)
@@ -329,7 +329,7 @@ class TreasuryAccountStatusInput(BaseModel):
 
 
 def _treasury_name_key(value: str) -> str:
-    return re.sub(r"\\s+", " ", value.strip()).casefold()
+    return re.sub(r"\s+", " ", value.strip()).casefold()
 
 
 def _treasury_actor(user: dict) -> str:
@@ -352,10 +352,12 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
 @router.post("/treasury/accounts")
 async def create_treasury_account(payload: TreasuryAccountInput, user: dict = Depends(require_admin)):
     """Create a named cash/bank account shell; deliberately does not create a balance."""
-    if payload.account_type == "BANK" and not payload.bank_name:
+    if payload.account_type == "BANK" and not (payload.bank_name or "").strip():
         raise HTTPException(status_code=422, detail="Le nom de la banque est obligatoire.")
     if payload.account_type == "CASH" and (payload.bank_name or payload.account_suffix):
         raise HTTPException(status_code=422, detail="Un tiroir-caisse ne peut pas contenir de coordonnées bancaires.")
+    if len(payload.name.strip()) < 2:
+        raise HTTPException(status_code=422, detail="Le nom du compte doit contenir au moins deux caractères.")
     actor_id = _treasury_actor(user)
     now, account_id = datetime.now(timezone.utc), str(uuid4())
     name_key = _treasury_name_key(payload.name)
