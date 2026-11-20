@@ -91,6 +91,7 @@ def _candidate(
         "account_name": account.get("name") if account else None,
         "account_type": account.get("account_type") if account else None,
         "payment_method": method or None,
+        "reference": str(source.get("reference") or "").strip() or None,
         "currency": "TND" if amount is not None else None,
         "amount": format(amount, ".3f") if amount is not None else None,
         "party_id": str(source.get(party_field)) if source.get(party_field) else None,
@@ -125,7 +126,7 @@ def build_treasury_movement_preview(
         invoice = invoices_by_id.get(str(row.get("invoice_id") or ""))
         if not invoice:
             candidate["blocking_reasons"].append("PAYMENT_INVOICE_NOT_FOUND")
-        elif row.get("sale_id") != invoice.get("sale_id"):
+        elif not row.get("sale_id") or not invoice.get("sale_id") or row.get("sale_id") != invoice.get("sale_id"):
             candidate["blocking_reasons"].append("PAYMENT_SALE_LINK_MISMATCH")
         elif invoice.get("buyer_id"):
             candidate["party_id"] = str(invoice["buyer_id"])
@@ -142,7 +143,7 @@ def build_treasury_movement_preview(
         purchase = purchases_by_id.get(str(row.get("purchase_id") or ""))
         if not purchase or purchase.get("status") != "APPROVED":
             candidate["blocking_reasons"].append("SUPPLIER_PURCHASE_LINK_INVALID")
-        elif row.get("supplier_id") != purchase.get("supplier_id"):
+        elif not row.get("supplier_id") or not purchase.get("supplier_id") or row.get("supplier_id") != purchase.get("supplier_id"):
             candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
@@ -180,7 +181,7 @@ def build_treasury_movement_preview(
         },
         "read_only": True,
         "database_writes": False,
-        "movement_creation_enabled": False,
+        "movement_creation_enabled": True,
         "opening_balances_used": False,
         "currency": "TND",
         "basis": "GS_PAYMENT_DOCUMENTS_ONLY",

@@ -77,12 +77,27 @@ INDEXES.update({
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("account_id", ASCENDING), ("created_at", DESCENDING)], name="account_created_desc"),
     ],
+    "accounting_treasury_movements": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("source_type", ASCENDING), ("source_id", ASCENDING)],
+                   name="source_identity_unique", unique=True),
+        IndexModel([("season_code", ASCENDING), ("movement_date", DESCENDING), ("id", ASCENDING)],
+                   name="season_movement_date"),
+        IndexModel([("account_id", ASCENDING), ("movement_date", DESCENDING), ("id", ASCENDING)],
+                   name="account_movement_date"),
+    ],
+    "accounting_treasury_movement_events": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("movement_id", ASCENDING), ("created_at", DESCENDING)],
+                   name="movement_event_created_desc"),
+    ],
 })
 
 
 REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
     "load_intake_idempotency",
     "commercial_olive_reception_idempotency",
+    "accounting_treasury_movements",
 })
 
 
