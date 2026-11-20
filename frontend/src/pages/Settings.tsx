@@ -9,7 +9,8 @@ import TunisieSmsSettings from "@/components/TunisieSmsSettings";
 import CampaignSettings from "@/components/CampaignSettings";
 import VarietiesSettings from "@/components/VarietiesSettings";
 import CommercialTanksSettings from "@/components/CommercialTanksSettings";
-import PumpSettings from "@/components/PumpSettings";\nimport ScaleSettings from "@/components/ScaleSettings";
+import PumpSettings from "@/components/PumpSettings";
+import ScaleSettings from "@/components/ScaleSettings";
 import CommercialModuleStatus from "@/components/CommercialModuleStatus";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -738,7 +739,8 @@ export default function SettingsPage() {
         <TabsContent value="tariff"><div className="space-y-6"><PriceForm /><NumericConventionsPanel /></div></TabsContent>
         <TabsContent value="commercial-status"><CommercialModuleStatus /></TabsContent>
         <TabsContent value="tanks"><CommercialTanksSettings /></TabsContent>
-        <TabsContent value="pumps"><PumpSettings /></TabsContent>\n        <TabsContent value="scale"><ScaleSettings /></TabsContent>
+        <TabsContent value="pumps"><PumpSettings /></TabsContent>
+        <TabsContent value="scale"><ScaleSettings /></TabsContent>
                 <TabsContent value="sms"><div className="space-y-6"><div className="grid grid-cols-1 items-start gap-6 sm:grid-cols-2"><div className="min-w-0 sm:col-start-2 sm:row-start-1"><TwilioSettings /></div><div className="min-w-0 sm:col-start-1 sm:row-start-1"><TunisieSmsSettings /></div></div><SmsSettings /></div></TabsContent>
         <TabsContent value="campaign"><CampaignSettings /></TabsContent>
         <TabsContent value="employee-permissions"><EmployeePermissionsPanel /></TabsContent>
