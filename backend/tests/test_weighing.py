@@ -56,6 +56,19 @@ def test_traditional_intake_derives_olive_kg_from_gross_and_tare():
         tare_weight_kg="4200.025",
     )
     assert command.olive_kg == 8300.1
+    assert command.gross_weight_kg == Decimal("12500.125")
+    assert command.tare_weight_kg == Decimal("4200.025")
+
+
+def test_traditional_intake_preserves_decimal_scale_of_vehicle_readings():
+    command = LoadCreate(
+        client_name="Test Client",
+        phone="+21600000000",
+        gross_weight_kg="12500.000",
+        tare_weight_kg="4200.000",
+    )
+    assert command.gross_weight_kg == Decimal("12500.000")
+    assert command.tare_weight_kg == Decimal("4200.000")
 
 
 def test_traditional_intake_ignores_client_net_when_gross_and_tare_are_present():
