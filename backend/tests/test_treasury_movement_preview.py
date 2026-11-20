@@ -6,6 +6,10 @@ def account(account_id="cash-1", account_type="CASH", active=True, currency="TND
             "active": active, "currency": currency}
 
 
+def supplier_purchase():
+    return {"id": "purchase-1", "status": "APPROVED", "supplier_id": "supplier-1"}
+
+
 def sale_payment(**overrides):
     row = {"id": "sale-pay-1", "document_number": "PAY-1", "amount_dt": "25.500",
            "payment_date": "2026-11-20", "method": "CASH", "treasury_allocation_status": "MAPPED",
