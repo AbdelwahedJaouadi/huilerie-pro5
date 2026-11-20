@@ -36,6 +36,17 @@ class FakeCursor:
         return list(self.docs)
 
 
+class FakeCollection:
+    """Minimal async collection fake for linked-history existence checks."""
+
+    def __init__(self, calls=None):
+        self.calls = calls if calls is not None else []
+
+    async def find_one(self, query, projection=None, **kwargs):
+        self.calls.append("linked-history-check")
+        return None
+
+
 class FakeAuditEvents:
     def __init__(self, calls=None):
         self.calls = calls if calls is not None else []
