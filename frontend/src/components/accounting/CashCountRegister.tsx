@@ -12,7 +12,7 @@ const denominations=["50.000","20.000","10.000","5.000","2.000","1.000","0.500",
 const fmt=(value:string)=>new Intl.NumberFormat(undefined,{minimumFractionDigits:3,maximumFractionDigits:3}).format(Number(value||0));
 export default function CashCountRegister(){
  const {lang}=useI18n();const ar=lang==="ar";const qc=useQueryClient();
- const [accountId,setAccountId]=useState("");const [countDate,setCountDate]=useState("");const [notes,setNotes]=useState("");
+ const [accountId,setAccountId]=useState("");const [countDate,setCountDate]=useState("");const [notes,setNotes]=useState("");const [requestId,setRequestId]=useState(()=>crypto.randomUUID());
  const [counts,setCounts]=useState<Record<string,string>>({});
  const accounts=useQuery({queryKey:["accounting-treasury-accounts"],queryFn:()=>apiGet<{accounts:Account[]}>("/accounting/treasury/accounts")});
  const cashAccounts=useMemo(()=> (accounts.data?.accounts||[]).filter(a=>a.active&&a.account_type==="CASH"&&a.currency==="TND"),[accounts.data]);
@@ -20,8 +20,8 @@ export default function CashCountRegister(){
  const previewMillimes=denominations.reduce((sum,d)=>sum+Math.round(Number(d)*1000)*Math.max(0,Math.floor(Number(counts[d]||0))),0);
  const previewAmount=(previewMillimes/1000).toFixed(3);
  const save=useMutation({
-  mutationFn:()=>apiPost<CountRow>("/accounting/treasury/cash-counts",{account_id:accountId,count_date:countDate,denomination_counts:Object.fromEntries(denominations.filter(d=>counts[d]!==undefined&&counts[d]!=="").map(d=>[d,Number(counts[d])])),notes}),
-  onSuccess:()=>{setCounts({});setNotes("");void qc.invalidateQueries({queryKey:["accounting-cash-counts"]});}
+  mutationFn:()=>apiPost<CountRow>("/accounting/treasury/cash-counts",{account_id:accountId,request_id:requestId,count_date:countDate,denomination_counts:Object.fromEntries(denominations.filter(d=>counts[d]!==undefined&&counts[d]!=="").map(d=>[d,Number(counts[d])])),notes}),
+  onSuccess:()=>{setCounts({});setNotes("");setRequestId(crypto.randomUUID());void qc.invalidateQueries({queryKey:["accounting-cash-counts"]});}
  });
  return <div className="space-y-4" data-testid="cash-count-register">
   <Card><CardHeader><div className="flex items-start gap-3"><div className="rounded-lg bg-emerald-50 p-2 text-emerald-700"><Banknote className="size-5"/></div><div><CardTitle className="text-base">{ar?"جرد الصندوق النقدي":"Comptage physique de caisse"}</CardTitle><CardDescription>{ar?"تسجيل القطع والأوراق النقدية المعدودة فعلياً، دون احتساب رصيد متوقع أو فرق":"Enregistrer les billets et pièces réellement comptés, sans calculer de solde théorique ni d’écart."}</CardDescription></div></div></CardHeader>
