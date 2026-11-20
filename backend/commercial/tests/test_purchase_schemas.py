@@ -108,6 +108,19 @@ def test_olive_purchase_accepts_gross_tare_and_exact_net_quantity():
     assert draft.lines[0].quantity_kg == Decimal("8300.000")
 
 
+def test_olive_purchase_accepts_redundant_trailing_decimal_zeroes_in_vehicle_readings():
+    draft = OlivePurchaseDraft(
+        supplier_id="supplier-1",
+        purchase_date=date(2026, 11, 2),
+        lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        gross_weight_kg="12500.0000",
+        tare_weight_kg="4200.0000",
+        idempotency_key="purchase-weight-trailing-zeroes-01",
+    )
+    assert draft.gross_weight_kg == Decimal("12500.0000")
+    assert draft.tare_weight_kg == Decimal("4200.0000")
+
+
 def test_olive_purchase_rejects_partial_vehicle_weight_pair():
     with pytest.raises(ValidationError, match="gross_and_tare_must_be_provided_together"):
         OlivePurchaseDraft(
