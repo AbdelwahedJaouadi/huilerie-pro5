@@ -276,7 +276,38 @@ class PumpConfig(BaseModel):
     active: bool = True
 
 
+class ScaleConfig(BaseModel):
+    enabled: bool = False
+    manufacturer: str = Field(default="", max_length=100)
+    model: str = Field(default="", max_length=100)
+    connection_type: Literal["serial", "ethernet", "usb"] = "serial"
+    serial_port: str = Field(default="", max_length=120)
+    baud_rate: int = Field(default=9600, ge=300, le=921600)
+    data_bits: Literal[7, 8] = 8
+    parity: Literal["none", "even", "odd"] = "none"
+    stop_bits: Literal[1, 2] = 1
+    host: str = Field(default="", max_length=255)
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
+    protocol: str = Field(default="", max_length=120)
+    unit: Literal["kg", "g", "lb"] = "kg"
+    decimal_places: int = Field(default=3, ge=0, le=3)
+    stable_readings: int = Field(default=3, ge=1, le=20)
+    device_id: str = Field(default="", max_length=120)
+
+    @model_validator(mode="after")
+    def validate_connection_fields(self):
+        if self.enabled and self.connection_type == "serial" and not self.serial_port.strip():
+            raise ValueError("scale_serial_port_required")
+        if self.enabled and self.connection_type == "ethernet":
+            if not self.host.strip() or self.port is None:
+                raise ValueError("scale_ethernet_host_and_port_required")
+        if self.enabled and not self.protocol.strip():
+            raise ValueError("scale_protocol_required")
+        return self
+
+
 class AppSettings(MillInfo):
+    scale_config: ScaleConfig = Field(default_factory=ScaleConfig)
     pump_system_enabled: bool = False
     pumps: list[PumpConfig] = Field(default_factory=list, max_length=100)
     price_per_kg: float = Field(ge=0)
