@@ -284,25 +284,6 @@ async def assert_oil_purchase_payments_reconcile(
         raise ValueError("Oil purchase payment ledger does not reconcile with the purchase balance")
 
 
-async def assert_oil_purchase_payments_reconcile(
-    db: Any, purchase: dict[str, Any], *, session: Any,
-) -> None:
-    payments = await db["commercial_oil_purchase_payments"].find(
-        {"purchase_document_id": purchase["id"]}, {"_id": 0, "amount_tnd": 1},
-        session=session,
-    ).to_list(10000)
-    paid = _money(sum((_decimal(item.get("amount_tnd")) for item in payments), Decimal("0")))
-    agreed = _money(_decimal(purchase.get("agreed_amount_tnd")))
-    stored_paid = _money(_decimal(purchase.get("paid_amount_tnd")))
-    stored_outstanding = _money(_decimal(purchase.get("outstanding_amount_tnd")))
-    if (
-        paid != stored_paid
-        or paid > agreed
-        or _money(agreed - paid) != stored_outstanding
-    ):
-        raise ValueError("Oil purchase payment ledger does not reconcile with the purchase balance")
-
-
 async def record_oil_purchase_payment(
     db: Any, purchase_id: str, draft: OilPurchasePaymentDraft, *,
     season_code: str, actor_user: dict[str, Any], actor_user_id: str,
