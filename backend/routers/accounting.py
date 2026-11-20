@@ -347,7 +347,7 @@ class TreasuryMovementCreateInput(BaseModel):
 class CashCountInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_id: str = Field(min_length=1, max_length=120)
-    count_date: str = Field(pattern=r"^\\d{4}-\\d{2}-\\d{2}$")
+    count_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     denomination_counts: dict[str, Any]
     notes: str = Field(default="", max_length=1000)
 
