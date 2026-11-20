@@ -7,6 +7,7 @@ a cumulative paid snapshot or invoice history.
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
+from datetime import date, datetime
 from typing import Any
 
 from .normalization import build_candidate_envelope, canonical_decimal, source_fingerprint
@@ -45,13 +46,22 @@ def _business_date(value: Any) -> str | None:
     try:
         # Date-only source values retain their calendar date.
         if len(raw) == 10:
-            return raw if len(raw) == 10 and raw[4] == "-" and raw[7] == "-" else None
-        # ISO datetime: preserve the date written by the source; do not convert
-        # between local time and UTC in this read-only adapter.
-        from datetime import datetime
+            return date.fromisoformat(raw).isoformat()
+        # Preserve the date written by the source; do not convert between
+        # local time and UTC in this read-only adapter.
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).date().isoformat()
     except ValueError:
         return None
+
+
+def _recorded_at(value: Any) -> str | None:
+    if not isinstance(value, str) or "T" not in value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value if parsed.tzinfo is not None else None
 
 
 def _currency(document: dict[str, Any]) -> str | None:
@@ -109,7 +119,7 @@ def adapt_traditional_invoice(invoice: dict[str, Any]) -> dict[str, Any]:
         eligibility="LEGACY_UNRESOLVED",
         source_document_number=str(invoice.get("number")) if invoice.get("number") is not None else None,
         business_date=business_date,
-        recorded_at=invoice.get("created_at") if isinstance(invoice.get("created_at"), str) and "T" in invoice["created_at"] else None,
+        recorded_at=_recorded_at(invoice.get("created_at")),
         actor_id=str(invoice.get("created_by")) if invoice.get("created_by") is not None else None,
         party_ref={"type": "TRADITIONAL_CLIENT", "id": str(invoice.get("client_id"))} if invoice.get("client_id") is not None else None,
         currency=currency,
@@ -173,6 +183,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             warnings.append("PAYMENT_DATE_MISSING")
 
         if not payment_id:
+            itemized_total_complete = False
             # Do not invent a durable payment ID from list position, amount or time.
             unresolved.append({
                 "source_type": "TRADITIONAL_RECEIPT",
@@ -210,7 +221,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             eligibility="ELIGIBLE_FOR_REVIEW" if eligible else "LEGACY_UNRESOLVED",
             source_document_number=str(invoice.get("number")) if invoice.get("number") is not None else None,
             business_date=business_date,
-            recorded_at=payment.get("created_at") if isinstance(payment.get("created_at"), str) and "T" in payment["created_at"] else None,
+            recorded_at=_recorded_at(payment.get("created_at")),
             actor_id=str(payment.get("by")) if payment.get("by") is not None else None,
             party_ref={"type": "TRADITIONAL_CLIENT", "id": str(invoice.get("client_id"))} if invoice.get("client_id") is not None else None,
             currency=payment_currency,
@@ -266,7 +277,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             "source_id": invoice_id,
             "reason": "INVOICE_HISTORY_IS_AUDIT_EVIDENCE_NOT_RECEIPTS",
             "observed_count": len(history),
-            "source_fingerprint": source_fingerprint({"invoice_id": invoice_id, "history": history}),
+            "source_fingerprint": source_fingerprint({"invoice_id": invoice_id, "history_count": len(history)}),
         })
 
     return {
