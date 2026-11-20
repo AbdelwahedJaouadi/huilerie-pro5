@@ -97,6 +97,7 @@ export interface Load {
 export type LoadStatus = "pending" | "pressing" | "done" | "delivered" | "cancelled";
 
 export interface LoadCreate {
+  idempotency_key?: string;
   client_name: string;
   phone: string;
   olive_kg?: number;

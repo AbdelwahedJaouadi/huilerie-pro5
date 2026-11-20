@@ -109,6 +109,7 @@ class Load(BaseModel):
 
 
 class LoadCreate(BaseModel):
+    idempotency_key: Optional[str] = Field(default=None, min_length=16, max_length=128)
     client_name: str = Field(min_length=1, max_length=100)
     phone: str = Field(min_length=4, max_length=30)
     olive_kg: Optional[float] = Field(default=None, gt=0, le=1_000_000)

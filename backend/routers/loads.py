@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import re
@@ -9,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pymongo.errors import DuplicateKeyError
 
 from lib.auth import current_user, require_admin
 from lib.dates import today_iso
@@ -103,17 +106,59 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
     return out
 
 
+def _load_intake_fingerprint(body: LoadCreate, phone: str, net_kg: Decimal) -> str:
+    """Fingerprint normalized business input, excluding server-generated identifiers/timestamps."""
+    payload = {
+        "client_name": body.client_name.strip(),
+        "phone": phone,
+        "net_kg": format(net_kg.normalize(), "f"),
+        "gross_weight_kg": format(body.gross_weight_kg.normalize(), "f") if body.gross_weight_kg is not None else None,
+        "tare_weight_kg": format(body.tare_weight_kg.normalize(), "f") if body.tare_weight_kg is not None else None,
+        "weight_source": "manual" if body.gross_weight_kg is not None else "legacy_net",
+        "bags": body.bags,
+        "variety": (body.variety or "").strip() or None,
+        "notes": (body.notes or "").strip() or None,
+        "initial_status": body.initial_status,
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _existing_idempotent_load(actor_id: str, key: str, fingerprint: str, user: dict):
+    record = await db.load_intake_idempotency.find_one(
+        {"actor_user_id": actor_id, "idempotency_key": key}, {"_id": 0}
+    )
+    if not record:
+        return None
+    if record.get("request_fingerprint") != fingerprint:
+        raise HTTPException(409, "idempotency_key_payload_conflict")
+    doc = await db.loads.find_one({"id": record.get("load_id")}, {"_id": 0})
+    if not doc:
+        # Never recreate a deleted source document from a stale retry key.
+        raise HTTPException(409, "idempotent_load_source_missing")
+    return to_load(doc, user)
+
+
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
+    net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
+    idempotency_key = (body.idempotency_key or "").strip()
+    actor_id = str(user.get("id") or user.get("username") or "")
+    fingerprint = _load_intake_fingerprint(body, phone, net_kg)
+    if idempotency_key:
+        existing = await _existing_idempotent_load(actor_id, idempotency_key, fingerprint, user)
+        if existing is not None:
+            return existing
+
     inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
     if inactive_client:
         raise HTTPException(409, "client_inactive")
+
     now_local = datetime.now(_tz())
     season = await active_season()
     code = await next_load_code(season)
     now = datetime.now(timezone.utc)
-    net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
     doc = {
         "id": str(uuid.uuid4()), "code": code, "season_id": season, "client_name": body.client_name.strip(),
         "phone": phone, "olive_kg": float(net_kg), "oil_kg": None,
@@ -136,6 +181,26 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         }
 
     async def operation(session):
+        if idempotency_key:
+            prior = await db.load_intake_idempotency.find_one(
+                {"actor_user_id": actor_id, "idempotency_key": idempotency_key},
+                {"_id": 0}, session=session,
+            )
+            if prior:
+                if prior.get("request_fingerprint") != fingerprint:
+                    raise HTTPException(409, "idempotency_key_payload_conflict")
+                existing_doc = await db.loads.find_one({"id": prior.get("load_id")}, {"_id": 0}, session=session)
+                if not existing_doc:
+                    raise HTTPException(409, "idempotent_load_source_missing")
+                return existing_doc, False
+            await db.load_intake_idempotency.insert_one({
+                "actor_user_id": actor_id,
+                "idempotency_key": idempotency_key,
+                "request_fingerprint": fingerprint,
+                "load_id": doc["id"],
+                "created_at": now,
+            }, session=session)
+
         client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
         if client_doc and client_doc.get("active") is False:
             raise HTTPException(409, "client_inactive")
@@ -161,10 +226,23 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
             ),
         }, session=session)
 
-    await run_transaction(operation)
-    doc.pop("_id", None)
-    await send_load_sms(doc, "arrival")
-    return to_load(doc, user)
+        return doc, True
+
+    try:
+        committed_doc, created = await run_transaction(operation)
+    except DuplicateKeyError:
+        # A concurrent request with the same scoped key may have committed first.
+        if not idempotency_key:
+            raise
+        replay = await _existing_idempotent_load(actor_id, idempotency_key, fingerprint, user)
+        if replay is None:
+            raise
+        return replay
+
+    committed_doc.pop("_id", None)
+    if created:
+        await send_load_sms(committed_doc, "arrival")
+    return to_load(committed_doc, user)
 
 
 @router.get("/loads", response_model=list[Load])
