@@ -1,8 +1,9 @@
 from decimal import Decimal
 
 import pytest
+from bson.decimal128 import Decimal128
 
-from lib.weighing import derive_net_weight_kg
+from lib.weighing import derive_net_weight_kg, weight_measurement_audit_snapshot
 from models.schemas import LoadCreate
 
 
@@ -98,3 +99,33 @@ def test_traditional_intake_keeps_legacy_net_only_payload_compatible():
 def test_traditional_intake_rejects_incomplete_or_invalid_weight_evidence(payload, error):
     with pytest.raises(Exception, match=error):
         LoadCreate(client_name="Test Client", phone="+21600000000", **payload)
+
+
+
+def test_weight_measurement_audit_snapshot_preserves_original_evidence():
+    measured_at = object()
+    snapshot = weight_measurement_audit_snapshot({
+        "gross_kg": Decimal128("12500.125"),
+        "tare_kg": Decimal128("4200.025"),
+        "net_kg": Decimal128("8300.100"),
+        "measured_at": measured_at,
+        "operator_user_id": "user-17",
+        "operator_username": "scale.operator",
+        "source": "manual",
+        "correction_of": None,
+    })
+
+    assert snapshot == {
+        "gross_kg": "12500.125",
+        "tare_kg": "4200.025",
+        "net_kg": "8300.100",
+        "measured_at": measured_at,
+        "operator_user_id": "user-17",
+        "operator_username": "scale.operator",
+        "source": "manual",
+        "correction_of": None,
+    }
+
+
+def test_weight_measurement_audit_snapshot_handles_legacy_load_without_weighing():
+    assert weight_measurement_audit_snapshot(None) is None
