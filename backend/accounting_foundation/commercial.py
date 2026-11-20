@@ -215,12 +215,14 @@ def adapt_gs_olive_purchase(
         movement = movements_by_id.get(movement_id)
         if not lot:
             blockers.append("PURCHASE_LOT_DOCUMENT_MISSING")
-            continue
+        else:
+            matched_lot_ids.add(lot_id)
         if not movement:
             blockers.append("PURCHASE_RECEIPT_MOVEMENT_MISSING")
+        else:
+            matched_movement_ids.add(movement_id)
+        if not lot or not movement:
             continue
-        matched_lot_ids.add(lot_id)
-        matched_movement_ids.add(movement_id)
 
         try:
             received = _decimal(lot.get("quantity_received_kg"))
