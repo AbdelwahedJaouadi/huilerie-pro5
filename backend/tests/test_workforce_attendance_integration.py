@@ -1,6 +1,7 @@
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import HTTPException
@@ -75,8 +76,15 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
         assert restored["status"] == "PRESENT"
         assert restored["check_in_at"] is not None
 
-        start = datetime.now(timezone.utc) - timedelta(hours=2)
-        end = datetime.now(timezone.utc) - timedelta(hours=1)
+        now_tunis = datetime.now(ZoneInfo("Africa/Tunis"))
+        midnight = datetime.combine(today, datetime.min.time(), tzinfo=ZoneInfo("Africa/Tunis"))
+        if now_tunis < midnight + timedelta(minutes=2):
+            start_local = end_local = midnight
+        else:
+            end_local = now_tunis - timedelta(minutes=1)
+            start_local = end_local - timedelta(minutes=1)
+        start = start_local.astimezone(timezone.utc)
+        end = end_local.astimezone(timezone.utc)
         corrected = await workforce.correct_attendance(
             restored["id"],
             workforce.AttendanceCorrection(
