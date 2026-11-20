@@ -35,10 +35,11 @@ def test_treasury_movement_source_identity_index_is_unique():
     indexes = db_module.INDEXES["accounting_treasury_movements"]
     source_index = next(
         model for model in indexes
-        if model.document.get("name") == "source_identity_unique"
+        if model.document.get("name") == "season_source_identity_unique"
     )
     assert source_index.document.get("unique") is True
     assert source_index.document["key"] == {
+        "season_code": 1,
         "source_type": 1,
         "source_id": 1,
     }
