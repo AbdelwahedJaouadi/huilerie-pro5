@@ -142,3 +142,27 @@ def test_vehicle_weight_is_not_accepted_for_multiple_purchase_lines():
             tare_weight_kg="4200.000",
             idempotency_key="purchase-weight-request-04",
         )
+
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("gross_weight_kg", True, "gross_weight_invalid"),
+        ("tare_weight_kg", False, "tare_weight_invalid"),
+        ("gross_weight_kg", "12500.0001", "gross_weight_invalid_precision"),
+        ("tare_weight_kg", "1000001", "tare_weight_out_of_range"),
+    ],
+)
+def test_vehicle_weight_rejects_invalid_raw_readings(field, value, error):
+    payload = {
+        "supplier_id": "supplier-1",
+        "purchase_date": date(2026, 11, 2),
+        "lines": [{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        "gross_weight_kg": "12500.000",
+        "tare_weight_kg": "4200.000",
+        "idempotency_key": "purchase-weight-raw-check",
+    }
+    payload[field] = value
+    with pytest.raises(ValidationError, match=error):
+        OlivePurchaseDraft(**payload)
