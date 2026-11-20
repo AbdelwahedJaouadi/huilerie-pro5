@@ -16,6 +16,7 @@ on:
       - erp/treasury-movement-preview-phase-10
       - erp/treasury-explicit-movement-recording-phase-11
       - erp/treasury-movement-register-phase-12
+      - erp/bank-statement-preview-phase-13
   pull_request:
     branches:
       - main
@@ -56,7 +57,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install isolated test dependencies
-        run: python -m pip install fastapi pymongo motor python-dotenv pyjwt passlib httpx pytest pytest-asyncio pytest-xdist
+        run: python -m pip install fastapi python-multipart pymongo motor python-dotenv pyjwt passlib httpx pytest pytest-asyncio pytest-xdist
       - name: Test invoice calculations and accounting foundation
         run: >-
           python -m pytest -o addopts=
@@ -76,6 +77,7 @@ jobs:
           tests/test_treasury_movement_preview.py
           tests/test_treasury_movement_recording.py
           tests/test_treasury_register.py
+          tests/test_bank_statement_preview.py
 
   vehicle-weighing-tests:
     runs-on: ubuntu-latest
@@ -126,7 +128,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install commercial domain test dependencies
-        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-dotenv pyjwt passlib pytest pytest-asyncio pytest-xdist
+        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-multipart python-dotenv pyjwt passlib pytest pytest-asyncio pytest-xdist
       - name: Test commercial schemas, bootstrap, permissions, and reference validation
         run: python -m pytest -o addopts= commercial/tests --ignore=commercial/tests/test_mongodb_transaction_integration.py --ignore=commercial/tests/test_mongodb_production_integration.py --ignore=commercial/tests/test_mongodb_quality_separation.py --ignore=commercial/tests/test_mongodb_customer_custody_integration.py --ignore=commercial/tests/test_mongodb_credit_application_integration.py --ignore=commercial/tests/test_mongodb_payment_reversal_integration.py --ignore=commercial/tests/test_payment_reversal_concurrency_integration.py --ignore=commercial/tests/test_mongodb_return_rejection_integration.py
 
@@ -145,7 +147,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install transaction integration dependencies
-        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-dotenv pyjwt passlib pytest pytest-asyncio pytest-xdist
+        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-multipart python-dotenv pyjwt passlib pytest pytest-asyncio pytest-xdist
       - name: Start MongoDB replica-set container
         run: docker run -d --name mongo-rs -p 27017:27017 mongo:7.0 mongod --replSet rs0 --bind_ip_all
       - name: Initialize MongoDB replica set
