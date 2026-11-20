@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from lib.money import money_float
 from routers import invoices as invoice_routes
+from routers import loads as load_routes
 
 
 class FakeCollection:
@@ -42,6 +43,17 @@ class FakeCollection:
                     doc[key] = doc.get(key, 0) + value
                 return SimpleNamespace(modified_count=1, matched_count=1)
         return SimpleNamespace(modified_count=0, matched_count=0)
+
+    async def find_one_and_update(self, query, update, projection=None, return_document=None, **kwargs):
+        for doc in self.docs:
+            if all(
+                doc.get(key) != value["$ne"] if isinstance(value, dict) and "$ne" in value
+                else doc.get(key) == value
+                for key, value in query.items()
+            ):
+                doc.update(update.get("$set", {}))
+                return dict(doc)
+        return None
 
     async def count_documents(self, query, **kwargs):
         return len(self.docs)
@@ -426,12 +438,30 @@ async def test_initial_payment_rejects_wrong_or_inactive_account(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_automatic_unpaid_customer_invoice_records_later_receipt_once_in_treasury(fake_db):
-    # Load completion creates the invoice without collecting money or touching treasury.
-    created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0},
-        {"username": "worker"},
+async def test_load_completion_creates_unpaid_invoice_and_later_payment_records_one_receipt(fake_db, monkeypatch):
+    # Exercise the real load-completion route and its real invoice helper.
+    fake_db.loads.docs[0]["oil_kg"] = None
+    monkeypatch.setattr(load_routes, "db", fake_db)
+    monkeypatch.setattr(load_routes, "run_transaction", invoice_routes.run_transaction)
+
+    async def no_sms(*_args):
+        return None
+
+    async def no_labs(_ids):
+        return {}
+
+    monkeypatch.setattr(load_routes, "send_load_sms", no_sms)
+    monkeypatch.setattr(load_routes, "_labs_for", no_labs)
+    monkeypatch.setattr(load_routes, "to_load", lambda doc, _user, _lab=None: dict(doc))
+
+    completed = await load_routes.set_oil(
+        "load-test-1", SimpleNamespace(oil_kg=15.0),
+        {"username": "worker", "role": "employee"},
     )
+
+    assert completed["oil_kg"] == 15.0
+    assert len(fake_db.invoices.docs) == 1
+    created = fake_db.invoices.docs[0]
     assert created["number"] == "FAC-2627100"
     assert created["payments"] == []
     assert created["paid_amount"] == 0
@@ -442,24 +472,36 @@ async def test_automatic_unpaid_customer_invoice_records_later_receipt_once_in_t
         "account_type": "CASH", "currency": "TND", "active": True,
     })
 
-    # The first later payment is entered from the invoice edit flow.
     updated = await invoice_routes.update_invoice(
         created["id"],
         {"payment_amount": 0.5, "payment_method": "CASH",
          "treasury_account_id": "cash-automatic"},
         {"username": "cashier"},
     )
+
     assert updated["paid_amount"] == 0.5
     assert updated["balance"] == 2.2
     assert len(updated["payments"]) == 1
-    assert updated["payments"][0]["treasury_allocation_status"] == "MAPPED"
+    payment = updated["payments"][0]
+    assert payment["treasury_allocation_status"] == "MAPPED"
+    assert payment["treasury_account_id"] == "cash-automatic"
     assert len(fake_db.accounting_treasury_movements.docs) == 1
     movement = fake_db.accounting_treasury_movements.docs[0]
     assert movement["source_type"] == "TRADITIONAL_RECEIPT"
-    assert movement["source_id"] == updated["payments"][0]["id"]
+    assert movement["source_id"] == payment["id"]
     assert movement["source_document_id"] == created["id"]
     assert movement["source_document_number"] == created["number"]
     assert movement["account_id"] == "cash-automatic"
     assert movement["opening_balance_applied"] is False
     assert movement["gl_posting_status"] == "NOT_POSTED"
+    assert len(fake_db.accounting_treasury_movement_events.docs) == 1
+
+    # Retrying the same load completion must not create another invoice or receipt.
+    await load_routes.set_oil(
+        "load-test-1", SimpleNamespace(oil_kg=15.0),
+        {"username": "worker", "role": "employee"},
+    )
+    assert len(fake_db.invoices.docs) == 1
+    assert len(fake_db.invoices.docs[0]["payments"]) == 1
+    assert len(fake_db.accounting_treasury_movements.docs) == 1
     assert len(fake_db.accounting_treasury_movement_events.docs) == 1
