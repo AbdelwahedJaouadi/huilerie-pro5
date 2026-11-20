@@ -59,7 +59,7 @@ from commercial.schemas.customer_custody import (
 )
 from commercial.schemas.credit_application import BuyerCreditApplicationDraft
 from commercial.schemas.payment_reversal import PaymentReversalDraft
-from lib.weighing import derive_net_weight_kg
+from lib.weighing import derive_net_weight_kg, validate_weight_kg
 from commercial.services.production import complete_commercial_production
 from commercial.services.preproduction import create_preproduction_sample, cancel_preproduction_sample, auto_complete_preproduction_sample_for_purchase
 from commercial.services.purchase_approval import approve_olive_purchase
@@ -124,6 +124,13 @@ class OliveReceptionPurchaseCommand(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=128)
     gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
     tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
+
+    @field_validator("gross_weight_kg", "tare_weight_kg", mode="before")
+    @classmethod
+    def validate_raw_vehicle_reading(cls, value, info):
+        if value is None:
+            return None
+        return validate_weight_kg(value, info.field_name)
 
     @model_validator(mode="after")
     def validate_vehicle_weight(self):
