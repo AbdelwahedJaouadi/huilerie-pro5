@@ -63,6 +63,7 @@ jobs:
           tests/test_client_delete_unit.py
           tests/test_load_delete_unit.py
           tests/test_load_completion_reliability.py
+          tests/test_load_intake_idempotency_unit.py
           tests/test_atomic_invoice_deletes_unit.py
           tests/test_client_options_unit.py
 
