@@ -66,7 +66,7 @@ Static scan date: 17 Nov 2026
 | GET | `"/sales-invoices/{invoice_id}/credit-applications"` | `list_buyer_credit_applications` | Authenticated user | commercial.read |
 | POST | `"/sales-invoices/{invoice_id}/payments"` | `create_sale_payment` | Admin dependency | commercial.manage_sales |
 | GET | `"/sales-invoices/{invoice_id}/payments"` | `list_sale_payments` | Authenticated user | commercial.read |
-| POST | `"/olive-receptions"` | `create_olive_reception_purchase` | Authenticated user | commercial.manage_purchases |
+| POST | `"/olive-receptions"` | `create_olive_reception_purchase` | Authenticated user | commercial.register_olive_purchase |
 | POST | `"/olive-purchases"` | `create_olive_purchase` | Admin dependency | commercial.manage_purchases |
 | PUT | `"/olive-purchases/{purchase_id}"` | `update_olive_purchase` | Authenticated user | commercial.edit_records |
 | POST | `"/olive-purchases/{purchase_id}/cancel"` | `cancel_olive_purchase` | Authenticated user | commercial.delete_records |
@@ -178,3 +178,8 @@ Recommended dedicated capability: `commercial.register_olive_purchase`.
 See `DIRECT_OLIVE_PURCHASE_CAPABILITY.md` for the service boundary, atomicity rules and API permission test matrix. No runtime permission or employee account was changed.
 
 The assignment UI is also hardcoded in `frontend/src/pages/Settings.tsx::EmployeePermissionsPanel`; it currently exposes only six worker capabilities and does not include the proposed `commercial.register_olive_purchase`. A future implementation must update the backend allowlist, route/service authorization, assignment API validation and frontend checkbox list/localized label together. Adding only a backend capability would leave administrators unable to assign it in the UI.
+
+
+## Direct olive reception worker capability (20 Nov 2026)
+
+The direct supplier reception route now uses the dedicated `commercial.register_olive_purchase` permission. It is assignable to selected worker accounts and is intentionally separate from `commercial.manage_purchases`; it does not grant purchase edits, supplier payments, sales, stock adjustments or reversals. The route continues to atomically create the supplier (when new), purchase, traceability lot, stock receipt and audit records without a second-person approval queue.
