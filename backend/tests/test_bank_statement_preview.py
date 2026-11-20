@@ -26,7 +26,7 @@ def test_parse_normalized_csv_with_utf8_bom_and_decimal_amounts():
     (b"transaction_date,amount,direction\n2026-11-20,0,IN\n", "positive TND"),
     (b"transaction_date,amount,direction\n2026-11-20,1.2345,IN\n", "plain decimal notation"),
     (b"transaction_date,amount,direction\n2026-11-20,1e3,IN\n", "plain decimal notation"),
-    (b"transaction_date,amount,direction\n2026-11-20,1,000,IN\n", "plain decimal notation"),
+    (b"transaction_date,amount,direction\n2026-11-20,1,000,IN\n", "Unexpected extra CSV fields"),
     (b"transaction_date,amount,direction\n2026-11-20,1,SIDEWAYS\n", "direction must be IN or OUT"),
 ])
 def test_parser_rejects_invalid_statement_rows(raw, expected):
