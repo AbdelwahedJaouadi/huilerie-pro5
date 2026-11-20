@@ -221,6 +221,8 @@ async def correct_attendance(
         raise HTTPException(400, "no_attendance_changes")
 
     now = datetime.now(timezone.utc)
+    if "status" in changes:
+        changes["marked_absent_at"] = now if status == "ABSENT" else None
     changes.update({"updated_at": now, "last_corrected_by": admin.get("id")})
     async def apply_correction(session):
         result = await db["workforce_attendance"].update_one(
