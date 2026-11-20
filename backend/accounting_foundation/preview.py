@@ -27,6 +27,7 @@ def build_reconciliation_preview(
     invoices = list(traditional_invoices)
     purchases = list(gs_purchases)
     payments = list(supplier_payments)
+    account_rows = list(treasury_accounts)
     lot_rows = list(lots)
     movement_rows = list(stock_movements)
     sale_invoices, sale_payments, sale_reversals = list(gs_sales_invoices), list(gs_sale_payments), list(gs_sale_reversals)
@@ -94,12 +95,12 @@ def build_reconciliation_preview(
         )
         candidate_events.append(purchase_result["candidate_event"])
         payment_result = adapt_gs_supplier_payments(
-            payments_by_purchase.get(purchase_id, []), purchase=purchase
+            payments_by_purchase.get(purchase_id, []), purchase=purchase, treasury_accounts=account_rows
         )
         candidate_events.extend(payment_result["candidate_events"])
         unresolved_items.extend(payment_result["unresolved_items"])
 
-    sales_result = adapt_gs_sales(sale_invoices, sale_payments, sale_reversals, treasury_accounts=treasury_accounts, check_payment_snapshots=check_gs_sale_payment_snapshots)
+    sales_result = adapt_gs_sales(sale_invoices, sale_payments, sale_reversals, treasury_accounts=account_rows, check_payment_snapshots=check_gs_sale_payment_snapshots)
     candidate_events.extend(sales_result["candidate_events"])
     unresolved_items.extend(sales_result["unresolved_items"])
 

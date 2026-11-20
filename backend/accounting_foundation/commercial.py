@@ -313,6 +313,7 @@ def adapt_gs_supplier_payments(
     payments: Iterable[dict[str, Any]],
     *,
     purchase: dict[str, Any],
+    treasury_accounts: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """Emit immutable supplier settlement candidates and reconcile the payable snapshot."""
     if not isinstance(purchase, dict) or not _id(purchase):
@@ -324,6 +325,8 @@ def adapt_gs_supplier_payments(
     purchase_paid = _decimal(purchase.get("paid_amount_dt", "0"))
     outstanding = _decimal(purchase.get("outstanding_amount_dt", purchase_total - purchase_paid))
     payment_rows = list(payments)
+    account_rows = list(treasury_accounts)
+    accounts_by_id = {str(item.get("id")): item for item in account_rows if isinstance(item, dict) and item.get("id")}
     payment_id_counts = Counter(
         _id(item) for item in payment_rows
         if isinstance(item, dict) and _id(item)
@@ -350,7 +353,7 @@ def adapt_gs_supplier_payments(
             all_payment_amounts_complete = False
         payment_day = _day(payment.get("payment_date"))
         currency = str(payment.get("currency") or "TND").upper()
-        warnings = ["TREASURY_ACCOUNT_NOT_MAPPED"]
+        warnings = []
         blockers = []
         if not payment_id:
             unresolved.append(_finding(
@@ -373,6 +376,28 @@ def adapt_gs_supplier_payments(
             blockers.append("PAYMENT_DATE_MISSING_OR_INVALID")
         if currency != "TND":
             blockers.append("PAYMENT_CURRENCY_NOT_TND")
+        account_id = str(payment.get("treasury_account_id") or "")
+        allocation_status = payment.get("treasury_allocation_status")
+        if account_rows:
+            account = accounts_by_id.get(account_id)
+            if not account_id:
+                blockers.append("TREASURY_ACCOUNT_NOT_ASSIGNED")
+            elif not account:
+                blockers.append("TREASURY_ACCOUNT_NOT_FOUND")
+            else:
+                expected_type = "CASH" if payment.get("method") == "CASH" else "BANK" if payment.get("method") in {"BANK_TRANSFER", "CHEQUE"} else None
+                if not expected_type or account.get("account_type") != expected_type:
+                    blockers.append("TREASURY_ACCOUNT_TYPE_MISMATCH")
+                if account.get("currency") != "TND":
+                    blockers.append("TREASURY_ACCOUNT_CURRENCY_NOT_TND")
+                if account.get("active") is not True:
+                    blockers.append("TREASURY_ACCOUNT_INACTIVE")
+            if allocation_status != "MAPPED":
+                blockers.append("TREASURY_ALLOCATION_STATUS_INVALID")
+        elif account_id:
+            blockers.append("TREASURY_ACCOUNT_DIRECTORY_EMPTY_BUT_ASSIGNED")
+        else:
+            warnings.append("LEGACY_TREASURY_ALLOCATION_NOT_CONFIGURED")
         eligible = not blockers
         candidates.append(build_candidate_envelope(
             source_type="GS_SUPPLIER_PAYMENT",
@@ -387,6 +412,8 @@ def adapt_gs_supplier_payments(
                 "payment_date": payment.get("payment_date"),
                 "method": payment.get("method"),
                 "reference": payment.get("reference"),
+                "treasury_account_id": account_id or None,
+                "treasury_allocation_status": allocation_status,
             },
             eligibility="ELIGIBLE_FOR_REVIEW" if eligible else "BLOCKED",
             blocking_reasons=blockers,
@@ -399,7 +426,7 @@ def adapt_gs_supplier_payments(
             amount=payment_amount if currency == "TND" and payment_amount is not None else None,
             dimensions={"season_code": str(payment.get("season_code"))} if payment.get("season_code") else {},
             source_links=[{"type": "GS_OLIVE_PURCHASE", "id": purchase_id}],
-            warnings=warnings,
+            warnings=warnings + (["TREASURY_ACCOUNT_MAPPED"] if account_id and account_id in accounts_by_id and not blockers else []),
         ))
 
     if all_payment_amounts_complete:

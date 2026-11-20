@@ -248,6 +248,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [supplierPaymentAmount, setSupplierPaymentAmount] = useState("");
   const [supplierPaymentDate, setSupplierPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [supplierPaymentMethod, setSupplierPaymentMethod] = useState<"CASH" | "BANK_TRANSFER" | "CHEQUE">("CASH");
+  const [supplierPaymentTreasuryAccountId, setSupplierPaymentTreasuryAccountId] = useState("");
   const [supplierPaymentReference, setSupplierPaymentReference] = useState("");
   const [supplierPaymentNotes, setSupplierPaymentNotes] = useState("");
   const [selectedBuyerId, setSelectedBuyerId] = useState("");
@@ -422,6 +423,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const canEditRecords = isAdmin || (permissions.data?.permissions ?? []).includes("commercial.edit_records");
   const canDeleteRecords = isAdmin || (permissions.data?.permissions ?? []).includes("commercial.delete_records");
   const suppliers = useQuery({ queryKey: ["commercial", "suppliers"], queryFn: () => apiGetAllPages<AnyRecord>("/commercial/v1/suppliers", 500), enabled: ready && (tab === "overview" || tab === "procurement" || tab === "sales" || (tab === "stock" && stockView === "chargement")) });
+  const supplierTreasuryAccounts = useQuery({ queryKey: ["accounting", "treasury-accounts"], queryFn: () => apiGet<{ accounts: AnyRecord[] }>("/accounting/treasury/accounts"), enabled: ready && isAdmin && tab === "procurement" && procurementView === "suppliers" });
+  const supplierTreasuryChoices = (supplierTreasuryAccounts.data?.accounts ?? []).filter((account: AnyRecord) => account.active === true && account.currency === "TND" && account.account_type === (supplierPaymentMethod === "CASH" ? "CASH" : "BANK"));
   const supplierStatement = useQuery({
     queryKey: ["commercial", "supplier-statement", selectedSupplierId],
     queryFn: () => apiGet<AnyRecord>(`/commercial/v1/suppliers/${encodeURIComponent(selectedSupplierId)}/statement`),
@@ -612,6 +615,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         payment_date: supplierPaymentDate,
         amount_tnd: tndInputToDinars(supplierPaymentAmount),
         method: supplierPaymentMethod,
+        treasury_account_id: supplierPaymentTreasuryAccountId || null,
         reference: supplierPaymentReference.trim() || null,
         notes: supplierPaymentNotes.trim() || null,
         expected_purchase_version: supplierPaymentPurchase.version ?? 1,
@@ -624,6 +628,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       setSupplierPaymentAmount("");
       setSupplierPaymentReference("");
       setSupplierPaymentNotes("");
+      setSupplierPaymentTreasuryAccountId("");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] }),
         queryClient.invalidateQueries({ queryKey: ["commercial", "supplier-statement", selectedSupplierId] }),
@@ -2408,10 +2413,11 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                   <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); if (parseTndInputToMillimes(supplierPaymentAmount) > 0) recordSupplierPayment.mutate(); }}>
                     <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "مبلغ الخلاص" : "Montant du paiement"}<input required inputMode="decimal" value={supplierPaymentAmount} onChange={(event) => setSupplierPaymentAmount(event.target.value)} placeholder="0,000" className="h-10 rounded-xl border bg-white px-3"/></label>
                     <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "تاريخ الخلاص" : "Date du paiement"}<input required type="date" value={supplierPaymentDate} onChange={(event) => setSupplierPaymentDate(event.target.value)} className="h-10 rounded-xl border bg-white px-3"/></label>
-                    <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "طريقة الدفع" : "Mode de paiement"}<select value={supplierPaymentMethod} onChange={(event) => setSupplierPaymentMethod(event.target.value as "CASH" | "BANK_TRANSFER" | "CHEQUE")} className="h-10 rounded-xl border bg-white px-3"><option value="CASH">{lang === "ar" ? "نقداً" : "Espèces"}</option><option value="BANK_TRANSFER">{lang === "ar" ? "تحويل بنكي" : "Virement bancaire"}</option><option value="CHEQUE">{lang === "ar" ? "صك" : "Chèque"}</option></select></label>
+                    <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "طريقة الدفع" : "Mode de paiement"}<select value={supplierPaymentMethod} onChange={(event) => { setSupplierPaymentMethod(event.target.value as "CASH" | "BANK_TRANSFER" | "CHEQUE"); setSupplierPaymentTreasuryAccountId(""); }} className="h-10 rounded-xl border bg-white px-3"><option value="CASH">{lang === "ar" ? "نقداً" : "Espèces"}</option><option value="BANK_TRANSFER">{lang === "ar" ? "تحويل بنكي" : "Virement bancaire"}</option><option value="CHEQUE">{lang === "ar" ? "صك" : "Chèque"}</option></select></label>
+                    {supplierTreasuryAccounts.isLoading ? <div className="text-sm text-muted-foreground">{lang === "ar" ? "جار تحميل حسابات الخزينة..." : "Chargement des comptes de trésorerie..."}</div> : supplierTreasuryAccounts.isError ? <div className="text-sm text-rose-700">{lang === "ar" ? "تعذر تحميل حسابات الخزينة. أعد المحاولة قبل تسجيل الدفع." : "Impossible de charger les comptes de trésorerie. Réessayez avant d’enregistrer le paiement."}</div> : (supplierTreasuryAccounts.data?.accounts ?? []).length > 0 ? <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "حساب الخزينة" : "Compte de trésorerie"}<select required value={supplierPaymentTreasuryAccountId} onChange={(event) => setSupplierPaymentTreasuryAccountId(event.target.value)} className="h-10 rounded-xl border bg-white px-3"><option value="">{lang === "ar" ? "اختر الحساب" : "Choisir un compte"}</option>{supplierTreasuryChoices.map((account: AnyRecord) => <option key={account.id} value={account.id}>{account.name} · {account.account_type === "CASH" ? (lang === "ar" ? "صندوق" : "Caisse") : (lang === "ar" ? "بنك" : "Banque")}</option>)}</select></label> : <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2">{lang === "ar" ? "لم تُنشأ حسابات خزينة بعد. يمكن تسجيل الدفع مؤقتاً دون تخصيص، وسيبقى غير مربوط في التسوية المحاسبية." : "Aucun compte de trésorerie n’est configuré. Le paiement peut être enregistré sans affectation et restera non affecté dans le rapprochement."}</div>}
                     <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "مرجع التحويل أو الصك" : "Référence du virement ou chèque"}<input value={supplierPaymentReference} onChange={(event) => setSupplierPaymentReference(event.target.value)} className="h-10 rounded-xl border bg-white px-3"/></label>
                     <label className="grid gap-1 text-sm font-medium md:col-span-2">{l.notes}<input value={supplierPaymentNotes} onChange={(event) => setSupplierPaymentNotes(event.target.value)} className="h-10 rounded-xl border bg-white px-3"/></label>
-                    <div className="flex gap-2 md:col-span-2"><Button type="submit" disabled={recordSupplierPayment.isPending || parseTndInputToMillimes(supplierPaymentAmount) <= 0 || ((supplierPaymentMethod === "BANK_TRANSFER" || supplierPaymentMethod === "CHEQUE") && !supplierPaymentReference.trim())}>{lang === "ar" ? "تأكيد الخلاص" : "Valider le paiement"}</Button><Button type="button" variant="outline" onClick={() => setSupplierPaymentPurchase(null)}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button></div>
+                    <div className="flex gap-2 md:col-span-2"><Button type="submit" disabled={recordSupplierPayment.isPending || supplierTreasuryAccounts.isLoading || supplierTreasuryAccounts.isError || parseTndInputToMillimes(supplierPaymentAmount) <= 0 || ((supplierPaymentMethod === "BANK_TRANSFER" || supplierPaymentMethod === "CHEQUE") && !supplierPaymentReference.trim()) || ((supplierTreasuryAccounts.data?.accounts ?? []).length > 0 && !supplierPaymentTreasuryAccountId) || ((supplierTreasuryAccounts.data?.accounts ?? []).length > 0 && supplierTreasuryChoices.length === 0)}>{lang === "ar" ? "تأكيد الخلاص" : "Valider le paiement"}</Button><Button type="button" variant="outline" onClick={() => setSupplierPaymentPurchase(null)}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button></div>
                   </form>
                 </CardContent>
               </Card>}
@@ -2429,7 +2435,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                     <TableCell className="text-end font-semibold text-rose-700">{purchase.status === "APPROVED" ? money(supplierStatement.data?.purchase_balances?.find((balance: AnyRecord) => balance.purchase_id === purchase.id)?.outstanding_tnd ?? purchase.total_amount_dt) : "—"}</TableCell>
                     <TableCell>{purchase.status === "APPROVED" ? l.approved : purchase.status === "CANCELLED" ? (lang === "ar" ? "ملغى" : "Annulé") : l.draft}</TableCell>
                     <TableCell className="text-center">{purchase.status === "APPROVED" ? <Button type="button" size="sm" variant="outline" onClick={() => { setSelectedPurchaseReceipt(purchase); selectTab("purchases"); }}><Printer className="mr-1 size-4" />{lang === "ar" ? "عرض الوصل" : "Voir le bon"}</Button> : "—"}</TableCell>
-                    <TableCell className="text-center">{isAdmin && purchase.status === "APPROVED" && Number(supplierStatement.data?.purchase_balances?.find((balance: AnyRecord) => balance.purchase_id === purchase.id)?.outstanding_tnd ?? purchase.total_amount_dt) > 0 ? <Button type="button" size="sm" onClick={() => { setSupplierPaymentPurchase(purchase); setSupplierPaymentAmount(""); setSupplierPaymentDate(new Date().toISOString().slice(0,10)); setSupplierPaymentMethod("CASH"); setSupplierPaymentReference(""); setSupplierPaymentNotes(""); }}>{lang === "ar" ? "تسجيل خلاص" : "Payer"}</Button> : purchase.status === "APPROVED" ? <span className="text-xs font-semibold text-emerald-700">{lang === "ar" ? "مدفوع" : "Payé"}</span> : "—"}</TableCell>
+                    <TableCell className="text-center">{isAdmin && purchase.status === "APPROVED" && Number(supplierStatement.data?.purchase_balances?.find((balance: AnyRecord) => balance.purchase_id === purchase.id)?.outstanding_tnd ?? purchase.total_amount_dt) > 0 ? <Button type="button" size="sm" onClick={() => { setSupplierPaymentPurchase(purchase); setSupplierPaymentAmount(""); setSupplierPaymentDate(new Date().toISOString().slice(0,10)); setSupplierPaymentMethod("CASH"); setSupplierPaymentReference(""); setSupplierPaymentNotes(""); setSupplierPaymentTreasuryAccountId(""); }}>{lang === "ar" ? "تسجيل خلاص" : "Payer"}</Button> : purchase.status === "APPROVED" ? <span className="text-xs font-semibold text-emerald-700">{lang === "ar" ? "مدفوع" : "Payé"}</span> : "—"}</TableCell>
                   </TableRow>)}
                   {!selectedSupplierPurchases.length && <EmptyRow colSpan={11} text={l.noRows}/>}
                 </TableBody></Table></div>
@@ -2441,7 +2447,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                 </TableRow></TableHeader><TableBody>
                   {(supplierStatement.data?.entries ?? []).map((entry: AnyRecord) => <TableRow key={entry.document_number}>
                     <TableCell className="text-xs" dir="ltr">{date(entry.date)}</TableCell><TableCell className="font-mono font-semibold">{purchaseCodeDisplay(entry.document_number)}</TableCell>
-                    <TableCell>{entry.entry_type === "PURCHASE" ? (lang === "ar" ? "شراء زيتون" : "Achat d’olives") : <span className="font-semibold text-emerald-700">{lang === "ar" ? "خلاص" : "Paiement"} · {paymentMethodLabel(entry.method)}</span>}</TableCell>
+                    <TableCell>{entry.entry_type === "PURCHASE" ? (lang === "ar" ? "شراء زيتون" : "Achat d’olives") : <span className="font-semibold text-emerald-700">{lang === "ar" ? "خلاص" : "Paiement"} · {paymentMethodLabel(entry.method)}{entry.treasury_account_id ? ` · ${(supplierTreasuryAccounts.data?.accounts ?? []).find((account: AnyRecord) => account.id === entry.treasury_account_id)?.name ?? entry.treasury_account_id}` : ""}</span>}</TableCell>
                     <TableCell className={`text-end font-semibold ${entry.entry_type === "PAYMENT" ? "text-emerald-700" : "text-stone-900"}`}>{money(entry.amount_tnd)}</TableCell><TableCell className="text-end font-bold text-rose-700">{money(entry.balance_tnd)}</TableCell>
                   </TableRow>)}
                   {!(supplierStatement.data?.entries ?? []).length && <EmptyRow colSpan={5} text={l.noRows}/>}
