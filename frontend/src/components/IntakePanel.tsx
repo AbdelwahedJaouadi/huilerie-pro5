@@ -81,6 +81,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [grossKg, setGrossKg] = useState("");
   const [tareKg, setTareKg] = useState("");
   const [created, setCreated] = useState<Load | null>(null);
+  const loadRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
@@ -164,6 +165,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     mutationFn: (b: LoadCreate) => apiPost<Load>("/loads", b),
     onSuccess: (l) => {
       setCreated(l);
+      loadRequestRef.current = null;
       setName("");
       setPhone("");
       setKg("");
