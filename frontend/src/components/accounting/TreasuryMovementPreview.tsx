@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiGet, apiPost } from "@/lib/api";
 import { useI18n, fmtMoney } from "@/lib/i18n";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Candidate = {
@@ -11,6 +11,7 @@ type Candidate = {
   payment_method?: string | null; amount?: string | null; currency?: string | null;
   eligibility: "ELIGIBLE_FOR_REVIEW" | "BLOCKED";
   blocking_reasons: string[]; warnings: string[]; proposal_status: "PREVIEW_ONLY";
+  recorded_movement_id?: string | null; settlement_status?: string | null; recorded_at?: string | null;
 };
 type Preview = {
   candidates: Candidate[];
@@ -46,9 +47,11 @@ const money = (value:string|null|undefined) => {
   const [whole,fraction="000"] = value.split(".");
   return `${fmtMoney(whole)}.${fraction.padEnd(3,"0").slice(0,3)}`;
 };
+type Movement = {id:string; settlement_status:string; source_type:string; source_id:string};
 export default function TreasuryMovementPreview() {
-  const {lang}=useI18n(); const ar=lang==="ar";
+  const {lang}=useI18n(); const ar=lang==="ar"; const qc=useQueryClient();
   const query=useQuery({queryKey:["accounting-treasury-movement-preview"],queryFn:()=>apiGet<Preview>("/accounting/treasury/movement-preview?limit=200"),staleTime:15000});
+  const recordMovement=useMutation({mutationFn:(row:Candidate)=>apiPost<Movement>("/accounting/treasury/movements",{source_type:row.source_type,source_id:row.source_id,confirm:true}),onSuccess:()=>void qc.invalidateQueries({queryKey:["accounting-treasury-movement-preview"]})});
   if(query.isPending) return <p className="p-4 text-sm text-stone-500">{ar?"جارٍ إعداد معاينة حركات الخزينة…":"Préparation de l’aperçu des mouvements…"}</p>;
   if(query.isError||!query.data) return <Card className="border-red-200"><CardContent className="flex items-center gap-3 p-4 text-red-800"><AlertTriangle className="size-5"/>{ar?"تعذّر تحميل المعاينة.":"Impossible de charger l’aperçu."}<button onClick={()=>void query.refetch()} className="ms-auto inline-flex items-center gap-2 rounded-lg border px-3 py-2"><RefreshCw className="size-4"/>{ar?"إعادة المحاولة":"Réessayer"}</button></CardContent></Card>;
   const data=query.data;
