@@ -141,7 +141,7 @@ export default function CommercialFactures({ initialInvoiceId = "" }: { initialI
   const treasuryAccountsQuery = useQuery({ queryKey: ["accounting", "treasury", "accounts"], queryFn: () => apiGet<{accounts: TreasuryAccount[]}>("/accounting/treasury/accounts"), enabled: isAdmin, staleTime: 10000 });
   const activeTreasuryAccounts = (treasuryAccountsQuery.data?.accounts ?? []).filter(account => account.active);
   const matchingTreasuryAccounts = activeTreasuryAccounts.filter(account => account.account_type === (paymentMethod === "CASH" ? "CASH" : "BANK"));
-  const treasuryDirectoryConfigured = activeTreasuryAccounts.length > 0;
+  const treasuryDirectoryConfigured = (treasuryAccountsQuery.data?.accounts ?? []).length > 0;
   const notesQuery = useQuery({ queryKey: ["commercial", "factures", "credit-notes"], queryFn: () => page<Row>("/commercial/v1/credit-notes?limit=500"), enabled: mode !== "invoices" });
   const buyers = buyersQuery.data ?? [];
   const invoices = invoicesQuery.data ?? [];

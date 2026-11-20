@@ -361,7 +361,7 @@ async def record_sale_payment(
             raise ValueError("Payment method does not match the selected treasury account type")
         if treasury_account.get("currency") != "TND":
             raise ValueError("Selected treasury account currency is not TND")
-    elif await db["accounting_treasury_accounts"].count_documents({"active": True}, session=session):
+    elif await db["accounting_treasury_accounts"].count_documents({}, session=session):
         raise ValueError("Select an active cash or bank account before recording this payment")
     await assert_invoice_receivable_fields_reconcile(db, invoice, session=session)
     outstanding = invoice["outstanding_amount_dt"].to_decimal()
