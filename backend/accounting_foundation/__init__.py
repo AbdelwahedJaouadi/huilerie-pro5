@@ -23,7 +23,10 @@ __all__ = [
     "adapt_traditional_invoice",
     "adapt_traditional_invoice_payments",
     "build_candidate_envelope",
+    "build_reconciliation_preview",
     "canonical_decimal",
     "candidate_key",
     "source_fingerprint",
 ]
+
+from .preview import build_reconciliation_preview
