@@ -1331,6 +1331,7 @@ async def test_return_acceptance_issues_credit_note_and_tracks_buyer_credit_with
              "method": "CASH", "idempotency_scope": "2627:test",
              "idempotency_key": "payment-credit-partial-key", "created_at": now},
         ])
+        payment_count_before_acceptance = await db.commercial_sale_payments.count_documents({})
         await db.commercial_sale_returns.insert_many([
             {"id": "return-credit-paid", "season_code": "2627", "document_number": "2627RET0001",
              "sale_id": "sale-credit-paid", "invoice_id": "invoice-credit-paid",
@@ -1404,7 +1405,7 @@ async def test_return_acceptance_issues_credit_note_and_tracks_buyer_credit_with
         accepted = await db.commercial_sale_returns.find_one({"id": "return-credit-paid"})
         assert accepted["commercial_acceptance_status"] == "ACCEPTED"
         assert accepted["credit_note_id"] == "credit-note-paid"
-        assert await db.commercial_sale_payments.count_documents({}) == 0
+        assert await db.commercial_sale_payments.count_documents({}) == payment_count_before_acceptance
     finally:
         await client.drop_database(db_name)
         client.close()
