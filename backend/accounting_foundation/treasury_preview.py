@@ -109,6 +109,7 @@ def build_treasury_movement_preview(
     sale_invoices: Iterable[dict[str, Any]] = (),
     supplier_purchases: Iterable[dict[str, Any]] = (),
     treasury_accounts: Iterable[dict[str, Any]] = (),
+    traditional_receipts: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """Compose bounded source rows into non-posting treasury movement proposals."""
     account_rows = list(treasury_accounts)
@@ -149,6 +150,25 @@ def build_treasury_movement_preview(
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
         candidates.append(candidate)
+    for row in traditional_receipts:
+        candidate = _candidate(
+            source_type="TRADITIONAL_RECEIPT", source=row, amount_field="amount",
+            date_field="at", direction="IN", party_field="client_id", accounts=accounts,
+        )
+        if not row.get("id"):
+            unresolved.append({
+                "source_type": "TRADITIONAL_RECEIPT",
+                "source_id": row.get("invoice_id") or "MISSING",
+                "reason": "PAYMENT_CHILD_ID_MISSING",
+                "detail": "Legacy invoice payment has no stable child event ID; no ID is inferred.",
+            })
+            continue
+        candidate["source_document_number"] = row.get("invoice_number")
+        if candidate["blocking_reasons"]:
+            candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
+            candidate["eligibility"] = "BLOCKED"
+        candidates.append(candidate)
+
     for row in sale_reversals:
         source_id = str(row.get("id") or "MISSING")
         unresolved.append({
@@ -184,5 +204,5 @@ def build_treasury_movement_preview(
         "movement_creation_enabled": True,
         "opening_balances_used": False,
         "currency": "TND",
-        "basis": "GS_PAYMENT_DOCUMENTS_ONLY",
+        "basis": "GS_AND_TRADITIONAL_PAYMENT_DOCUMENTS",
     }
