@@ -878,6 +878,8 @@ async def get_supplier_payable_statement(
             "purchase_id": payment.get("purchase_id"),
             "method": payment.get("method"),
             "reference": payment.get("reference"),
+            "treasury_account_id": payment.get("treasury_account_id"),
+            "treasury_allocation_status": payment.get("treasury_allocation_status"),
             "_sort": 1,
         })
     entries.sort(key=lambda item: (item["date"], item["_sort"], item.get("document_number") or ""))
