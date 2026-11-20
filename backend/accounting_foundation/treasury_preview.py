@@ -181,7 +181,7 @@ def build_treasury_movement_preview(
         },
         "read_only": True,
         "database_writes": False,
-        "movement_creation_enabled": False,
+        "movement_creation_enabled": True,
         "opening_balances_used": False,
         "currency": "TND",
         "basis": "GS_PAYMENT_DOCUMENTS_ONLY",
