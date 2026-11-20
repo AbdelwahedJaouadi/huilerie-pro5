@@ -113,7 +113,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const supplierPurchases = (supplierPurchasesQuery.data ?? []).filter((purchase) => purchase.supplier_id === supplierId);
   const oliveLocations = locationsQuery.data ?? [];
   const chosenLocationId = supplierLocationId || oliveLocations.find((location) => /réception|reception|receiving/i.test((location.name || "") + " " + (location.code || "")))?.id || "";
-  const parseSupplierKg = (value: string) => value.trim() === "" ? Number.NaN : Number(value.replace(/\\s/g, "").replace(",", "."));
+  const parseSupplierKg = (value: string) => value.trim() === "" ? Number.NaN : Number(value.replace(/\s/g, "").replace(",", "."));
   const supplierGrossValue = parseSupplierKg(supplierGrossKg);
   const supplierTareValue = parseSupplierKg(supplierTareKg);
   const supplierHasGross = supplierGrossKg.trim() !== "";
