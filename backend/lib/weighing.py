@@ -36,6 +36,11 @@ def _weight_decimal(value: Any, field_name: str) -> Decimal:
     return quantized
 
 
+def validate_weight_kg(value: Any, field_name: str = "olive_weight") -> Decimal:
+    """Validate a standalone kg reading without accepting booleans or rounding."""
+    return _weight_decimal(value, field_name)
+
+
 def derive_net_weight_kg(gross_weight: Any, tare_weight: Any) -> Decimal:
     """Return net kg from validated gross/tare readings; never accept client net."""
     gross = _weight_decimal(gross_weight, "gross_weight")
