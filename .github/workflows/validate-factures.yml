@@ -171,6 +171,7 @@ jobs:
       - name: Verify commercial transaction and custody/accounting invariants on a real replica set
         run: |
           python -m pytest -o addopts= \
+            tests/test_load_intake_idempotency_mongodb.py \
             commercial/tests/test_mongodb_transaction_integration.py \
             commercial/tests/test_mongodb_production_integration.py \
             commercial/tests/test_mongodb_quality_separation.py \
