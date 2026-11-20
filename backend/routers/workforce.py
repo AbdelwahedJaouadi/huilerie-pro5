@@ -164,10 +164,10 @@ async def correct_attendance(
     changes = {}
     if body.status is not None:
         changes["status"] = body.status
-    if body.check_in_at is not None:
-        changes["check_in_at"] = body.check_in_at.astimezone(timezone.utc) if body.check_in_at.tzinfo else body.check_in_at.replace(tzinfo=timezone.utc)
-    if body.check_out_at is not None:
-        changes["check_out_at"] = body.check_out_at.astimezone(timezone.utc) if body.check_out_at.tzinfo else body.check_out_at.replace(tzinfo=timezone.utc)
+    if "check_in_at" in body.model_fields_set:
+        changes["check_in_at"] = (body.check_in_at.astimezone(timezone.utc) if body.check_in_at and body.check_in_at.tzinfo else body.check_in_at.replace(tzinfo=timezone.utc) if body.check_in_at else None)
+    if "check_out_at" in body.model_fields_set:
+        changes["check_out_at"] = (body.check_out_at.astimezone(timezone.utc) if body.check_out_at and body.check_out_at.tzinfo else body.check_out_at.replace(tzinfo=timezone.utc) if body.check_out_at else None)
     check_in = changes.get("check_in_at", record.get("check_in_at"))
     check_out = changes.get("check_out_at", record.get("check_out_at"))
     status = changes.get("status", record.get("status"))
