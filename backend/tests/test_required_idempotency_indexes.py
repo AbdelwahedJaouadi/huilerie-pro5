@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 import pytest
 
 import lib.db as db_module
@@ -11,18 +9,22 @@ class FailingCollection:
 
 
 class FakeDatabase:
+    def __init__(self, failing_collection):
+        self.failing_collection = failing_collection
+
     def __getitem__(self, name):
-        assert name == "load_intake_idempotency"
+        assert name == self.failing_collection
         return FailingCollection()
 
 
+@pytest.mark.parametrize("collection", sorted(db_module.REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS))
 @pytest.mark.asyncio
-async def test_required_idempotency_index_failure_fails_closed(monkeypatch):
-    monkeypatch.setattr(db_module, "db", FakeDatabase())
+async def test_required_idempotency_index_failure_fails_closed(monkeypatch, collection):
+    monkeypatch.setattr(db_module, "db", FakeDatabase(collection))
     monkeypatch.setattr(
         db_module,
         "INDEXES",
-        {"load_intake_idempotency": db_module.INDEXES["load_intake_idempotency"]},
+        {collection: db_module.INDEXES[collection]},
     )
 
     with pytest.raises(RuntimeError, match="Required idempotency index unavailable"):
