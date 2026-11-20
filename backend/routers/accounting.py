@@ -499,7 +499,7 @@ async def list_treasury_movements(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     total_count = await db.accounting_treasury_movements.count_documents(match)
     rows = await db.accounting_treasury_movements.find(match, {"_id": 0}).sort(
-        [("movement_date", -1), ("id", -1)]
+        [("movement_date", -1), ("id", 1)]
     ).skip(offset).limit(limit).to_list(length=limit)
     return {
         "rows": _safe(rows),
