@@ -14,6 +14,7 @@ on:
       - audit/erp-foundation
       - feature/vehicle-weighing-foundation
       - erp/treasury-movement-preview-phase-10
+      - erp/treasury-explicit-movement-recording-phase-11
   pull_request:
     branches:
       - main
@@ -72,6 +73,7 @@ jobs:
           tests/test_gs_supplier_payment_treasury_allocation.py
           tests/test_treasury_accounts.py
           tests/test_treasury_movement_preview.py
+          tests/test_treasury_movement_recording.py
 
   vehicle-weighing-tests:
     runs-on: ubuntu-latest
