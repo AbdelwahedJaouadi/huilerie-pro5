@@ -189,7 +189,7 @@ export interface ScaleConfig {
 }
 
 export interface AppSettings extends MillInfo {
-  scale_config: ScaleConfig;
+  scale_config?: ScaleConfig;
   pump_system_enabled: boolean;
   pumps: PumpConfig[];
   price_per_kg: number;
