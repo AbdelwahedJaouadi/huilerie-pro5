@@ -70,6 +70,7 @@ jobs:
           tests/test_gs_sales_treasury_allocation.py
           tests/test_gs_supplier_payment_treasury_allocation.py
           tests/test_treasury_accounts.py
+          tests/test_treasury_movement_preview.py
 
   vehicle-weighing-tests:
     runs-on: ubuntu-latest
