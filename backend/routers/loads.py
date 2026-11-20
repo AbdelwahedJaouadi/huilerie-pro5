@@ -156,11 +156,9 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
             "phone": doc.get("phone"), "initial_status": body.initial_status,
-            "weight_measurement": ({
-                "gross_kg": str(body.gross_weight_kg),
-                "tare_kg": str(body.tare_weight_kg), "net_kg": str(net_kg),
-                "source": "manual",
-            } if body.gross_weight_kg is not None else None),
+            "weight_measurement": weight_measurement_audit_snapshot(
+                doc.get("weight_measurement")
+            ),
         }, session=session)
 
     await run_transaction(operation)
