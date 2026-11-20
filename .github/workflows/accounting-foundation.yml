@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install focused test dependencies
-        run: python -m pip install pytest pytest-xdist httpx pytest-asyncio
+        run: python -m pip install fastapi pymongo motor python-dotenv pyjwt passlib pytest pytest-xdist httpx pytest-asyncio
       - name: Run accounting foundation and source adapter tests
         run: >-
           python -m pytest
