@@ -97,6 +97,7 @@ INDEXES.update({
 REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
     "load_intake_idempotency",
     "commercial_olive_reception_idempotency",
+    "accounting_treasury_movements",
 })
 
 
