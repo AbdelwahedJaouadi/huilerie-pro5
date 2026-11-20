@@ -7,6 +7,7 @@ are separate PAYMENT_MADE events and are never purchase-expense events.
 from __future__ import annotations
 
 from datetime import date, datetime
+from collections import Counter
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Iterable
 
@@ -196,6 +197,10 @@ def adapt_gs_olive_purchase(
 
     lots_by_id = {_id(item): item for item in lot_rows if isinstance(item, dict) and _id(item)}
     movements_by_id = {_id(item): item for item in movement_rows if isinstance(item, dict) and _id(item)}
+    if len(lots_by_id) != len(lot_rows):
+        blockers.append("DUPLICATE_OR_INVALID_PURCHASE_LOT_DOCUMENT_ID")
+    if len(movements_by_id) != len(movement_rows):
+        blockers.append("DUPLICATE_OR_INVALID_PURCHASE_MOVEMENT_DOCUMENT_ID")
     lot_quantity = Decimal("0")
     movement_quantity = Decimal("0")
     matched_lot_ids: set[str] = set()
@@ -317,6 +322,10 @@ def adapt_gs_supplier_payments(
     purchase_paid = _decimal(purchase.get("paid_amount_dt", "0"))
     outstanding = _decimal(purchase.get("outstanding_amount_dt", purchase_total - purchase_paid))
     payment_rows = list(payments)
+    payment_id_counts = Counter(
+        _id(item) for item in payment_rows
+        if isinstance(item, dict) and _id(item)
+    )
     candidates: list[dict[str, Any]] = []
     unresolved: list[dict[str, Any]] = []
     paid_total = Decimal("0")
@@ -348,6 +357,8 @@ def adapt_gs_supplier_payments(
             ))
             all_payment_amounts_complete = False
             continue
+        if payment_id_counts.get(payment_id, 0) > 1:
+            blockers.append("DUPLICATE_SUPPLIER_PAYMENT_ID")
         if payment.get("purchase_id") != purchase_id:
             blockers.append("PAYMENT_PURCHASE_LINK_MISMATCH")
         if not supplier_id or payment.get("supplier_id") != supplier_id:
