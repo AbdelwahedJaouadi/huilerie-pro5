@@ -147,6 +147,62 @@ class OliveReceptionPurchaseCommand(BaseModel):
         return self
 
 
+def _canonical_reception_decimal(value: Decimal | None) -> str | None:
+    return format(value.normalize(), "f") if value is not None else None
+
+
+def _normalize_reception_phone(value: str | None) -> str | None:
+    return re.sub(r"\s+", "", value).strip() if value and value.strip() else None
+
+
+def _olive_reception_command_fingerprint(command: OliveReceptionPurchaseCommand) -> str:
+    """Hash every normalized field that can change the supplier reception result."""
+    normalized_supplier_name = (
+        " ".join(command.new_supplier_name.casefold().split())
+        if command.new_supplier_name else None
+    )
+    payload = {
+        "supplier_id": command.supplier_id,
+        "new_supplier_name": normalized_supplier_name,
+        "new_supplier_phone": _normalize_reception_phone(command.new_supplier_phone),
+        "new_supplier_tax_identifier": command.new_supplier_tax_identifier.strip().upper()
+        if command.new_supplier_tax_identifier and command.new_supplier_tax_identifier.strip() else None,
+        "purchase_date": command.purchase_date.isoformat(),
+        "lines": [
+            {
+                "variety_id": line.variety_id,
+                "quantity_kg": _canonical_reception_decimal(line.quantity_kg),
+                "unit_price_millimes": _canonical_reception_decimal(line.unit_price_millimes),
+            }
+            for line in command.lines
+        ],
+        "receiving_location_id": command.receiving_location_id,
+        "notes": command.notes.strip() if command.notes and command.notes.strip() else None,
+        "gross_weight_kg": _canonical_reception_decimal(command.gross_weight_kg),
+        "tare_weight_kg": _canonical_reception_decimal(command.tare_weight_kg),
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _load_olive_reception_result(record: dict, session=None) -> dict:
+    options = {"session": session} if session is not None else {}
+    purchase = await db.commercial_olive_purchases.find_one(
+        {"id": record.get("purchase_id")}, {"_id": 0}, **options
+    )
+    supplier = await db.commercial_suppliers.find_one(
+        {"id": record.get("supplier_id")}, {"_id": 0}, **options
+    )
+    if not purchase or not supplier:
+        raise HTTPException(409, "olive_reception_idempotency_source_missing")
+    return {
+        "purchase": purchase,
+        "supplier": supplier,
+        "receipt_status": "RECEIVED",
+        "batch_code": purchase.get("batch_code"),
+    }
+
+
 class DirectOliveLoadPurchaseCommand(BaseModel):
     """Buy one complete legacy Oro Verde olive load directly into GS."""
     source_load_id: str = Field(min_length=1, max_length=100)
