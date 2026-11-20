@@ -35,8 +35,8 @@ def test_load_intake_fingerprint_normalizes_phone_and_decimal_scale():
     first_net = derive_net_weight_kg(first.gross_weight_kg, first.tare_weight_kg)
     second_net = derive_net_weight_kg(second.gross_weight_kg, second.tare_weight_kg)
 
-    assert loads._load_intake_fingerprint(first, re.sub(r"\\s+", "", first.phone), first_net) == (
-        loads._load_intake_fingerprint(second, re.sub(r"\\s+", "", second.phone), second_net)
+    assert loads._load_intake_fingerprint(first, re.sub(r"\s+", "", first.phone), first_net) == (
+        loads._load_intake_fingerprint(second, re.sub(r"\s+", "", second.phone), second_net)
     )
 
 
@@ -68,7 +68,7 @@ class FakeCollection:
 @pytest.mark.asyncio
 async def test_same_key_and_same_payload_replays_original_load_without_creating_another():
     body = _body()
-    phone = re.sub(r"\\s+", "", body.phone)
+    phone = re.sub(r"\s+", "", body.phone)
     net = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg)
     fingerprint = loads._load_intake_fingerprint(body, phone, net)
     record = {
@@ -97,7 +97,7 @@ async def test_same_key_and_same_payload_replays_original_load_without_creating_
 @pytest.mark.asyncio
 async def test_same_key_with_changed_payload_returns_conflict():
     body = _body()
-    phone = re.sub(r"\\s+", "", body.phone)
+    phone = re.sub(r"\s+", "", body.phone)
     net = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg)
     record = {
         "actor_user_id": "worker-1",
