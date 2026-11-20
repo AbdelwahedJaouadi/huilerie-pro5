@@ -127,6 +127,11 @@ class OliveReceptionPurchaseCommand(BaseModel):
     gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
     tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
 
+    @field_validator("idempotency_key")
+    @classmethod
+    def normalize_idempotency_key(cls, value):
+        return value.strip()
+
     @field_validator("gross_weight_kg", "tare_weight_kg", mode="before")
     @classmethod
     def validate_raw_vehicle_reading(cls, value, info):
