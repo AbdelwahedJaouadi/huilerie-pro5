@@ -6,6 +6,8 @@ or collection is modified here.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import uuid
@@ -1757,6 +1759,20 @@ async def create_olive_reception_purchase(
 ):
     """Create supplier (when requested), purchase, traceability lot and stock receipt in one transaction."""
     _authorize(user, "commercial.register_olive_purchase")
+    actor_id = str(user["id"])
+    request_fingerprint = _olive_reception_command_fingerprint(command)
+    idempotency_query = {
+        "actor_user_id": actor_id,
+        "idempotency_key": command.idempotency_key.strip(),
+    }
+    prior = await db.commercial_olive_reception_idempotency.find_one(
+        idempotency_query, {"_id": 0}
+    )
+    if prior:
+        if prior.get("request_fingerprint") != request_fingerprint:
+            raise HTTPException(409, "olive_reception_idempotency_payload_conflict")
+        return _safe(await _load_olive_reception_result(prior))
+
     season, season_code = await _require_commercial_ready()
     if season_of(command.purchase_date.isoformat()) != season:
         raise HTTPException(422, "purchase_date_outside_active_season")
@@ -1789,6 +1805,14 @@ async def create_olive_reception_purchase(
     )
 
     async def operation(session):
+        prior = await db.commercial_olive_reception_idempotency.find_one(
+            idempotency_query, {"_id": 0}, session=session
+        )
+        if prior:
+            if prior.get("request_fingerprint") != request_fingerprint:
+                raise ValueError("olive_reception_idempotency_payload_conflict")
+            return await _load_olive_reception_result(prior, session=session)
+
         supplier_id = command.supplier_id
         if command.new_supplier_name:
             normalized_name = " ".join(command.new_supplier_name.casefold().split())
@@ -1802,6 +1826,15 @@ async def create_olive_reception_purchase(
                 )
                 if existing_supplier.get("id") != supplier_id:
                     raise ValueError("commercial_supplier_name_exists")
+                if (
+                    _normalize_reception_phone(existing_supplier.get("phone"))
+                    != _normalize_reception_phone(command.new_supplier_phone)
+                    or (
+                        (existing_supplier.get("tax_identifier") or "").strip().upper()
+                        != (command.new_supplier_tax_identifier or "").strip().upper()
+                    )
+                ):
+                    raise ValueError("olive_reception_supplier_metadata_conflict")
             else:
                 supplier_doc = {
                     "id": supplier_id, "name": command.new_supplier_name.strip(),
@@ -1834,11 +1867,28 @@ async def create_olive_reception_purchase(
         supplier = await db.commercial_suppliers.find_one(
             {"id": supplier_id}, {"_id": 0}, session=session
         )
-        return {"purchase": approved, "supplier": supplier,
-                "receipt_status": "RECEIVED", "batch_code": approved.get("batch_code")}
+        result = {"purchase": approved, "supplier": supplier,
+                  "receipt_status": "RECEIVED", "batch_code": approved.get("batch_code")}
+        await db.commercial_olive_reception_idempotency.insert_one({
+            **idempotency_query,
+            "request_fingerprint": request_fingerprint,
+            "purchase_id": approved["id"],
+            "supplier_id": supplier_id,
+            "created_at": now,
+        }, session=session)
+        return result
 
     try:
         return _safe(await run_transaction(operation))
+    except DuplicateKeyError as exc:
+        prior = await db.commercial_olive_reception_idempotency.find_one(
+            idempotency_query, {"_id": 0}
+        )
+        if not prior:
+            _raise_domain_error(exc)
+        if prior.get("request_fingerprint") != request_fingerprint:
+            raise HTTPException(409, "olive_reception_idempotency_payload_conflict")
+        return _safe(await _load_olive_reception_result(prior))
     except Exception as exc:
         _raise_domain_error(exc)
 
