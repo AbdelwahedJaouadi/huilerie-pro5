@@ -25,8 +25,12 @@ class AttendanceCorrection(BaseModel):
     reason: str = Field(min_length=5, max_length=500)
 
 
+def _today_tunis() -> Date:
+    return datetime.now(ZoneInfo("Africa/Tunis")).date()
+
+
 def _ensure_today(day: Date):
-    if day != datetime.now(ZoneInfo("Africa/Tunis")).date():
+    if day != _today_tunis():
         raise HTTPException(400, "attendance_actions_today_only")
 
 
@@ -57,7 +61,7 @@ async def _audit(record: dict, action: str, admin: dict, details: dict | None = 
 
 @router.get("/attendance")
 async def list_attendance(day: Date | None = None, _: dict = Depends(require_admin)):
-    selected_day = day or Date.today()
+    selected_day = day or _today_tunis()
     workers = await db.users.find(
         {"role": "worker", "active": True},
         {"_id": 0, "id": 1, "full_name": 1, "username": 1},
@@ -70,7 +74,6 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_adm
 
 @router.post("/attendance/check-in")
 async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin)):
-    _ensure_today(body.day)
     _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
