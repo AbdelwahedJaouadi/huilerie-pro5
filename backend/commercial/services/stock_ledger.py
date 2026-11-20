@@ -108,7 +108,7 @@ async def post_stock_movement(
         require_commercial_permission(actor_user, "commercial.post_stock")
     await validate_stock_references(db, draft, session=session)
     lot_reference = await db["commercial_lots"].find_one(
-        {"id": draft.lot_id}, {"_id": 0, "batch_code": 1}, session=session
+        {"id": draft.lot_id}, {"_id": 0, "id": 1, "batch_code": 1}, session=session
     )
     if not lot_reference:
         raise ValueError("Stock movement lot reference does not exist")
