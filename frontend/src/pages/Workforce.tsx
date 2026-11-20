@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Worker = { id: string; full_name: string; username: string };
+type Worker = { id: string; full_name: string; username: string; active?: boolean };
 type Attendance = {
   id: string; worker_id: string; worker_name: string; day: string;
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
@@ -118,7 +118,7 @@ export default function Workforce() {
       />
       <section className="grid gap-3 sm:grid-cols-4">
         {[
-          { label: ar ? "العمال النشطون" : "Employés actifs", value: workers.length, icon: UserCheck, tone: "bg-sky-50 text-sky-800" },
+          { label: ar ? "العمال النشطون" : "Employés actifs", value: workers.filter((worker) => worker.active !== false).length, icon: UserCheck, tone: "bg-sky-50 text-sky-800" },
           { label: ar ? "حاضرون" : "Présents", value: counts.present, icon: UserCheck, tone: "bg-emerald-50 text-emerald-800" },
           { label: ar ? "انصرفوا" : "Départs enregistrés", value: counts.checkedOut, icon: LogOut, tone: "bg-violet-50 text-violet-800" },
           { label: ar ? "غياب مسجل" : "Absences", value: counts.absent, icon: UserX, tone: "bg-rose-50 text-rose-800" },
@@ -160,7 +160,7 @@ export default function Workforce() {
                   const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
                   const checkedOut = !!record?.check_out_at;
                   return <tr key={worker.id} data-testid={`workforce-row-${worker.id}`} className="border-b border-stone-100 last:border-0">
-                    <td className="px-3 py-4"><div className="font-semibold text-stone-900">{worker.full_name}</div><div dir="ltr" className="text-xs text-stone-500">{worker.username}</div></td>
+                    <td className="px-3 py-4"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-stone-900">{record?.worker_name || worker.full_name}</span>{worker.active === false && <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">{ar ? "حساب معطّل" : "Compte désactivé"}</span>}</div><div dir="ltr" className="text-xs text-stone-500">{worker.username}</div></td>
                     <td className="px-3 py-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${absent ? "bg-rose-100 text-rose-800" : checkedOut ? "bg-violet-100 text-violet-800" : checkedIn ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
                         {absent ? (ar ? "غائب" : "Absent") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل" : "Non pointé")}
@@ -170,9 +170,9 @@ export default function Workforce() {
                     <td className="px-3 py-4 font-mono tabular-nums">{displayTime(record?.check_out_at, locale)}</td>
                     <td className="px-3 py-4">
                       <div className="flex justify-end gap-2">
-                        {!checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkin-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
+                        {worker.active !== false && !checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkin-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
                         {checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkout-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
-                        {!record && <Button size="sm" variant="outline" data-testid={`workforce-absent-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
+                        {worker.active !== false && !record && <Button size="sm" variant="outline" data-testid={`workforce-absent-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
                         {record && <Button size="sm" variant="outline" data-testid={`workforce-edit-${worker.id}`} onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
                       </div>
                     </td>
