@@ -71,3 +71,62 @@ def test_daily_event_keeps_millime_precision_without_float_rounding():
 def test_accounting_decimal_handles_decimal_and_invalid_values():
     assert _accounting_decimal("1.250") == Decimal("1.250")
     assert _accounting_decimal("not-a-number") == Decimal("0.000")
+
+def test_traditional_invoice_itemized_payment_is_not_counted_again_from_history():
+    from routers.accounting import _accounting_decimal, _accounting_day, _daily_event
+
+    invoice = {
+        "number": "FAC-TEST-1",
+        "client_name": "Client test",
+        "paid_amount": "100.000",
+        "payments": [{"amount": "100.000", "at": "2026-11-20T10:00:00+01:00"}],
+        "history": [{
+            "action": "updated",
+            "at": "2026-11-20T10:00:00+01:00",
+            "before": {"paid_amount": "0.000"},
+            "after": {"paid_amount": "100.000"},
+        }],
+    }
+    events = []
+    known_paid = Decimal("0.000")
+    for payment in invoice["payments"]:
+        amount = _accounting_decimal(payment.get("amount"))
+        payment_day = _accounting_day(payment.get("at") or payment.get("date"))
+        if amount > 0 and payment_day:
+            _daily_event(events, day=payment_day, category="Prestation",
+                         label="Encaissement facture", reference=invoice["number"],
+                         amount=amount, kind="receipt", detail=invoice["client_name"])
+            known_paid += amount
+
+    unallocated = max(Decimal("0"), _accounting_decimal(invoice["paid_amount"]) - known_paid)
+    assert len(events) == 1
+    assert events[0]["amount"] == "100.000"
+    assert sum((Decimal(row["amount"]) for row in events), Decimal("0")) == Decimal("100.000")
+    assert unallocated == Decimal("0.000")
+
+
+def test_traditional_invoice_legacy_paid_amount_without_itemized_payment_is_unallocated():
+    from routers.accounting import _accounting_decimal
+
+    invoice = {"paid_amount": "75.000", "payments": [], "history": [{
+        "action": "updated",
+        "at": "2026-11-20T10:00:00+01:00",
+        "before": {"paid_amount": "0.000"},
+        "after": {"paid_amount": "75.000"},
+    }]}
+    known_paid = Decimal("0.000")
+    unallocated = max(Decimal("0"), _accounting_decimal(invoice["paid_amount"]) - known_paid)
+
+    assert unallocated == Decimal("75.000")
+
+
+def test_traditional_invoice_partial_itemized_payments_leave_legacy_remainder_unallocated():
+    from routers.accounting import _accounting_decimal
+
+    invoice = {"paid_amount": "100.000", "payments": [{"amount": "60.000"}]}
+    known_paid = sum((_accounting_decimal(row["amount"]) for row in invoice["payments"]), Decimal("0.000"))
+    unallocated = max(Decimal("0"), _accounting_decimal(invoice["paid_amount"]) - known_paid)
+
+    assert known_paid == Decimal("60.000")
+    assert unallocated == Decimal("40.000")
+
