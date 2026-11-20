@@ -423,7 +423,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const canEditRecords = isAdmin || (permissions.data?.permissions ?? []).includes("commercial.edit_records");
   const canDeleteRecords = isAdmin || (permissions.data?.permissions ?? []).includes("commercial.delete_records");
   const suppliers = useQuery({ queryKey: ["commercial", "suppliers"], queryFn: () => apiGetAllPages<AnyRecord>("/commercial/v1/suppliers", 500), enabled: ready && (tab === "overview" || tab === "procurement" || tab === "sales" || (tab === "stock" && stockView === "chargement")) });
-  const supplierTreasuryAccounts = useQuery({ queryKey: ["accounting", "treasury-accounts"], queryFn: () => apiGet<AnyRecord>("/accounting/treasury/accounts"), enabled: ready && isAdmin && tab === "procurement" && procurementView === "suppliers" });
+  const supplierTreasuryAccounts = useQuery({ queryKey: ["accounting", "treasury-accounts"], queryFn: () => apiGet<{ accounts: AnyRecord[] }>("/accounting/treasury/accounts"), enabled: ready && isAdmin && tab === "procurement" && procurementView === "suppliers" });
   const supplierTreasuryChoices = (supplierTreasuryAccounts.data?.accounts ?? []).filter((account: AnyRecord) => account.active === true && account.currency === "TND" && account.account_type === (supplierPaymentMethod === "CASH" ? "CASH" : "BANK"));
   const supplierStatement = useQuery({
     queryKey: ["commercial", "supplier-statement", selectedSupplierId],
