@@ -118,6 +118,7 @@ class LoadCreate(BaseModel):
     variety: Optional[str] = Field(default=None, max_length=60)
     notes: Optional[str] = Field(default=None, max_length=500)
     initial_status: Literal["pending", "pressing"] = "pending"
+    idempotency_key: Optional[str] = Field(default=None, min_length=16, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
 
     @model_validator(mode="before")
     @classmethod
