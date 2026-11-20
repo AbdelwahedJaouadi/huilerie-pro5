@@ -267,10 +267,15 @@ async def test_concurrent_stock_consumption_cannot_overspend_same_balance():
             "status": "OPEN",
             "owner": {"kind": "MILL"},
         })
-        await db.commercial_olive_purchases.insert_one({
-            "id": "approved-purchase-concurrency",
-            "season_code": "2627",
-            "status": "APPROVED",
+        await db.commercial_production_runs.insert_one({
+            "id": "approved-production-concurrency",
+            "status": "COMPLETED",
+            "owner": {"kind": "MILL"},
+            "inputs": [{
+                "olive_lot_id": "olive-lot-concurrency",
+                "source_location_id": "olive-storage-concurrency",
+                "quantity_kg": Decimal128("80.000"),
+            }],
         })
         await db.commercial_stock_balances.insert_one({
             "product_kind": "OLIVE",
@@ -289,8 +294,8 @@ async def test_concurrent_stock_consumption_cannot_overspend_same_balance():
                 quantity_kg=Decimal("80.000"),
                 source_location_id="olive-storage-concurrency",
                 source_owner=OwnerRef(kind="MILL"),
-                source_document_type="ACH",
-                source_document_id="approved-purchase-concurrency",
+                source_document_type="PROD",
+                source_document_id="approved-production-concurrency",
                 idempotency_key=key,
                 reason="Concurrent overspend integration test",
             )
@@ -409,7 +414,7 @@ async def test_internal_transfer_document_and_ledger_post_atomically():
 
 
 @pytest.mark.asyncio
-async def test_partial_ownership_transfer_splits_one_lot_between_mill_and_customer():
+async def test_ownership_transfer_rejects_mill_to_customer_direction():
     from decimal import Decimal
     from bson.decimal128 import Decimal128
     from commercial.inventory_bootstrap import ensure_inventory_indexes
@@ -455,42 +460,23 @@ async def test_partial_ownership_transfer_splits_one_lot_between_mill_and_custom
             consent_reference="SIGNED-CUSTODY-TRANSFER-001",
             consideration_type="GIFT",
         )
-        async with await client.start_session() as session:
-            result = await session.with_transaction(
-                lambda active: create_internal_movement(
-                    db, draft, season_code="2627",
-                    actor_user={"active": True, "role": "admin"},
-                    actor_user_id="integration-admin",
-                    movement_document_id="internal-ownership-doc-1",
-                    stock_movement_id="stock-ownership-movement-1",
-                    audit_event_id="internal-ownership-audit-1",
-                    created_at=now, session=active,
+        with pytest.raises(ValueError, match="Ownership transfer must move stock from a customer to the mill"):
+            async with await client.start_session() as session:
+                await session.with_transaction(
+                    lambda active: create_internal_movement(
+                        db, draft, season_code="2627",
+                        actor_user={"active": True, "role": "admin"},
+                        actor_user_id="integration-admin",
+                        movement_document_id="internal-ownership-doc-1",
+                        stock_movement_id="stock-ownership-movement-1",
+                        audit_event_id="internal-ownership-audit-1",
+                        created_at=now, session=active,
+                    )
                 )
-            )
-        assert result["document_number"] == "2627INT0001"
-        mill_balance = await db.commercial_stock_balances.find_one({
-            "product_kind": "OLIVE", "lot_id": "olive-lot-split",
-            "owner.kind": "MILL", "location_id": "storage-a",
-        })
-        customer_balance = await db.commercial_stock_balances.find_one({
-            "product_kind": "OLIVE", "lot_id": "olive-lot-split",
-            "owner.kind": "CUSTOMER", "owner.customer_id": "custody-owner-a",
-            "location_id": "storage-a",
-        })
-        assert mill_balance["quantity_kg"].to_decimal() == Decimal("65.000")
-        assert customer_balance["quantity_kg"].to_decimal() == Decimal("35.000")
-        assert (
-            mill_balance["quantity_kg"].to_decimal()
-            + customer_balance["quantity_kg"].to_decimal()
-        ) == Decimal("100.000")
-        movement = await db.commercial_stock_movements.find_one(
-            {"id": "stock-ownership-movement-1"}, {"_id": 0}
-        )
-        assert movement["movement_kind"] == "OWNERSHIP_TRANSFER"
-        assert movement["source_owner"] == {"kind": "MILL"}
-        assert movement["destination_owner"] == {
-            "kind": "CUSTOMER", "customer_id": "custody-owner-a"
-        }
+        assert await db.commercial_internal_movements.count_documents({}) == 0
+        assert await db.commercial_stock_movements.count_documents({}) == 0
+        balance = await db.commercial_stock_balances.find_one({"lot_id": "olive-lot-split"})
+        assert balance["quantity_kg"].to_decimal() == Decimal("100.000")
     finally:
         await client.drop_database(db_name)
         client.close()
@@ -600,10 +586,11 @@ async def test_wholesale_sale_dispatches_only_released_mill_owned_oil_and_tracks
             "id": "oil-lot-sale", "season_code": "2627", "document_type": "LOT",
             "document_number": "2627LOT0001", "product_kind": "OIL",
             "status": "OPEN", "owner": {"kind": "MILL"},
-            "quality_status": "RELEASED", "quality_decision_id": "quality-release-1",
+            "quality_status": "RELEASED", "last_quality_assessment_id": "quality-release-1",
         })
-        await db.commercial_quality_releases.insert_one({
-            "id": "quality-release-1", "oil_lot_id": "oil-lot-sale", "decision": "RELEASED",
+        await db.commercial_quality_assessments.insert_one({
+            "id": "quality-release-1", "oil_lot_id": "oil-lot-sale",
+            "status": "REVIEWED", "decision": "RELEASED",
         })
         await db.commercial_stock_balances.insert_one({
             "product_kind": "OIL", "lot_id": "oil-lot-sale",
@@ -638,7 +625,7 @@ async def test_wholesale_sale_dispatches_only_released_mill_owned_oil_and_tracks
             )
         assert approved["status"] == "APPROVED"
         invoice = await db.commercial_sales_invoices.find_one({"id": "invoice-1"})
-        assert invoice["document_number"] == "2627FAC0001"
+        assert invoice["document_number"] == "2627F0001"
         assert invoice["total_amount_dt"].to_decimal() == Decimal("112.500")
         assert invoice["tax_treatment_status"] == "NOT_CONFIGURED"
         balance = await db.commercial_stock_balances.find_one({"location_id": "tank-01"})
@@ -766,29 +753,16 @@ async def test_wholesale_sale_rejects_customer_custody_and_unreleased_oil():
             source_tank_id="tank-01", quantity_kg=Decimal("10.000"),
             unit_price_dt=Decimal("5.000"), idempotency_key="blocked-sale-create-key-001",
         )
-        async with await client.start_session() as session:
-            await session.with_transaction(
-                lambda active: create_wholesale_sale_draft(
-                    db, draft, season_code="2627", actor_user=admin,
-                    actor_user_id="admin-1", sale_id="sale-blocked",
-                    audit_event_id="sale-blocked-draft-audit", created_at=now, session=active,
-                )
-            )
-        with pytest.raises(ValueError, match="Insufficient stock"):
+        with pytest.raises(ValueError, match="Insufficient mill-owned oil stock"):
             async with await client.start_session() as session:
                 await session.with_transaction(
-                    lambda active: approve_wholesale_sale(
-                        db, "sale-blocked",
-                        ApproveWholesaleSaleCommand(
-                            expected_version=1, idempotency_key="blocked-sale-approve-key-001"
-                        ),
-                        season_code="2627", actor_user=admin, actor_user_id="admin-1",
-                        invoice_id="blocked-invoice", stock_movement_id="blocked-dispatch",
-                        audit_event_id="blocked-approval-audit", created_at=now, session=active,
+                    lambda active: create_wholesale_sale_draft(
+                        db, draft, season_code="2627", actor_user=admin,
+                        actor_user_id="admin-1", sale_id="sale-blocked",
+                        audit_event_id="sale-blocked-draft-audit", created_at=now, session=active,
                     )
                 )
-        sale = await db.commercial_sales.find_one({"id": "sale-blocked"})
-        assert sale["status"] == "DRAFT"
+        assert await db.commercial_sales.count_documents({"id": "sale-blocked"}) == 0
         assert await db.commercial_sales_invoices.count_documents({}) == 0
         balance = await db.commercial_stock_balances.find_one({"location_id": "tank-01"})
         assert balance["quantity_kg"].to_decimal() == Decimal("40.000")
@@ -817,7 +791,7 @@ async def test_wholesale_sale_rejects_customer_custody_and_unreleased_oil():
                     audit_event_id="sale-pending-draft-audit", created_at=now, session=active,
                 )
             )
-        with pytest.raises(ValueError, match="not been released"):
+        with pytest.raises(ValueError, match="without a reviewed and released laboratory analysis"):
             async with await client.start_session() as session:
                 await session.with_transaction(
                     lambda active: approve_wholesale_sale(
@@ -871,12 +845,12 @@ async def test_wholesale_sale_approval_audit_failure_rolls_back_invoice_dispatch
         await db.commercial_lots.insert_one({
             "id": "oil-lot-rollback", "season_code": "2627",
             "document_type": "LOT", "document_number": "2627LOT0099",
-            "product_kind": "OIL", "status": "OPEN", "owner": {"kind": "CUSTOMER", "customer_id": "previous-owner"},
-            "quality_status": "RELEASED", "quality_decision_id": "release-rollback",
+            "product_kind": "OIL", "status": "OPEN", "owner": {"kind": "MILL"},
+            "quality_status": "RELEASED", "last_quality_assessment_id": "release-rollback",
         })
-        await db.commercial_quality_releases.insert_one({
+        await db.commercial_quality_assessments.insert_one({
             "id": "release-rollback", "oil_lot_id": "oil-lot-rollback",
-            "decision": "RELEASED",
+            "status": "REVIEWED", "decision": "RELEASED",
         })
         await db.commercial_stock_balances.insert_one({
             "product_kind": "OIL", "lot_id": "oil-lot-rollback",
@@ -1331,6 +1305,7 @@ async def test_return_acceptance_issues_credit_note_and_tracks_buyer_credit_with
              "method": "CASH", "idempotency_scope": "2627:test",
              "idempotency_key": "payment-credit-partial-key", "created_at": now},
         ])
+        payment_count_before_acceptance = await db.commercial_sale_payments.count_documents({})
         await db.commercial_sale_returns.insert_many([
             {"id": "return-credit-paid", "season_code": "2627", "document_number": "2627RET0001",
              "sale_id": "sale-credit-paid", "invoice_id": "invoice-credit-paid",
@@ -1404,7 +1379,7 @@ async def test_return_acceptance_issues_credit_note_and_tracks_buyer_credit_with
         accepted = await db.commercial_sale_returns.find_one({"id": "return-credit-paid"})
         assert accepted["commercial_acceptance_status"] == "ACCEPTED"
         assert accepted["credit_note_id"] == "credit-note-paid"
-        assert await db.commercial_sale_payments.count_documents({}) == 0
+        assert await db.commercial_sale_payments.count_documents({}) == payment_count_before_acceptance
     finally:
         await client.drop_database(db_name)
         client.close()
@@ -1658,7 +1633,10 @@ async def test_traditional_invoice_update_audit_failure_rolls_back_invoice_value
         assert invoice["price_per_kg"] == 1.5
         assert invoice["total"] == 30.0
         assert invoice["balance"] == 25.0
-        assert invoice["updated_at"] == original_updated_at
+        stored_updated_at = invoice["updated_at"]
+        if stored_updated_at.tzinfo is None:
+            stored_updated_at = stored_updated_at.replace(tzinfo=timezone.utc)
+        assert stored_updated_at == original_updated_at
         assert len(invoice["history"]) == 1
         assert await db.commercial_audit_events.count_documents({}) == 1
     finally:
@@ -1755,6 +1733,7 @@ async def test_customer_oil_purchase_creates_bon_and_tracks_partial_then_final_p
             "id": "source-customer-olive-lot",
             "season_code": "2627",
             "product_kind": "OLIVE",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-oil-sale"},
             "batch_code": "2627A0008",
             "status": "OPEN",
             "preproduction_quality_status": "RELEASED",
@@ -1780,6 +1759,7 @@ async def test_customer_oil_purchase_creates_bon_and_tracks_partial_then_final_p
             "id": "customer-owned-oil-lot",
             "season_code": "2627",
             "product_kind": "OIL",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-oil-sale"},
             "batch_code": "2627A0008",
             "source_olive_lot_id": "source-customer-olive-lot",
             "source_production_id": "production-from-approved-preproduction",
@@ -1959,6 +1939,7 @@ async def test_customer_olive_purchase_creates_bon_and_tracks_partial_then_final
             "id": "customer-owned-olive-lot",
             "season_code": "2627",
             "product_kind": "OLIVE",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-olive-sale"},
             "batch_code": "2627A0008",
             "status": "OPEN",
         })

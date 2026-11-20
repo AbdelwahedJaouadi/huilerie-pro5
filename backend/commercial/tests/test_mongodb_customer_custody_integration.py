@@ -238,13 +238,31 @@ async def test_customer_oil_pickup_debits_only_matching_customer_stock():
             "id": "customer-oil-lot-a", "season_code": "2627",
             "document_type": "LOT", "document_number": "2627LOT0001",
             # The lot records its origin; the balance is currently customer-owned after an ownership transfer.
-            "product_kind": "OIL", "owner": {"kind": "MILL"},
+            "product_kind": "OIL", "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
             "quality_status": "RELEASED", "status": "OPEN", "version": 1,
         })
         await db.commercial_stock_balances.insert_one({
             "product_kind": "OIL", "lot_id": "customer-oil-lot-a",
             "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
             "location_id": "tank-01", "quantity_kg": Decimal128("50.000"),
+        })
+        # Seed the opening custody receipt so the statement reconciles the
+        # pre-existing balance before testing the subsequent customer pickup.
+        await db.commercial_stock_movements.insert_one({
+            "id": "customer-oil-opening-receipt",
+            "document_number": "2627MVT0000",
+            "movement_kind": "RECEIPT",
+            "product_kind": "OIL",
+            "lot_id": "customer-oil-lot-a",
+            "quantity_kg": Decimal128("50.000"),
+            "source_location_id": None,
+            "destination_location_id": "tank-01",
+            "source_owner": None,
+            "destination_owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
+            "source_document_type": "CIN",
+            "source_document_id": "customer-oil-opening-receipt",
+            "reason": "Opening customer-owned oil receipt",
+            "created_at": now,
         })
         draft = CustomerOilCustodyReleaseDraft(
             customer_id="custody-owner-a",
@@ -322,7 +340,7 @@ async def test_customer_oil_pickup_rejects_other_customer_and_pending_quality():
             quantity_kg=Decimal("1.000"), customer_acknowledgement_reference="ACK-001",
             reason="Attempt cross-customer pickup", idempotency_key="cross-customer-pickup-001",
         )
-        with pytest.raises(ValueError, match="does not belong"):
+        with pytest.raises(ValueError, match="owned by the releasing customer"):
             async with await client.start_session() as session:
                 await session.with_transaction(
                     lambda active: release_customer_oil_custody(
