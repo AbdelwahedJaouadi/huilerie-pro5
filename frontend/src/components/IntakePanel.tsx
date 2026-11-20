@@ -241,15 +241,14 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
         onSubmit={(e) => {
           e.preventDefault();
           if (valid && actorId) {
-            const payload = { client_name: name.trim(), phone: phone.replace(/\\s+/g, ""), ...(grossTareValid ? { gross_weight_kg: String(grossVal), tare_weight_kg: String(tareVal) } : { olive_kg: kgVal }), bags: bagsVal, variety: variety.trim() || null, notes: notes.trim() || null, initial_status: initStatus };
-            // Match the server's normalized business fields, not the user's raw formatting.
+            const payload = { client_name: name.trim(), phone: phone.replace(/\s+/g, ""), ...(grossTareValid ? { gross_weight_kg: String(grossVal), tare_weight_kg: String(tareVal) } : { olive_kg: kgVal }), bags: bagsVal, variety: variety.trim() || null, notes: notes.trim() || null, initial_status: initStatus };
+            // Normalize formatting while preserving the exact weight inputs.
             const fingerprint = JSON.stringify({
               client_name: payload.client_name,
               phone: payload.phone,
-              net_kg: String(grossTareValid ? grossVal - tareVal : kgVal),
-              gross_weight_kg: grossTareValid ? String(grossVal) : null,
-              tare_weight_kg: grossTareValid ? String(tareVal) : null,
-              weight_source: grossTareValid ? "manual" : "legacy_net",
+              weight: grossTareValid
+                ? { gross_kg: String(grossVal), tare_kg: String(tareVal) }
+                : { olive_kg: String(kgVal) },
               bags: bagsVal,
               variety: payload.variety,
               notes: payload.notes,
