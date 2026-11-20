@@ -91,6 +91,7 @@ def _candidate(
         "account_name": account.get("name") if account else None,
         "account_type": account.get("account_type") if account else None,
         "payment_method": method or None,
+        "reference": str(source.get("reference") or "").strip() or None,
         "currency": "TND" if amount is not None else None,
         "amount": format(amount, ".3f") if amount is not None else None,
         "party_id": str(source.get(party_field)) if source.get(party_field) else None,
