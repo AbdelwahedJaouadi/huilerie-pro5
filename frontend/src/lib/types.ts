@@ -100,8 +100,8 @@ export interface LoadCreate {
   client_name: string;
   phone: string;
   olive_kg?: number;
-  gross_weight_kg?: number;
-  tare_weight_kg?: number;
+  gross_weight_kg?: number | string;
+  tare_weight_kg?: number | string;
   bags?: number | null;
   variety?: string | null;
   notes?: string | null;
