@@ -50,10 +50,11 @@ def test_sale_approval_requires_expected_version_and_idempotency():
 
 def test_payment_requires_positive_amount_and_supported_method():
     payment = SalePaymentDraft(
-        payment_date="2026-11-02", amount_dt="100.000", method="BANK_TRANSFER", reference="TRX-001",
+        payment_date="2026-11-02", amount_dt="100.000", method="BANK_TRANSFER", reference="TRX-001", treasury_account_id="bank-1",
         expected_invoice_version=1, idempotency_key="sale-payment-key-001",
     )
     assert payment.amount_dt == 100
+    assert payment.treasury_account_id == "bank-1"
     with pytest.raises(ValidationError):
         SalePaymentDraft(
             payment_date="2026-11-02", amount_dt="-1", method="CASH",

@@ -20,6 +20,7 @@ def build_reconciliation_preview(
     gs_sales_invoices: Iterable[dict[str, Any]] = (),
     gs_sale_payments: Iterable[dict[str, Any]] = (),
     gs_sale_reversals: Iterable[dict[str, Any]] = (),
+    treasury_accounts: Iterable[dict[str, Any]] = (),
     check_gs_sale_payment_snapshots: bool = True,
 ) -> dict[str, Any]:
     """Compose source adapters without database access or persistence."""
@@ -98,7 +99,7 @@ def build_reconciliation_preview(
         candidate_events.extend(payment_result["candidate_events"])
         unresolved_items.extend(payment_result["unresolved_items"])
 
-    sales_result = adapt_gs_sales(sale_invoices, sale_payments, sale_reversals, check_payment_snapshots=check_gs_sale_payment_snapshots)
+    sales_result = adapt_gs_sales(sale_invoices, sale_payments, sale_reversals, treasury_accounts=treasury_accounts, check_payment_snapshots=check_gs_sale_payment_snapshots)
     candidate_events.extend(sales_result["candidate_events"])
     unresolved_items.extend(sales_result["unresolved_items"])
 

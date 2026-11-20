@@ -348,6 +348,21 @@ async def record_sale_payment(
         return prior
     if invoice.get("payment_status") == "PAID" or invoice.get("version") != draft.expected_invoice_version:
         raise ValueError("Invoice is already paid or its version has changed")
+    treasury_account = None
+    if draft.treasury_account_id:
+        treasury_account = await db["accounting_treasury_accounts"].find_one(
+            {"id": draft.treasury_account_id, "active": True},
+            {"_id": 0, "id": 1, "account_type": 1, "currency": 1}, session=session,
+        )
+        if not treasury_account:
+            raise ValueError("Selected treasury account does not exist or is inactive")
+        expected_account_type = "CASH" if draft.method == "CASH" else "BANK"
+        if treasury_account.get("account_type") != expected_account_type:
+            raise ValueError("Payment method does not match the selected treasury account type")
+        if treasury_account.get("currency") != "TND":
+            raise ValueError("Selected treasury account currency is not TND")
+    elif await db["accounting_treasury_accounts"].count_documents({}, session=session):
+        raise ValueError("Select an active cash or bank account before recording this payment")
     await assert_invoice_receivable_fields_reconcile(db, invoice, session=session)
     outstanding = invoice["outstanding_amount_dt"].to_decimal()
     amount = _money(draft.amount_dt)
@@ -360,6 +375,8 @@ async def record_sale_payment(
     now = created_at.astimezone(timezone.utc)
     payment = {
         "id": payment_id, "season_code": season_code, "document_type": "PAY",
+        "treasury_account_id": treasury_account["id"] if treasury_account else None,
+        "treasury_allocation_status": "MAPPED" if treasury_account else "UNALLOCATED",
         "document_number": number, "invoice_id": invoice_id,
         "sale_id": invoice["sale_id"], "amount_dt": Decimal128(amount),
         "payment_date": draft.payment_date.isoformat(), "method": draft.method,
@@ -392,6 +409,8 @@ async def record_sale_payment(
         "actor_user_id": actor_user_id, "created_at": now,
         "details": {"payment_id": payment_id, "payment_number": number,
                     "amount_dt": Decimal128(amount), "payment_method": draft.method,
+                    "treasury_account_id": treasury_account["id"] if treasury_account else None,
+                    "treasury_allocation_status": "MAPPED" if treasury_account else "UNALLOCATED",
                     "previous_paid_amount_dt": invoice["paid_amount_dt"],
                     "new_paid_amount_dt": Decimal128(paid),
                     "previous_outstanding_amount_dt": invoice["outstanding_amount_dt"],
