@@ -16,12 +16,12 @@ on:
       - erp/traditional-financial-adapter-phase-2
       - erp/gs-supplier-financial-adapter-phase-3
       - erp/accounting-reconciliation-preview-phase-4
-      - erp/gs-supplier-financial-adapter-phase-3
     paths:
       - "backend/accounting_foundation/**"
       - "backend/tests/test_accounting_foundation.py"
       - "backend/tests/test_traditional_accounting_adapter.py"
       - "backend/tests/test_commercial_accounting_adapter.py"
+      - "backend/tests/test_accounting_reconciliation_preview.py"
       - ".github/workflows/accounting-foundation.yml"
 
 jobs:
