@@ -861,6 +861,22 @@ def _daily_event(events: list[dict], *, day: str | None, category: str,
     })
 
 
+def _append_traditional_invoice_receipts(invoice: dict, events: list[dict]) -> Decimal:
+    """Append only itemized receipt evidence; history is audit metadata, not cash."""
+    known_paid = Decimal("0.000")
+    for payment in invoice.get("payments") or []:
+        amount = _accounting_decimal(payment.get("amount"))
+        payment_day = _accounting_day(payment.get("at") or payment.get("date"))
+        if amount > 0 and payment_day:
+            _daily_event(
+                events, day=payment_day, category="Prestation", label="Encaissement facture",
+                reference=invoice.get("number", ""), amount=amount, kind="receipt",
+                detail=invoice.get("client_name", ""),
+            )
+            known_paid += amount
+    return known_paid
+
+
 @router.get("/daily-situation")
 async def accounting_daily_situation(
     report_date: str | None = None,
@@ -909,20 +925,9 @@ async def accounting_daily_situation(
                      reference=invoice.get("number", ""), amount=invoice.get("total"), kind="revenue",
                      detail=invoice.get("client_name", ""))
         current_receivables += max(Decimal("0"), _accounting_decimal(invoice.get("balance")))
-        known_paid = Decimal("0.000")
-        # Itemized payment children are the canonical receipt evidence. The generic
-        # history entry records the same paid_amount transition for audit purposes;
-        # projecting both creates a duplicate cash receipt.
-        for payment in invoice.get("payments") or []:
-            amount = _accounting_decimal(payment.get("amount"))
-            payment_day = _accounting_day(payment.get("at") or payment.get("date"))
-            if amount > 0 and payment_day:
-                _daily_event(events, day=payment_day, category="Prestation", label="Encaissement facture",
-                             reference=invoice.get("number", ""), amount=amount, kind="receipt",
-                             detail=invoice.get("client_name", ""))
-                known_paid += amount
-        # Legacy paid_amount/history data without an itemized payment event is
-        # retained as unallocated evidence, never promoted to a dated cash receipt.
+        # Payment children are canonical; history remains audit evidence only.
+        known_paid = _append_traditional_invoice_receipts(invoice, events)
+        # Legacy paid_amount without itemized receipt evidence stays unallocated.
         unallocated_receipts += max(Decimal("0"), _accounting_decimal(invoice.get("paid_amount")) - known_paid)
 
     for purchase in supplier_purchases:
