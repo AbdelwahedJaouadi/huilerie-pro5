@@ -1,6 +1,7 @@
 import uuid
 from datetime import date as Date, datetime, timezone
 from typing import Literal, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -22,6 +23,11 @@ class AttendanceCorrection(BaseModel):
     check_out_at: Optional[datetime] = None
     status: Optional[Literal["PRESENT", "ABSENT"]] = None
     reason: str = Field(min_length=5, max_length=500)
+
+
+def _ensure_today(day: Date):
+    if day != datetime.now(ZoneInfo("Africa/Tunis")).date():
+        raise HTTPException(400, "attendance_actions_today_only")
 
 
 async def _active_worker(worker_id: str):
@@ -64,6 +70,7 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_adm
 
 @router.post("/attendance/check-in")
 async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin)):
+    _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
