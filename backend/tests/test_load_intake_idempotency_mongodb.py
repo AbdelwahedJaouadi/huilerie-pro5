@@ -5,9 +5,10 @@ import uuid
 
 import pytest
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import ASCENDING, ReturnDocument
+from pymongo import ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
+from lib.db import INDEXES
 from models.schemas import LoadCreate
 from routers import loads as load_routes
 
@@ -21,22 +22,8 @@ async def test_concurrent_same_key_intake_commits_one_load_and_one_side_effect_s
     season = "2026-2027"
 
     try:
-        await test_db.loads.create_indexes([
-            __import__("pymongo").IndexModel([("id", ASCENDING)], name="id", unique=True),
-            __import__("pymongo").IndexModel([("code", ASCENDING)], name="code", unique=True),
-            __import__("pymongo").IndexModel(
-                [("idempotency_scope", ASCENDING), ("idempotency_key", ASCENDING)],
-                name="intake_idempotency_unique",
-                unique=True,
-                partialFilterExpression={"idempotency_key": {"$type": "string"}},
-            ),
-        ])
-        await test_db.clients.create_index(
-            [("phone", ASCENDING)],
-            name="phone_unique",
-            unique=True,
-            partialFilterExpression={"phone": {"$type": "string"}},
-        )
+        await test_db.loads.create_indexes(INDEXES["loads"])
+        await test_db.clients.create_indexes(INDEXES["clients"])
 
         async def run_transaction(operation):
             async with await client.start_session() as session:
