@@ -125,8 +125,8 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     }
     if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
         doc["weight_measurement"] = {
-            "gross_kg": Decimal128(str(body.gross_weight_kg)),
-            "tare_kg": Decimal128(str(body.tare_weight_kg)),
+            "gross_kg": Decimal128(body.gross_weight_kg),
+            "tare_kg": Decimal128(body.tare_weight_kg),
             "net_kg": Decimal128(str(net_kg)),
             "measured_at": now,
             "operator_user_id": user.get("id"),
