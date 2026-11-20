@@ -65,6 +65,11 @@ def _candidate(
         if account.get("account_type") != expected_type:
             blockers.append("TREASURY_ACCOUNT_TYPE_MISMATCH")
 
+    if source.get("treasury_allocation_status") != "MAPPED":
+        blockers.append("TREASURY_ALLOCATION_STATUS_INVALID")
+    currency = str(source.get("currency") or "TND").upper()
+    if currency != "TND":
+        blockers.append("PAYMENT_CURRENCY_NOT_TND")
     if method in {"BANK_TRANSFER", "CHEQUE"}:
         warnings.append("BANK_CLEARANCE_NOT_VERIFIED")
 
@@ -95,6 +100,8 @@ def build_treasury_movement_preview(
     *, sale_payments: Iterable[dict[str, Any]] = (),
     supplier_payments: Iterable[dict[str, Any]] = (),
     sale_reversals: Iterable[dict[str, Any]] = (),
+    sale_invoices: Iterable[dict[str, Any]] = (),
+    supplier_purchases: Iterable[dict[str, Any]] = (),
     treasury_accounts: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """Compose bounded source rows into non-posting treasury movement proposals."""
@@ -102,17 +109,40 @@ def build_treasury_movement_preview(
     accounts = {str(row.get("id")): row for row in account_rows if row.get("id")}
     candidates: list[dict[str, Any]] = []
     unresolved: list[dict[str, Any]] = []
+    invoices_by_id = {str(row.get("id")): row for row in sale_invoices if row.get("id")}
+    purchases_by_id = {str(row.get("id")): row for row in supplier_purchases if row.get("id")}
 
     for row in sale_payments:
-        candidates.append(_candidate(
+        candidate = _candidate(
             source_type="GS_SALE_PAYMENT", source=row, amount_field="amount_dt",
             date_field="payment_date", direction="IN", party_field="buyer_id", accounts=accounts,
-        ))
+        )
+        invoice = invoices_by_id.get(str(row.get("invoice_id") or ""))
+        if not invoice:
+            candidate["blocking_reasons"].append("PAYMENT_INVOICE_NOT_FOUND")
+        elif row.get("sale_id") != invoice.get("sale_id"):
+            candidate["blocking_reasons"].append("PAYMENT_SALE_LINK_MISMATCH")
+        elif invoice.get("buyer_id"):
+            candidate["party_id"] = str(invoice["buyer_id"])
+        if candidate["blocking_reasons"]:
+            candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
+            candidate["eligibility"] = "BLOCKED"
+        candidates.append(candidate)
+
     for row in supplier_payments:
-        candidates.append(_candidate(
+        candidate = _candidate(
             source_type="GS_SUPPLIER_PAYMENT", source=row, amount_field="amount_tnd",
             date_field="payment_date", direction="OUT", party_field="supplier_id", accounts=accounts,
-        ))
+        )
+        purchase = purchases_by_id.get(str(row.get("purchase_id") or ""))
+        if not purchase or purchase.get("status") != "APPROVED":
+            candidate["blocking_reasons"].append("SUPPLIER_PURCHASE_LINK_INVALID")
+        elif row.get("supplier_id") != purchase.get("supplier_id"):
+            candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
+        if candidate["blocking_reasons"]:
+            candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
+            candidate["eligibility"] = "BLOCKED"
+        candidates.append(candidate)
     for row in sale_reversals:
         source_id = str(row.get("id") or "MISSING")
         unresolved.append({
