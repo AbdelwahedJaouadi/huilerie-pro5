@@ -1,4 +1,7 @@
+from datetime import datetime, timezone
 from decimal import Decimal
+
+from bson import BSON
 
 import pytest
 from bson.decimal128 import Decimal128
@@ -103,7 +106,7 @@ def test_traditional_intake_rejects_incomplete_or_invalid_weight_evidence(payloa
 
 
 def test_weight_measurement_audit_snapshot_preserves_original_evidence():
-    measured_at = object()
+    measured_at = datetime.now(timezone.utc)
     snapshot = weight_measurement_audit_snapshot({
         "gross_kg": Decimal128("12500.125"),
         "tare_kg": Decimal128("4200.025"),
@@ -125,6 +128,8 @@ def test_weight_measurement_audit_snapshot_preserves_original_evidence():
         "source": "manual",
         "correction_of": None,
     }
+    # The complete audit payload must be encodable by MongoDB's BSON serializer.
+    BSON.encode({"details": snapshot})
 
 
 def test_weight_measurement_audit_snapshot_handles_legacy_load_without_weighing():
