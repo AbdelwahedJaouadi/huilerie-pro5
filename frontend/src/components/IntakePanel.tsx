@@ -92,6 +92,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [supplierDate, setSupplierDate] = useState(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10));
   const [supplierVariety, setSupplierVariety] = useState("");
   const [supplierKg, setSupplierKg] = useState("");
+  const [supplierGrossKg, setSupplierGrossKg] = useState("");
+  const [supplierTareKg, setSupplierTareKg] = useState("");
   const [supplierPrice, setSupplierPrice] = useState("");
   const [supplierLocationId, setSupplierLocationId] = useState("");
   const [supplierNotes, setSupplierNotes] = useState("");
@@ -111,7 +113,15 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const supplierPurchases = (supplierPurchasesQuery.data ?? []).filter((purchase) => purchase.supplier_id === supplierId);
   const oliveLocations = locationsQuery.data ?? [];
   const chosenLocationId = supplierLocationId || oliveLocations.find((location) => /réception|reception|receiving/i.test((location.name || "") + " " + (location.code || "")))?.id || "";
-  const supplierKgValue = Number(supplierKg.replace(",", "."));
+  const parseSupplierKg = (value: string) => value.trim() === "" ? Number.NaN : Number(value.replace(/\\s/g, "").replace(",", "."));
+  const supplierGrossValue = parseSupplierKg(supplierGrossKg);
+  const supplierTareValue = parseSupplierKg(supplierTareKg);
+  const supplierHasGross = supplierGrossKg.trim() !== "";
+  const supplierHasTare = supplierTareKg.trim() !== "";
+  const supplierHasVehicleWeight = supplierHasGross && supplierHasTare;
+  const supplierNetFromVehicle = supplierHasVehicleWeight && Number.isFinite(supplierGrossValue) && Number.isFinite(supplierTareValue) && supplierGrossValue > supplierTareValue && supplierGrossValue <= 1000000 && supplierTareValue > 0 && Number.isInteger(supplierGrossValue * 1000) && Number.isInteger(supplierTareValue * 1000) ? supplierGrossValue - supplierTareValue : Number.NaN;
+  const supplierKgValue = supplierHasVehicleWeight ? supplierNetFromVehicle : parseSupplierKg(supplierKg);
+  const supplierWeightValid = supplierHasGross === supplierHasTare && (supplierHasVehicleWeight ? Number.isFinite(supplierNetFromVehicle) : supplierKg.trim() !== "" && Number.isFinite(supplierKgValue) && supplierKgValue > 0 && Number.isInteger(supplierKgValue * 1000));
   // The operator enters the unit price in whole millimes; the API stores TND.
   const supplierPriceValue = Number(supplierPrice.replace(",", "."));
   const supplierPriceValid = supplierPrice.trim() !== "" && Number.isSafeInteger(supplierPriceValue) && supplierPriceValue >= 0;
@@ -121,7 +131,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     mutationFn: (body: Record<string, unknown>) => apiPost<any>("/commercial/v1/olive-receptions", body),
     onSuccess: (result) => {
       setSupplierReceipt(result);
-      setSupplierKg(""); setSupplierPrice(""); setSupplierNotes("");
+      setSupplierKg(""); setSupplierGrossKg(""); setSupplierTareKg(""); setSupplierPrice(""); setSupplierNotes("");
       setNewSupplier(false); setNewSupplierName(""); setNewSupplierPhone(""); setNewSupplierTaxId("");
       setSupplierId(result.supplier?.id ?? "");
       setSupplierRequestKey("");
@@ -336,7 +346,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
 
       </form> : <form onSubmit={(e) => {
         e.preventDefault();
-        if (!chosenLocationId || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
+        if (!chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
         const requestKey = supplierRequestKey || crypto.randomUUID();
         setSupplierRequestKey(requestKey);
         supplierMutation.mutate({
@@ -400,7 +410,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
         </div>
         <div className="space-y-1"><Label className="text-xs">{ar ? "ملاحظات" : "Observations"}</Label><Textarea value={supplierNotes} onChange={(e) => setSupplierNotes(e.target.value)} maxLength={1000} className="min-h-14 rounded-lg bg-white" /></div>
         <div className="rounded-xl border border-blue-200 bg-white p-3 text-sm text-blue-950">{ar ? "ينشئ التأكيد ضمن عملية واحدة: المزوّد (إن كان جديداً)، والشراء، ورمز التتبع الموحد، والدفعة، وحركة إدخال المخزون. ويمكن تسجيل الدفع بشكل منفصل." : "La validation crée dans une seule transaction : le fournisseur (si nouveau), l’achat, le code de traçabilité unique, le lot et le mouvement d’entrée en stock. Le paiement pourra être enregistré séparément."}</div>
-        <Button type="submit" disabled={supplierMutation.isPending || !chosenLocationId || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)} className="h-10 w-full rounded-lg bg-blue-700 text-sm hover:bg-blue-800"><Plus className="size-5"/> {ar ? "تأكيد الاستلام وإنشاء الشراء" : "Valider la réception et créer l’achat"} </Button>
+        <Button type="submit" disabled={supplierMutation.isPending || !chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)} className="h-10 w-full rounded-lg bg-blue-700 text-sm hover:bg-blue-800"><Plus className="size-5"/> {ar ? "تأكيد الاستلام وإنشاء الشراء" : "Valider la réception et créer l’achat"} </Button>
       </form>}
       </div>
       <NewClientDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={(c) => pick(c)} />
