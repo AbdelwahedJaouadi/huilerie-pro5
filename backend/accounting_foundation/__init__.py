@@ -8,8 +8,14 @@ from .normalization import (
     candidate_key,
     source_fingerprint,
 )
+from .traditional import (
+    adapt_traditional_invoice,
+    adapt_traditional_invoice_payments,
+)
 
 __all__ = [
+    "adapt_traditional_invoice",
+    "adapt_traditional_invoice_payments",
     "build_candidate_envelope",
     "canonical_decimal",
     "candidate_key",
