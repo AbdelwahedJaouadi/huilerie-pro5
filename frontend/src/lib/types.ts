@@ -169,7 +169,27 @@ export interface PumpConfig {
   active: boolean;
 }
 
+export interface ScaleConfig {
+  enabled: boolean;
+  manufacturer: string;
+  model: string;
+  connection_type: "serial" | "ethernet" | "usb";
+  serial_port: string;
+  baud_rate: number;
+  data_bits: 7 | 8;
+  parity: "none" | "even" | "odd";
+  stop_bits: 1 | 2;
+  host: string;
+  port: number | null;
+  protocol: string;
+  unit: "kg" | "g" | "lb";
+  decimal_places: number;
+  stable_readings: number;
+  device_id: string;
+}
+
 export interface AppSettings extends MillInfo {
+  scale_config: ScaleConfig;
   pump_system_enabled: boolean;
   pumps: PumpConfig[];
   price_per_kg: number;
