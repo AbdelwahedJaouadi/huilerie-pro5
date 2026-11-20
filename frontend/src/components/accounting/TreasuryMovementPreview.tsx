@@ -35,6 +35,7 @@ const reasonLabels: Record<string,{ar:string;fr:string}> = {
   DUPLICATE_SOURCE_EVENT_IDENTITY:{ar:"تكرار معرّف الحركة المصدر",fr:"Identité de source dupliquée"},
   TREASURY_ALLOCATION_STATUS_INVALID:{ar:"تخصيص الخزينة غير مؤكد",fr:"Affectation de trésorerie non confirmée"},
   PAYMENT_CURRENCY_NOT_TND:{ar:"عملة الدفعة ليست TND",fr:"Devise du paiement différente de TND"},
+  BANK_OR_CHEQUE_REFERENCE_MISSING:{ar:"مرجع التحويل أو الشيك مفقود",fr:"Référence de virement ou de chèque manquante"},
   PAYMENT_INVOICE_NOT_FOUND:{ar:"فاتورة البيع الأصلية غير موجودة",fr:"Facture de vente source introuvable"},
   PAYMENT_SALE_LINK_MISMATCH:{ar:"الدفعة لا تطابق عملية البيع",fr:"Le paiement ne correspond pas à la vente"},
   SUPPLIER_PURCHASE_LINK_INVALID:{ar:"شراء المزوّد غير موجود أو غير مصادق عليه",fr:"Achat fournisseur introuvable ou non approuvé"},
