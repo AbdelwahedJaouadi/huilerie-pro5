@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
@@ -89,9 +89,6 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const loadIdentityStorageKey = actorId ? `oro:load-intake-idempotency:${actorId}` : null;
   useEffect(() => {
     if (!loadIdentityStorageKey) {
-      if (loadIdentityStorageKey) {
-        try { sessionStorage.removeItem(loadIdentityStorageKey); } catch { /* storage may be unavailable */ }
-      }
       setLoadRequestIdentity(null);
       return;
     }
@@ -199,6 +196,9 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       setKg("");
       setGrossKg("");
       setTareKg("");
+      if (loadIdentityStorageKey) {
+        try { sessionStorage.removeItem(loadIdentityStorageKey); } catch { /* storage may be unavailable */ }
+      }
       setLoadRequestIdentity(null);
       setBags("");
       setVariety("");
