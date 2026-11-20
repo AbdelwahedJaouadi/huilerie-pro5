@@ -64,6 +64,7 @@ def fake_db(monkeypatch):
         "olive_kg": 100.0,
         "oil_kg": 15.0,
         "day": "2026-10-27",
+        "season_id": "2627",
         "cancelled": False,
     }
     fake = SimpleNamespace(
@@ -71,6 +72,8 @@ def fake_db(monkeypatch):
         settings=FakeCollection([{"key": "app", "price_per_kg": 0.18}]),
         invoices=FakeCollection(),
         accounting_treasury_accounts=FakeCollection(),
+        accounting_treasury_movements=FakeCollection(),
+        accounting_treasury_movement_events=FakeCollection(),
         commercial_audit_events=FakeCollection(),
     )
     monkeypatch.setattr(invoice_routes, "db", fake)
@@ -85,7 +88,7 @@ def fake_db(monkeypatch):
 @pytest.mark.asyncio
 async def test_create_invoice_calculates_total_and_balance(fake_db):
     result = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
 
@@ -164,7 +167,7 @@ async def test_incremental_payment_is_appended_to_payment_ledger(fake_db):
 async def test_paid_amount_cannot_exceed_total(fake_db):
     with pytest.raises(HTTPException) as exc:
         await invoice_routes.create_invoice(
-            {"load_id": "load-test-1", "paid_amount": 2.71},
+            {"load_id": "load-test-1", "paid_amount": 2.71, "payment_method": "CASH"},
             {"username": "admin"},
         )
     assert exc.value.status_code == 422
@@ -327,3 +330,96 @@ async def test_delete_invoice_records_full_snapshot_in_same_transaction(fake_db)
     assert event["details"]["number"] == "FAC-2627100"
     assert money_float(event["details"]["paid_amount"]) == 0.5
     assert all(session is not None for session in fake_db.commercial_audit_events.insert_sessions)
+
+
+@pytest.mark.asyncio
+async def test_initial_cash_payment_creates_one_linked_treasury_movement(fake_db):
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "cash-1", "name": "Caisse", "account_type": "CASH",
+        "currency": "TND", "active": True,
+    })
+    result = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0.5,
+         "payment_method": "CASH", "treasury_account_id": "cash-1"},
+        {"id": "admin-1", "username": "admin"},
+    )
+    payment = result["payments"][0]
+    assert payment["treasury_allocation_status"] == "MAPPED"
+    assert payment["treasury_account_id"] == "cash-1"
+    assert len(fake_db.accounting_treasury_movements.docs) == 1
+    movement = fake_db.accounting_treasury_movements.docs[0]
+    assert movement["source_type"] == "TRADITIONAL_RECEIPT"
+    assert movement["source_id"] == payment["id"]
+    assert movement["season_code"] == "2627"
+    assert movement["opening_balance_applied"] is False
+    assert movement["gl_posting_status"] == "NOT_POSTED"
+    assert len(fake_db.accounting_treasury_movement_events.docs) == 1
+
+
+@pytest.mark.asyncio
+async def test_initial_bank_transfer_requires_reference_and_compatible_account(fake_db):
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "bank-1", "name": "Banque", "account_type": "BANK",
+        "currency": "TND", "active": True,
+    })
+    with pytest.raises(HTTPException) as exc:
+        await invoice_routes.create_invoice(
+            {"load_id": "load-test-1", "paid_amount": 0.5,
+             "payment_method": "BANK_TRANSFER", "treasury_account_id": "bank-1"},
+            {"username": "admin"},
+        )
+    assert exc.value.detail == "payment_reference_required"
+    assert fake_db.invoices.docs == []
+    result = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0.5,
+         "payment_method": "BANK_TRANSFER", "payment_reference": "VIR-001",
+         "treasury_account_id": "bank-1"},
+        {"username": "admin"},
+    )
+    assert result["payments"][0]["reference"] == "VIR-001"
+    assert fake_db.accounting_treasury_movements.docs[0]["settlement_status"] == "PENDING_BANK_CONFIRMATION"
+
+
+@pytest.mark.asyncio
+async def test_initial_payment_requires_method_but_zero_payment_does_not(fake_db):
+    with pytest.raises(HTTPException) as exc:
+        await invoice_routes.create_invoice(
+            {"load_id": "load-test-1", "paid_amount": 0.5},
+            {"username": "admin"},
+        )
+    assert exc.value.detail == "payment_method_required"
+    assert fake_db.invoices.docs == []
+    result = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0},
+        {"username": "admin"},
+    )
+    assert result["payments"] == []
+    assert fake_db.accounting_treasury_movements.docs == []
+
+
+@pytest.mark.asyncio
+async def test_initial_payment_without_configured_accounts_is_explicitly_unallocated(fake_db):
+    result = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
+        {"username": "admin"},
+    )
+    assert result["payments"][0]["treasury_allocation_status"] == "UNALLOCATED"
+    assert result["payments"][0]["treasury_account_id"] is None
+    assert fake_db.accounting_treasury_movements.docs == []
+
+
+@pytest.mark.asyncio
+async def test_initial_payment_rejects_wrong_or_inactive_account(fake_db):
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "bank-1", "name": "Banque", "account_type": "BANK",
+        "currency": "TND", "active": False,
+    })
+    with pytest.raises(HTTPException) as exc:
+        await invoice_routes.create_invoice(
+            {"load_id": "load-test-1", "paid_amount": 0.5,
+             "payment_method": "CASH", "treasury_account_id": "bank-1"},
+            {"username": "admin"},
+        )
+    assert exc.value.detail == "treasury_account_invalid"
+    assert fake_db.invoices.docs == []
+    assert fake_db.accounting_treasury_movements.docs == []
