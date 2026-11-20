@@ -59,7 +59,7 @@ export default function TreasuryMovementPreview() {
     <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
       <ShieldCheck className="mt-0.5 size-5 shrink-0"/>
       <div><strong>{ar?"معاينة فقط — لم تُنشأ أي حركة مالية":"Aperçu uniquement — aucun mouvement financier créé"}</strong>
-      <p className="mt-1">{ar?"هذه مقترحات مستخرجة من دفعات GS المسجلة. لا تغيّر الأرصدة أو الفواتير أو الديون، ولا يتم اعتمادها تلقائياً. التحويلات البنكية والشيكات لا تعتبر مؤكدة التسوية دون كشف بنكي.":"Propositions issues des paiements GS enregistrés. Aucun solde, facture ou dette n’est modifié. Les virements et chèques ne sont pas considérés comme compensés sans relevé bancaire."}</p></div>
+      <p className="mt-1">{ar?"تسجيل الحركة يتطلب تأكيداً صريحاً من المدير لكل دفعة. لا يتغير رصيد الحساب ولا الفاتورة ولا الدين، ولا يتم تنفيذ تحويل بنكي. التحويلات والشيكات تبقى معلّقة إلى حين إثبات التسوية.":"Chaque mouvement exige une confirmation explicite de l’administrateur. Aucun solde, facture ou dette n’est modifié et aucun virement bancaire n’est exécuté. Les virements et chèques restent en attente de preuve de compensation."}</p></div>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">
       <Card><CardContent className="p-4"><p className="text-sm text-stone-500">{ar?"المقترحات":"Propositions"}</p><p className="text-2xl font-bold">{data.summary.candidate_count}</p></CardContent></Card>
@@ -70,7 +70,7 @@ export default function TreasuryMovementPreview() {
       <CardContent className="space-y-3">
       {data.candidates.length===0?<p className="rounded-lg bg-stone-50 p-4 text-sm text-stone-500">{ar?"لا توجد دفعات GS ضمن نطاق المعاينة.":"Aucun paiement GS dans le périmètre de l’aperçu."}</p>:
       <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b text-left text-xs text-stone-500">
-        <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"المصدر":"Source"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة":"Résultat"}</th>
+        <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"المصدر":"Source"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة / الإجراء":"Résultat / action"}</th>
       </tr></thead><tbody>{data.candidates.map((row,index)=><tr key={`${row.candidate_key}-${index}`} className="border-b align-top">
         <td className="px-2 py-3">{row.business_date||"—"}</td>
         <td className="px-2 py-3">{labels[row.source_type]?.[ar?"ar":"fr"]||row.source_type}</td>
