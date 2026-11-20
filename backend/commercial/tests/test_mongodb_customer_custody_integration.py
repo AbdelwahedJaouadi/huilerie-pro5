@@ -246,6 +246,24 @@ async def test_customer_oil_pickup_debits_only_matching_customer_stock():
             "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
             "location_id": "tank-01", "quantity_kg": Decimal128("50.000"),
         })
+        # Seed the opening custody receipt so the statement reconciles the
+        # pre-existing balance before testing the subsequent customer pickup.
+        await db.commercial_stock_movements.insert_one({
+            "id": "customer-oil-opening-receipt",
+            "document_number": "2627MVT0000",
+            "movement_kind": "RECEIPT",
+            "product_kind": "OIL",
+            "lot_id": "customer-oil-lot-a",
+            "quantity_kg": Decimal128("50.000"),
+            "source_location_id": None,
+            "destination_location_id": "tank-01",
+            "source_owner": None,
+            "destination_owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
+            "source_document_type": "CIN",
+            "source_document_id": "customer-oil-opening-receipt",
+            "reason": "Opening customer-owned oil receipt",
+            "created_at": now,
+        })
         draft = CustomerOilCustodyReleaseDraft(
             customer_id="custody-owner-a",
             release_date=date(2026, 11, 2),
