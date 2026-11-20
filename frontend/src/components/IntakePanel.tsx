@@ -14,6 +14,7 @@ import type { ClientCreate, ClientHistory, ClientSummary, Load, LoadCreate, Mill
 import { fmtNum, useI18n } from "@/lib/i18n";
 import { StatusPill } from "@/components/shared";
 import ReceptionTicket from "@/components/ReceptionTicket";
+import { useMe } from "@/lib/useMe";
 
 function NewClientDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (c: ClientSummary) => void }) {
   const { t, errMsg, lang } = useI18n();
@@ -54,6 +55,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const { t, errMsg, lang } = useI18n();
   const ar = lang === "ar";
   const qc = useQueryClient();
+  const me = useMe();
+  const actorId = me.data?.id;
   const [bags, setBags] = useState("");
   const [variety, setVariety] = useState("");
   const [notes, setNotes] = useState("");
@@ -81,6 +84,32 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [grossKg, setGrossKg] = useState("");
   const [tareKg, setTareKg] = useState("");
   const [loadRequestIdentity, setLoadRequestIdentity] = useState<{ fingerprint: string; key: string } | null>(null);
+  // Keep the same request key across reloads so a lost response cannot create a
+  // second load. Scope it to the authenticated operator and expire it after 24h.
+  const loadIdentityStorageKey = actorId ? `oro:load-intake-idempotency:${actorId}` : null;
+  useEffect(() => {
+    if (!loadIdentityStorageKey) {
+      if (loadIdentityStorageKey) {
+        try { sessionStorage.removeItem(loadIdentityStorageKey); } catch { /* storage may be unavailable */ }
+      }
+      setLoadRequestIdentity(null);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(loadIdentityStorageKey);
+      if (!raw) { setLoadRequestIdentity(null); return; }
+      const saved = JSON.parse(raw) as { fingerprint?: string; key?: string; createdAt?: number };
+      if (typeof saved.fingerprint === "string" && typeof saved.key === "string" &&
+          typeof saved.createdAt === "number" && Date.now() - saved.createdAt < 24 * 60 * 60 * 1000) {
+        setLoadRequestIdentity({ fingerprint: saved.fingerprint, key: saved.key });
+      } else {
+        sessionStorage.removeItem(loadIdentityStorageKey);
+        setLoadRequestIdentity(null);
+      }
+    } catch {
+      setLoadRequestIdentity(null);
+    }
+  }, [loadIdentityStorageKey]);
   const [created, setCreated] = useState<Load | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
@@ -216,6 +245,10 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             const fingerprint = JSON.stringify(payload);
             const key = loadRequestIdentity?.fingerprint === fingerprint ? loadRequestIdentity.key : crypto.randomUUID();
             setLoadRequestIdentity({ fingerprint, key });
+            if (loadIdentityStorageKey) {
+              try { sessionStorage.setItem(loadIdentityStorageKey, JSON.stringify({ fingerprint, key, createdAt: Date.now() })); }
+              catch { /* server-side idempotency still protects requests within this mounted session */ }
+            }
             m.mutate({ ...payload, idempotency_key: key });
           }
         }}
