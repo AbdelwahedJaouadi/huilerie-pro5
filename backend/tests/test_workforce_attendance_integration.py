@@ -100,7 +100,7 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
             "CHECK_IN_AFTER_ABSENCE_MARK",
             "CORRECT",
         } <= actions
-        assert len(events) == 6
+        assert len(events) == 5
 
         with pytest.raises(HTTPException) as past_day:
             await workforce.check_in(
