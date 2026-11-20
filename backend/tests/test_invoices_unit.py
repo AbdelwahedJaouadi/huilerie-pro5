@@ -144,7 +144,7 @@ async def test_incremental_payment_is_appended_to_payment_ledger(fake_db):
 
     updated = await invoice_routes.update_invoice(
         created["id"],
-        {"payment_amount": 0.75},
+        {"payment_amount": 0.75, "payment_method": "CASH"},
         {"username": "cashier"},
     )
 
