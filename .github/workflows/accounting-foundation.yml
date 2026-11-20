@@ -14,6 +14,7 @@ on:
       - erp/foundation-phase-1
       - erp/traditional-financial-adapter-phase-2
       - erp/gs-supplier-financial-adapter-phase-3
+      - erp/gs-supplier-financial-adapter-phase-3
     paths:
       - "backend/accounting_foundation/**"
       - "backend/tests/test_accounting_foundation.py"
