@@ -110,7 +110,7 @@ async def test_quarantine_tank_rejects_dispatch_without_reinspection():
     draft.source_owner = Owner("MILL")
     draft.movement_kind = "DISPATCH"
     db = Database({
-        "commercial_lots": Collection([{"id": "lot-1", "quality_status": "PENDING"}]),
+        "commercial_lots": Collection([{"id": "lot-1", "product_kind": "OIL", "quality_status": "PENDING"}]),
         "commercial_tanks": Collection([{"id": "tank-01", "active": True, "role": "QUARANTINE"}]),
     })
     with pytest.raises(ValueError, match="quality-released transfer or approved return rejection"):
