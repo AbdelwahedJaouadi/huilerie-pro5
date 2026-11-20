@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Any, Iterable
 
 from .commercial import adapt_gs_olive_purchase, adapt_gs_supplier_payments
+from .sales import adapt_gs_sales
 from .normalization import source_fingerprint
 from .traditional import adapt_traditional_invoice, adapt_traditional_invoice_payments
 
@@ -16,6 +17,10 @@ def build_reconciliation_preview(
     supplier_payments: Iterable[dict[str, Any]] = (),
     lots: Iterable[dict[str, Any]] = (),
     stock_movements: Iterable[dict[str, Any]] = (),
+    gs_sales_invoices: Iterable[dict[str, Any]] = (),
+    gs_sale_payments: Iterable[dict[str, Any]] = (),
+    gs_sale_reversals: Iterable[dict[str, Any]] = (),
+    check_gs_sale_payment_snapshots: bool = True,
 ) -> dict[str, Any]:
     """Compose source adapters without database access or persistence."""
     invoices = list(traditional_invoices)
@@ -23,6 +28,7 @@ def build_reconciliation_preview(
     payments = list(supplier_payments)
     lot_rows = list(lots)
     movement_rows = list(stock_movements)
+    sale_invoices, sale_payments, sale_reversals = list(gs_sales_invoices), list(gs_sale_payments), list(gs_sale_reversals)
 
     candidate_events: list[dict[str, Any]] = []
     unresolved_items: list[dict[str, Any]] = []
@@ -91,6 +97,10 @@ def build_reconciliation_preview(
         )
         candidate_events.extend(payment_result["candidate_events"])
         unresolved_items.extend(payment_result["unresolved_items"])
+
+    sales_result = adapt_gs_sales(sale_invoices, sale_payments, sale_reversals, check_payment_snapshots=check_gs_sale_payment_snapshots)
+    candidate_events.extend(sales_result["candidate_events"])
+    unresolved_items.extend(sales_result["unresolved_items"])
 
     source_counts = Counter(event.get("source_type", "UNKNOWN") for event in candidate_events)
     candidate_keys = [

@@ -96,6 +96,9 @@ export default function ReconciliationPreview() {
     TRADITIONAL_RECEIPT: ar ? "قبض المعصرة" : "Encaissement huilerie",
     GS_OLIVE_PURCHASE: ar ? "شراء زيتون GS" : "Achat olives GS",
     GS_SUPPLIER_PAYMENT: ar ? "دفعة مورّد GS" : "Paiement fournisseur GS",
+    GS_SALE_INVOICE: ar ? "فاتورة بيع GS" : "Facture de vente GS",
+    GS_SALE_PAYMENT: ar ? "قبض مبيعات GS" : "Encaissement vente GS",
+    GS_SALE_PAYMENT_REVERSAL: ar ? "عكس قبض GS" : "Annulation d’encaissement GS",
   } as Record<string, string>)[value] || value;
   const reasonName = (value: string) => value.toLowerCase().replaceAll("_", " ");
 
