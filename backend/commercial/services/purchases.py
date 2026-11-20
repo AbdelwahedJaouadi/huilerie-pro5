@@ -230,6 +230,13 @@ async def update_olive_purchase_draft(
             Decimal("0.001"), rounding=ROUND_HALF_UP
         ) for line in draft.lines
     ), start=Decimal("0"))
+    existing_weight = existing.get("weight_measurement")
+    if existing_weight:
+        stored_net = existing_weight.get("net_kg")
+        stored_net = stored_net.to_decimal() if isinstance(stored_net, Decimal128) else Decimal(str(stored_net))
+        if total_quantity != stored_net:
+            raise ValueError("Vehicle weight measurement must be corrected through an audited reweighing before changing net quantity")
+    weight_snapshot = weight_measurement_audit_snapshot(existing_weight)
     now = updated_at.astimezone(timezone.utc)
     result = await purchases.update_one(
         {"id": purchase_id, "status": "DRAFT", "version": draft.expected_version},
@@ -274,6 +281,8 @@ async def update_olive_purchase_draft(
             "new_total_amount_dt": Decimal128(total_amount),
             "previous_notes": existing.get("notes"),
             "new_notes": draft.notes,
+            "previous_weight_measurement": weight_snapshot,
+            "new_weight_measurement": weight_snapshot,
         },
     }, session=session)
     return await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)
