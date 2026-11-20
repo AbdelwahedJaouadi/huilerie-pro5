@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -347,6 +347,7 @@ class TreasuryMovementCreateInput(BaseModel):
 class CashCountInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     account_id: str = Field(min_length=1, max_length=120)
+    request_id: str = Field(min_length=36, max_length=36, pattern=r"^[0-9a-fA-F-]{36}$")
     count_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     denomination_counts: dict[str, Any]
     notes: str = Field(default="", max_length=1000)
@@ -563,6 +564,7 @@ async def preview_bank_statement(
 async def create_cash_count(payload: CashCountInput, user: dict = Depends(require_admin)):
     """Record an immutable physical cash count; never infer expected cash or variance."""
     try:
+        request_id = str(UUID(payload.request_id))
         parsed_day = date.fromisoformat(payload.count_date)
         if parsed_day.isoformat() != payload.count_date:
             raise ValueError("count_date must use YYYY-MM-DD")
@@ -580,7 +582,7 @@ async def create_cash_count(payload: CashCountInput, user: dict = Depends(requir
     season_code = season_prefix(season)
     actor_id, now, count_id = _treasury_actor(user), datetime.now(timezone.utc), str(uuid4())
     record = {
-        "id": count_id, "season_code": season_code, "active_season": season,
+        "id": count_id, "request_id": request_id, "season_code": season_code, "active_season": season,
         "account_id": account["id"], "account_name_snapshot": account["name"],
         "count_date": payload.count_date, "counted_at": now,
         "denomination_counts": normalized_counts,
@@ -604,12 +606,26 @@ async def create_cash_count(payload: CashCountInput, user: dict = Depends(requir
         }, session=session)
         return record
 
+    existing = await db.accounting_cash_counts.find_one(
+        {"season_code": season_code, "request_id": request_id}, {"_id": 0}
+    )
+    if existing:
+        if (existing.get("account_id") == account["id"] and existing.get("recorded_by") == actor_id
+                and existing.get("count_date") == payload.count_date
+                and existing.get("denomination_counts") == normalized_counts):
+            return _safe(existing)
+        raise HTTPException(status_code=409, detail="This cash count request ID was already used for different evidence.")
     try:
         return _safe(await run_transaction(operation))
     except Exception as exc:
         from pymongo.errors import DuplicateKeyError
         if isinstance(exc, DuplicateKeyError):
-            raise HTTPException(status_code=409, detail="Cash count identity conflict. Please retry.") from exc
+            existing = await db.accounting_cash_counts.find_one(
+                {"season_code": season_code, "request_id": request_id}, {"_id": 0}
+            )
+            if existing and existing.get("account_id") == account["id"] and existing.get("recorded_by") == actor_id and existing.get("count_date") == payload.count_date and existing.get("denomination_counts") == normalized_counts:
+                return _safe(existing)
+            raise HTTPException(status_code=409, detail="Cash count request identity conflict.") from exc
         raise
 
 
