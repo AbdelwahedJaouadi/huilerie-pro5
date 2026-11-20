@@ -146,7 +146,7 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
         "variety": load.get("variety"),
         "olive_kg": float(load["olive_kg"]), "oil_kg": oil_kg, "price_per_kg": money_db(price),
         "total": money_db(total), "paid_amount": money_db(paid), "balance": money_db(total - paid),
-        "payments": ([{"at": now, "by": user.get("username", ""), "amount": money_db(paid)}] if paid > 0 else []),
+        "payments": ([{"id": str(uuid.uuid4()), "at": now, "by": user.get("username", ""), "amount": money_db(paid), "currency": "TND", "treasury_allocation_status": "UNALLOCATED"}] if paid > 0 else []),
         "day": load.get("day", now.strftime("%Y-%m-%d")),
         "created_at": now, "updated_at": now,
         "mill_name": settings.get("mill_name", ""), "mill_address": settings.get("mill_address", ""),
