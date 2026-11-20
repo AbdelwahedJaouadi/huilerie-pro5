@@ -16,7 +16,7 @@ The canonical payment and invoice/payable subledger remain the source of truth f
 
 - Admin-only endpoint; explicit confirmation required in the client and confirm: true required by the API.
 - MongoDB transaction inserts the movement and immutable audit event together.
-- Deterministic movement/event IDs plus unique (source_type, source_id) index make retries idempotent.
+- Deterministic movement/event IDs plus unique (season_code, source_type, source_id) index make retries idempotent.
 - The source payment, invoice, supplier purchase and active TND treasury account are re-read inside the transaction.
 - The same reconciliation composer used by the preview blocks missing/mismatched invoices or purchases, inactive/unknown/wrong-type/non-TND accounts, unallocated payments, invalid dates, unsupported methods and invalid amounts.
 - A supplier movement is allowed only when its source olive purchase is approved and supplier identity matches.
