@@ -528,3 +528,17 @@ Target: add a dedicated `commercial.register_olive_purchase` capability for sele
 Do not grant it to all workers. The owner has not yet identified the specific employees; assignment remains a later explicit admin action. The direct purchase remains no-review. This does not justify adding a human approval stage.
 
 Runtime authorization work is gated by real CI execution and MongoDB transaction/permission tests. No current permission or employee record was changed.
+
+
+## Runtime implementation status update (20 Nov 2026)
+
+The earlier weighing and idempotency observations above are historical findings from the initial audit and must not be read as the current source state:
+
+- Traditional intake now captures manual gross and tare, derives net on the server using Decimal arithmetic, and preserves the measurement snapshot/provenance while retaining `loads.olive_kg` as the downstream net compatibility field. The intake UI also supports supplier vehicle gross/tare and validates the supplier line against net.
+- The shared scale profile/settings panel is merged to `main` (PR #3). This stores device configuration only; it does **not** connect to a physical indicator or prove live readings.
+- Traditional load request idempotency is merged (PR #6), including same-key replay, changed-payload conflict and duplicate-key winner recovery.
+- Designated-worker direct olive reception is enabled through the separate `commercial.register_olive_purchase` capability (PR #7). The capability is assignable by an administrator and does not add a second-person approval queue.
+- Complete outer-command idempotency for GS supplier reception is under review in PR #8; do not count it as merged until all CI checks pass and the PR is merged.
+- Still outstanding before reliable offline operation: durable client-side operation queue, server inbox, transactional SMS outbox, and explicit retry/reconciliation tests.
+- Before deploying the additive idempotency collections/indexes, take a production database backup as requested. Do not alter existing business records or rewrite historical weights.
+- Render deployment is not confirmed: the inspected `Oroverde` workspace services are connected to `abdelwehed-hue/huilerie-pro5`, while the active code changes are in `AbdelwahedJaouadi/huilerie-pro5`. Resolve the service repository binding and verify the target live URL before rollout.
