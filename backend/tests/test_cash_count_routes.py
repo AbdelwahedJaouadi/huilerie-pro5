@@ -13,6 +13,9 @@ def test_cash_count_endpoints_are_admin_only_and_do_not_calculate_balances():
     assert "Depends(require_admin)" in listing
     assert "accounting_cash_counts.insert_one" in create
     assert "accounting_cash_count_events.insert_one" in create
+    assert "request_id" in create
+    assert "season_code" in create
+    assert "run_transaction(operation)" in create
     assert "expected_amount_calculated" in create
     assert "variance_calculated" in create
     assert "update_one" not in create and "delete_one" not in create
