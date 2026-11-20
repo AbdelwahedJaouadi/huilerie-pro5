@@ -15,6 +15,20 @@ def test_admin_has_commercial_quality_permissions():
     require_commercial_permission(admin, "commercial.delete_records")
 
 
+def test_worker_can_register_olive_reception_without_general_purchase_authority():
+    receiver = {"active": True, "role": "worker", "commercial_permissions": ["commercial.register_olive_purchase"]}
+    require_commercial_permission(receiver, "commercial.register_olive_purchase")
+    require_commercial_permission(receiver, "commercial.read")
+    with pytest.raises(PermissionError):
+        require_commercial_permission(receiver, "commercial.manage_purchases")
+    with pytest.raises(PermissionError):
+        require_commercial_permission(receiver, "commercial.manage_sales")
+    with pytest.raises(PermissionError):
+        require_commercial_permission(receiver, "commercial.post_stock")
+    with pytest.raises(PermissionError):
+        require_commercial_permission(receiver, "commercial.reverse_stock")
+
+
 def test_worker_can_receive_only_explicit_scoped_commercial_permissions():
     lab = {"active": True, "role": "worker", "commercial_permissions": ["commercial.lab_record", "commercial.view_audit", "commercial.manage_preproduction_samples"]}
     reviewer = {"active": True, "role": "worker", "commercial_permissions": ["commercial.quality_release"]}
