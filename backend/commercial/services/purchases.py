@@ -20,6 +20,26 @@ from commercial.services.numbering import reserve_document_number, reserve_batch
 from lib.season import DEFAULT_VARIETIES
 
 
+def _validate_draft_weight_preservation(existing_weight: dict | None, draft: OlivePurchaseDraft) -> None:
+    """Prevent a draft edit from changing or silently adding vehicle weight evidence."""
+    if not existing_weight:
+        if draft.gross_weight_kg is not None or draft.tare_weight_kg is not None:
+            raise ValueError("Vehicle weight can only be added through the original purchase creation")
+        return
+
+    def stored_decimal(key: str) -> Decimal:
+        value = existing_weight.get(key)
+        return value.to_decimal() if isinstance(value, Decimal128) else Decimal(str(value))
+
+    if sum((line.quantity_kg for line in draft.lines), start=Decimal("0")) != stored_decimal("net_kg"):
+        raise ValueError("Vehicle weight measurement must be corrected through an audited reweighing before changing net quantity")
+    if draft.gross_weight_kg is not None and (
+        draft.gross_weight_kg != stored_decimal("gross_kg")
+        or draft.tare_weight_kg != stored_decimal("tare_kg")
+    ):
+        raise ValueError("A new vehicle reading requires an audited reweighing, not a draft edit")
+
+
 def _fingerprint(draft: OlivePurchaseDraft) -> str:
     raw = json.dumps(draft.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -231,22 +251,7 @@ async def update_olive_purchase_draft(
         ) for line in draft.lines
     ), start=Decimal("0"))
     existing_weight = existing.get("weight_measurement")
-    if existing_weight:
-        def stored_decimal(key: str) -> Decimal:
-            value = existing_weight.get(key)
-            return value.to_decimal() if isinstance(value, Decimal128) else Decimal(str(value))
-
-        stored_net = stored_decimal("net_kg")
-        if total_quantity != stored_net:
-            raise ValueError("Vehicle weight measurement must be corrected through an audited reweighing before changing net quantity")
-        # Editing a draft must never silently replace or ignore a new weigh-in.
-        if draft.gross_weight_kg is not None and (
-            draft.gross_weight_kg != stored_decimal("gross_kg")
-            or draft.tare_weight_kg != stored_decimal("tare_kg")
-        ):
-            raise ValueError("A new vehicle reading requires an audited reweighing, not a draft edit")
-    elif draft.gross_weight_kg is not None or draft.tare_weight_kg is not None:
-        raise ValueError("Vehicle weight can only be added through the original purchase creation")
+    _validate_draft_weight_preservation(existing_weight, draft)
     weight_snapshot = weight_measurement_audit_snapshot(existing_weight)
     now = updated_at.astimezone(timezone.utc)
     result = await purchases.update_one(
