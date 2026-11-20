@@ -110,7 +110,8 @@ export default function Workforce() {
     <div className="space-y-5" dir={ar ? "rtl" : "ltr"} data-testid="workforce-page">
       <PageHeader
         title={ar ? "جدول العمال والحضور" : "Personnel et pointage"}
-        description={ar ? "تسجيل حضور العمال وانصرافهم اليومي بواسطة المدير" : "Enregistrement quotidien des arrivées et départs par l’administrateur"}
+        sub={ar ? "تسجيل حضور العمال وانصرافهم اليومي بواسطة المدير" : "Enregistrement quotidien des arrivées et départs par l’administrateur"}
+        accent="bg-indigo-600"
       />
       <section className="grid gap-3 sm:grid-cols-4">
         {[
