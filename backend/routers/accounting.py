@@ -452,10 +452,25 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         "gs_supplier_payments": len(supplier_payments) > limit,
         "gs_sale_reversals": len(reversals) > limit,
     }
+    sale_payment_rows, supplier_payment_rows = sale_payments[:limit], supplier_payments[:limit]
+    sale_invoice_ids = list(dict.fromkeys(str(row.get("invoice_id")) for row in sale_payment_rows if row.get("invoice_id")))
+    supplier_purchase_ids = list(dict.fromkeys(str(row.get("purchase_id")) for row in supplier_payment_rows if row.get("purchase_id")))
+    sale_invoices, supplier_purchases = await asyncio.gather(
+        db.commercial_sales_invoices.find(
+            {"id": {"$in": sale_invoice_ids}, "season_code": season_code},
+            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1},
+        ).to_list(limit),
+        db.commercial_olive_purchases.find(
+            {"id": {"$in": supplier_purchase_ids}, "season_code": season_code},
+            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1},
+        ).to_list(limit),
+    )
     preview = build_treasury_movement_preview(
-        sale_payments=sale_payments[:limit],
-        supplier_payments=supplier_payments[:limit],
+        sale_payments=sale_payment_rows,
+        supplier_payments=supplier_payment_rows,
         sale_reversals=reversals[:limit],
+        sale_invoices=sale_invoices,
+        supplier_purchases=supplier_purchases,
         treasury_accounts=accounts,
     )
     return {
