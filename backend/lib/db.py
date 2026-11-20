@@ -79,8 +79,8 @@ INDEXES.update({
     ],
     "accounting_treasury_movements": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
-        IndexModel([("source_type", ASCENDING), ("source_id", ASCENDING)],
-                   name="source_identity_unique", unique=True),
+        IndexModel([("season_code", ASCENDING), ("source_type", ASCENDING), ("source_id", ASCENDING)],
+                   name="season_source_identity_unique", unique=True),
         IndexModel([("season_code", ASCENDING), ("movement_date", DESCENDING), ("id", ASCENDING)],
                    name="season_movement_date"),
         IndexModel([("account_id", ASCENDING), ("movement_date", DESCENDING), ("id", ASCENDING)],
