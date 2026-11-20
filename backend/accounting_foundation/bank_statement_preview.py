@@ -35,6 +35,8 @@ def parse_bank_statement_csv(raw: bytes) -> list[dict[str, Any]]:
     for line_number, raw_row in enumerate(reader, start=2):
         if len(rows) >= MAX_STATEMENT_ROWS:
             raise ValueError(f"CSV cannot contain more than {MAX_STATEMENT_ROWS} data rows")
+        if raw_row.get(None):
+            raise ValueError(f"Unexpected extra CSV fields on line {line_number}")
         row = {str(key or "").strip().lower(): (value or "").strip() for key, value in raw_row.items()}
         if not any(row.values()):
             continue
