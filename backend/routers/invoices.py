@@ -138,6 +138,47 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
     if paid > total:
         raise HTTPException(422, "paid_amount_exceeds_total")
     now = datetime.now(timezone.utc)
+    initial_payment = None
+    treasury_account = None
+    payment_season_code = None
+    if paid > 0:
+        method = str(body.get("payment_method") or "").upper()
+        if method not in {"CASH", "BANK_TRANSFER", "CHEQUE"}:
+            raise HTTPException(422, "payment_method_required")
+        reference = str(body.get("payment_reference") or "").strip()
+        if method in {"BANK_TRANSFER", "CHEQUE"} and not reference:
+            raise HTTPException(422, "payment_reference_required")
+
+        account_id = str(body.get("treasury_account_id") or "").strip()
+        account_count = await db.accounting_treasury_accounts.count_documents({}, session=session)
+        allocation_status = "UNALLOCATED"
+        if account_count:
+            if not account_id:
+                raise HTTPException(422, "treasury_account_required")
+            treasury_account = await db.accounting_treasury_accounts.find_one(
+                {"id": account_id}, {"_id": 0}, session=session
+            )
+            expected_type = "CASH" if method == "CASH" else "BANK"
+            if (
+                not treasury_account
+                or treasury_account.get("active") is not True
+                or treasury_account.get("currency") != "TND"
+                or treasury_account.get("account_type") != expected_type
+            ):
+                raise HTTPException(422, "treasury_account_invalid")
+            allocation_status = "MAPPED"
+            if load.get("season_id") is None:
+                raise HTTPException(409, "invoice_season_unavailable")
+            payment_season_code = season_prefix(load["season_id"])
+
+        initial_payment = {
+            "id": str(uuid.uuid4()), "at": now,
+            "by": user.get("username", ""), "amount": money_db(paid),
+            "method": method, "currency": "TND", "reference": reference or None,
+            "treasury_account_id": account_id or None,
+            "treasury_allocation_status": allocation_status,
+        }
+
     doc = {
         "id": str(uuid.uuid4()),
         "number": f"FAC-{load['code']}",
@@ -146,7 +187,7 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
         "variety": load.get("variety"),
         "olive_kg": float(load["olive_kg"]), "oil_kg": oil_kg, "price_per_kg": money_db(price),
         "total": money_db(total), "paid_amount": money_db(paid), "balance": money_db(total - paid),
-        "payments": ([{"id": str(uuid.uuid4()), "at": now, "by": user.get("username", ""), "amount": money_db(paid), "currency": "TND", "treasury_allocation_status": "UNALLOCATED"}] if paid > 0 else []),
+        "payments": ([initial_payment] if initial_payment else []),
         "day": load.get("day", now.strftime("%Y-%m-%d")),
         "created_at": now, "updated_at": now,
         "mill_name": settings.get("mill_name", ""), "mill_address": settings.get("mill_address", ""),
@@ -168,6 +209,13 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
     if not guarded.matched_count:
         raise HTTPException(409, "load_changed_retry")
     await db.invoices.insert_one(doc, session=session)
+    if initial_payment and treasury_account:
+        await record_traditional_receipt_movement(
+            db, invoice=doc, payment=initial_payment, account=treasury_account,
+            season_code=payment_season_code,
+            actor_user_id=str(user.get("id") or user.get("username") or "admin"),
+            recorded_at=now, session=session,
+        )
     await db.commercial_audit_events.insert_one({
         "id": str(uuid.uuid4()), "entity_type": "traditional_invoice",
         "entity_id": doc["id"], "action": "INVOICE_CREATED",
