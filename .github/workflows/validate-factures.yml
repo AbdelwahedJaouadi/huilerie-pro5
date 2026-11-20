@@ -61,6 +61,7 @@ jobs:
       - name: Test invoice calculations and accounting foundation
         run: >-
           python -m pytest -o addopts=
+          tests/test_workforce_attendance.py
           tests/test_invoices_unit.py
           tests/test_client_accounts_unit.py
           tests/test_tunisie_sms_phone_unit.py
@@ -147,7 +148,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install transaction integration dependencies
-        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-multipart python-dotenv pyjwt passlib pytest pytest-asyncio pytest-xdist
+        run: python -m pip install "pydantic>=2" pymongo motor fastapi python-multipart python-dotenv pyjwt passlib httpx pytest pytest-asyncio pytest-xdist
       - name: Start MongoDB replica-set container
         run: docker run -d --name mongo-rs -p 27017:27017 mongo:7.0 mongod --replSet rs0 --bind_ip_all
       - name: Initialize MongoDB replica set
@@ -204,7 +205,8 @@ jobs:
             commercial/tests/test_mongodb_credit_application_integration.py \
             commercial/tests/test_mongodb_payment_reversal_integration.py \
             commercial/tests/test_payment_reversal_concurrency_integration.py \
-            commercial/tests/test_mongodb_return_rejection_integration.py
+            commercial/tests/test_mongodb_return_rejection_integration.py \
+            tests/test_workforce_attendance_integration.py
 
   frontend-build:
     runs-on: ubuntu-latest
