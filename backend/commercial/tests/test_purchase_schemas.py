@@ -148,10 +148,10 @@ def test_vehicle_weight_is_not_accepted_for_multiple_purchase_lines():
 @pytest.mark.parametrize(
     ("field", "value", "error"),
     [
-        ("gross_weight_kg", True, "gross_weight_invalid"),
-        ("tare_weight_kg", False, "tare_weight_invalid"),
-        ("gross_weight_kg", "12500.0001", "gross_weight_invalid_precision"),
-        ("tare_weight_kg", "1000001", "tare_weight_out_of_range"),
+        ("gross_weight_kg", True, "gross_weight_kg_invalid"),
+        ("tare_weight_kg", False, "tare_weight_kg_invalid"),
+        ("gross_weight_kg", "12500.0001", "gross_weight_kg_invalid_precision"),
+        ("tare_weight_kg", "1000001", "tare_weight_kg_out_of_range"),
     ],
 )
 def test_vehicle_weight_rejects_invalid_raw_readings(field, value, error):
