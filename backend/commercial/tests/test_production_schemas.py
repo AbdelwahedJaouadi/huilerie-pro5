@@ -32,7 +32,7 @@ def test_production_calculates_actual_extraction_without_assumed_rate():
 
 
 def test_production_rejects_mixing_mill_and_customer_custody_olives():
-    with pytest.raises(ValidationError, match="exactly one olive batch"):
+    with pytest.raises(ValidationError, match="cannot mix mill-owned and customer-custody olives"):
         CommercialProductionDraft(
             production_date="2026-11-02",
             inputs=[
