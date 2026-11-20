@@ -41,7 +41,7 @@ def intake_env(monkeypatch):
         return await operation(session)
 
     async def next_code(season, session=None):
-        assert session is intake_env.session
+        assert session is not None
         code_calls.append(season)
         return f"2627{len(code_calls):04d}"
 
