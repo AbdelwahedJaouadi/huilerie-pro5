@@ -166,3 +166,52 @@ def test_vehicle_weight_rejects_invalid_raw_readings(field, value, error):
     payload[field] = value
     with pytest.raises(ValidationError, match=error):
         OlivePurchaseDraft(**payload)
+
+
+from bson.decimal128 import Decimal128
+from commercial.services.purchases import _validate_draft_weight_preservation
+
+
+def _weight_edit_draft(*, quantity="8300.000", gross=None, tare=None):
+    payload = {
+        "supplier_id": "supplier-1",
+        "purchase_date": date(2026, 11, 2),
+        "lines": [{"variety_id": "chemlali", "quantity_kg": quantity, "unit_price_dt": "1.500"}],
+        "idempotency_key": "purchase-weight-edit-check",
+    }
+    if gross is not None:
+        payload["gross_weight_kg"] = gross
+    if tare is not None:
+        payload["tare_weight_kg"] = tare
+    return OlivePurchaseDraft(**payload)
+
+
+def _stored_weight():
+    return {
+        "gross_kg": Decimal128("12500.000"),
+        "tare_kg": Decimal128("4200.000"),
+        "net_kg": Decimal128("8300.000"),
+    }
+
+
+def test_weighted_purchase_edit_preserves_original_measurement_when_readings_omitted():
+    _validate_draft_weight_preservation(_stored_weight(), _weight_edit_draft())
+
+
+def test_weighted_purchase_edit_rejects_changed_net_quantity():
+    with pytest.raises(ValueError, match="audited reweighing"):
+        _validate_draft_weight_preservation(_stored_weight(), _weight_edit_draft(quantity="8299.000"))
+
+
+def test_weighted_purchase_edit_rejects_replacing_original_readings():
+    with pytest.raises(ValueError, match="new vehicle reading requires an audited reweighing"):
+        _validate_draft_weight_preservation(
+            _stored_weight(), _weight_edit_draft(gross="12501.000", tare="4201.000")
+        )
+
+
+def test_unweighted_purchase_edit_rejects_adding_vehicle_readings():
+    with pytest.raises(ValueError, match="only be added through the original purchase creation"):
+        _validate_draft_weight_preservation(
+            None, _weight_edit_draft(gross="12500.000", tare="4200.000")
+        )
