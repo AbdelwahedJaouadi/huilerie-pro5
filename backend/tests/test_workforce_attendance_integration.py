@@ -13,7 +13,7 @@ import routers.workforce as workforce
 @pytest.mark.asyncio
 async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
     test_db = db_module.client[
-        f"{os.environ['DB_NAME']}_workforce_{uuid.uuid4().hex}"
+        f"{os.environ['DB_NAME'][:20]}_wf_{uuid.uuid4().hex[:12]}"
     ]
     monkeypatch.setattr(workforce, "db", test_db)
     await test_db["workforce_attendance"].create_index(
