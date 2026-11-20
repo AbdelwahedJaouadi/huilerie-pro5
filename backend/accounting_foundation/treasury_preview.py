@@ -126,7 +126,7 @@ def build_treasury_movement_preview(
         invoice = invoices_by_id.get(str(row.get("invoice_id") or ""))
         if not invoice:
             candidate["blocking_reasons"].append("PAYMENT_INVOICE_NOT_FOUND")
-        elif row.get("sale_id") != invoice.get("sale_id"):
+        elif not row.get("sale_id") or not invoice.get("sale_id") or row.get("sale_id") != invoice.get("sale_id"):
             candidate["blocking_reasons"].append("PAYMENT_SALE_LINK_MISMATCH")
         elif invoice.get("buyer_id"):
             candidate["party_id"] = str(invoice["buyer_id"])
@@ -143,7 +143,7 @@ def build_treasury_movement_preview(
         purchase = purchases_by_id.get(str(row.get("purchase_id") or ""))
         if not purchase or purchase.get("status") != "APPROVED":
             candidate["blocking_reasons"].append("SUPPLIER_PURCHASE_LINK_INVALID")
-        elif row.get("supplier_id") != purchase.get("supplier_id"):
+        elif not row.get("supplier_id") or not purchase.get("supplier_id") or row.get("supplier_id") != purchase.get("supplier_id"):
             candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
