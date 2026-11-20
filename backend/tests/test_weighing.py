@@ -134,3 +134,21 @@ def test_weight_measurement_audit_snapshot_preserves_original_evidence():
 
 def test_weight_measurement_audit_snapshot_handles_legacy_load_without_weighing():
     assert weight_measurement_audit_snapshot(None) is None
+
+
+
+@pytest.mark.parametrize(
+    ("olive_kg", "error"),
+    [
+        (True, "olive_weight_invalid"),
+        ("8300.0001", "olive_weight_invalid_precision"),
+        (1_000_001, "olive_weight_out_of_range"),
+    ],
+)
+def test_legacy_net_only_intake_rejects_invalid_raw_weight_values(olive_kg, error):
+    with pytest.raises(Exception, match=error):
+        LoadCreate(
+            client_name="Test Client",
+            phone="+21600000000",
+            olive_kg=olive_kg,
+        )
