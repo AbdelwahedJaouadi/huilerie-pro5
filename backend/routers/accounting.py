@@ -357,7 +357,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         [("active", -1), ("account_type", 1), ("name", 1)]
     ).to_list(500)
     return {"accounts": _safe(rows), "currency": "TND", "opening_balances_configured": False,
-            "ledger_enabled": False, "read_only_balances": True}
+            "ledger_enabled": True, "movement_recording_enabled": True, "read_only_balances": True}
 
 
 @router.post("/treasury/accounts")
