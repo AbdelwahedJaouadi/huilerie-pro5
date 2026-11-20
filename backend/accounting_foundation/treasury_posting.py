@@ -12,8 +12,8 @@ from .treasury_preview import build_treasury_movement_preview
 SourceType = Literal["GS_SALE_PAYMENT", "GS_SUPPLIER_PAYMENT"]
 
 
-def _stable_id(namespace: str, source_type: str, source_id: str) -> str:
-    return str(uuid5(NAMESPACE_URL, f"oroverde:treasury:{namespace}:{source_type}:{source_id}"))
+def _stable_id(namespace: str, season_code: str, source_type: str, source_id: str) -> str:
+    return str(uuid5(NAMESPACE_URL, f"oroverde:treasury:{namespace}:{season_code}:{source_type}:{source_id}"))
 
 
 def build_movement_document(
@@ -66,7 +66,7 @@ async def record_source_payment_movement(
     """Record one explicit movement for one canonical payment, atomically with its audit event."""
     movement_collection = db["accounting_treasury_movements"]
     existing = await movement_collection.find_one(
-        {"source_type": source_type, "source_id": source_id}, {"_id": 0}, session=session
+        {"season_code": season_code, "source_type": source_type, "source_id": source_id}, {"_id": 0}, session=session
     )
     if existing:
         return existing
@@ -110,7 +110,7 @@ async def record_source_payment_movement(
     if len(candidates) != 1:
         raise ValueError("Treasury proposal could not be composed safely")
     candidate = candidates[0]
-    movement_id = _stable_id("movement", source_type, source_id)
+    movement_id = _stable_id("movement", season_code, source_type, source_id)
     movement = build_movement_document(
         candidate, season_code=season_code, actor_user_id=actor_user_id,
         movement_id=movement_id, recorded_at=recorded_at,
@@ -118,7 +118,7 @@ async def record_source_payment_movement(
     movement["source_document_id"] = source.get("invoice_id") if source_type == "GS_SALE_PAYMENT" else source.get("purchase_id")
     await movement_collection.insert_one(movement, session=session)
     await db["accounting_treasury_movement_events"].insert_one({
-        "id": _stable_id("event", source_type, source_id),
+        "id": _stable_id("event", season_code, source_type, source_id),
         "movement_id": movement_id,
         "source_type": source_type,
         "source_id": source_id,
