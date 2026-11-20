@@ -758,6 +758,17 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
             {"_id": 0, "id": 1, "status": 1, "supplier_id": 1},
         ).to_list(limit),
     )
+    seasonal_load_ids = await db.loads.distinct("id", {"season_id": season})
+    traditional_invoices = await db.invoices.find(
+        {"load_id": {"$in": seasonal_load_ids}}, {"_id": 0, "id": 1, "number": 1, "client_id": 1, "payments": 1}
+    ).to_list(limit * 5)
+    traditional_receipts = []
+    for invoice in traditional_invoices:
+        for payment in invoice.get("payments") if isinstance(invoice.get("payments"), list) else []:
+            traditional_receipts.append({
+                **payment, "invoice_id": invoice.get("id"),
+                "invoice_number": invoice.get("number"), "client_id": invoice.get("client_id"),
+            })
     preview = build_treasury_movement_preview(
         sale_payments=sale_payment_rows,
         supplier_payments=supplier_payment_rows,
@@ -765,6 +776,7 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         sale_invoices=sale_invoices,
         supplier_purchases=supplier_purchases,
         treasury_accounts=accounts,
+        traditional_receipts=traditional_receipts[:limit],
     )
     source_ids = [row["source_id"] for row in preview["candidates"]]
     recorded_rows = await db.accounting_treasury_movements.find(
