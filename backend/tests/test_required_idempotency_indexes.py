@@ -29,3 +29,16 @@ async def test_required_idempotency_index_failure_fails_closed(monkeypatch, coll
 
     with pytest.raises(RuntimeError, match="Required idempotency index unavailable"):
         await db_module.ensure_indexes()
+
+
+def test_treasury_movement_source_identity_index_is_unique():
+    indexes = db_module.INDEXES["accounting_treasury_movements"]
+    source_index = next(
+        model for model in indexes
+        if model.document.get("name") == "source_identity_unique"
+    )
+    assert source_index.document.get("unique") is True
+    assert source_index.document["key"] == {
+        "source_type": 1,
+        "source_id": 1,
+    }
