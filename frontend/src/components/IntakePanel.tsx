@@ -356,7 +356,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           new_supplier_tax_identifier: newSupplier ? (newSupplierTaxId.trim() || null) : null,
           purchase_date: supplierDate,
           lines: [{ variety_id: supplierVariety || varietyList[0] || "Olives", quantity_kg: supplierKgValue, unit_price_millimes: supplierPriceValue }],
-          ...(supplierHasVehicleWeight ? { gross_weight_kg: supplierGrossValue, tare_weight_kg: supplierTareValue } : {}),
+          ...(supplierHasVehicleWeight ? { gross_weight_kg: supplierGrossKg.trim().replace(",", "."), tare_weight_kg: supplierTareKg.trim().replace(",", ".") } : {}),
           receiving_location_id: chosenLocationId,
           notes: supplierNotes.trim() || null,
           idempotency_key: requestKey,
