@@ -50,6 +50,17 @@ function NewClientDialog({ open, onClose, onCreated }: { open: boolean; onClose:
   );
 }
 
+function createIntakeRequestKey(): string {
+  // randomUUID is restricted to secure contexts; getRandomValues also works
+  // on the mill's private HTTP network when the app is accessed by LAN IP.
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
+}
+
 export default function IntakePanel({ stacked = false }: { stacked?: boolean }) {
   const { t, errMsg, lang } = useI18n();
   const ar = lang === "ar";
@@ -215,7 +226,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
             const payload: LoadCreate = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
             const fingerprint = JSON.stringify(payload);
             if (!loadRequestRef.current || loadRequestRef.current.fingerprint !== fingerprint) {
-              loadRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+              loadRequestRef.current = { fingerprint, key: createIntakeRequestKey() };
             }
             m.mutate({ ...payload, idempotency_key: loadRequestRef.current.key });
           }
@@ -356,7 +367,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       </form> : <form onSubmit={(e) => {
         e.preventDefault();
         if (!chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
-        const requestKey = supplierRequestKey || crypto.randomUUID();
+        const requestKey = supplierRequestKey || createIntakeRequestKey();
         setSupplierRequestKey(requestKey);
         supplierMutation.mutate({
           supplier_id: newSupplier ? null : supplierId,
