@@ -93,6 +93,8 @@ def test_preview_reports_duplicate_candidate_identity_without_posting():
     result = build_reconciliation_preview(traditional_invoices=[invoice])
     assert result["summary"]["duplicate_candidate_key_count"] == 1
     assert result["summary"]["unresolved_reason_counts"]["DUPLICATE_CANDIDATE_EVENT_IDENTITY"] == 1
+    assert all(event["eligibility"] == "BLOCKED" for event in result["candidate_events"] if event["event_type"] == "PAYMENT_RECEIVED")
+    assert result["summary"]["eligibility_counts"]["BLOCKED"] == 2
     assert result["posting_enabled"] is False
 
 
