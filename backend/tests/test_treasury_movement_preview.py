@@ -142,3 +142,44 @@ def test_supplier_payment_requires_nonempty_matching_supplier_identity():
         treasury_accounts=[account()],
     )
     assert "PAYMENT_SUPPLIER_LINK_MISMATCH" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_traditional_receipt_with_stable_id_is_proposed_as_inflow():
+    payment = {
+        "id": "traditional-payment-1", "invoice_id": "invoice-trad-1",
+        "invoice_number": "FAC-2026-01", "amount": "12.500",
+        "at": "2026-11-20T10:00:00+01:00", "method": "CASH",
+        "currency": "TND", "treasury_account_id": "cash-1",
+        "treasury_allocation_status": "MAPPED",
+    }
+    result = build_treasury_movement_preview(
+        traditional_receipts=[payment], treasury_accounts=[account()],
+    )
+    candidate = result["candidates"][0]
+    assert candidate["source_type"] == "TRADITIONAL_RECEIPT"
+    assert candidate["source_id"] == "traditional-payment-1"
+    assert candidate["direction"] == "IN"
+    assert candidate["amount"] == "12.500"
+    assert candidate["eligibility"] == "ELIGIBLE_FOR_REVIEW"
+
+
+def test_traditional_legacy_receipt_without_id_is_unresolved_not_synthesized():
+    result = build_treasury_movement_preview(
+        traditional_receipts=[{"invoice_id": "legacy-invoice", "amount": "12.500", "at": "2026-11-20"}],
+        treasury_accounts=[account()],
+    )
+    assert result["candidates"] == []
+    assert result["unresolved_items"][0]["reason"] == "PAYMENT_CHILD_ID_MISSING"
+
+
+def test_traditional_bank_receipt_requires_reference_and_bank_account():
+    payment = {
+        "id": "traditional-payment-2", "amount": "12.500", "at": "2026-11-20",
+        "method": "BANK_TRANSFER", "currency": "TND", "treasury_account_id": "bank-1",
+        "treasury_allocation_status": "MAPPED",
+    }
+    result = build_treasury_movement_preview(
+        traditional_receipts=[payment],
+        treasury_accounts=[account("bank-1", "BANK")],
+    )
+    assert "BANK_OR_CHEQUE_REFERENCE_MISSING" in result["candidates"][0]["blocking_reasons"]

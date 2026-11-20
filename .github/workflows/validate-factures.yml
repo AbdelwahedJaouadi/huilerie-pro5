@@ -18,6 +18,7 @@ on:
       - erp/treasury-movement-register-phase-12
       - erp/bank-statement-preview-phase-13
       - erp/cash-count-evidence-phase-14
+      - erp/traditional-invoice-receipt-treasury-phase-15
   pull_request:
     branches:
       - main
