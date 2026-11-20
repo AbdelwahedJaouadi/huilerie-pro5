@@ -1759,6 +1759,7 @@ async def test_customer_oil_purchase_creates_bon_and_tracks_partial_then_final_p
             "id": "source-customer-olive-lot",
             "season_code": "2627",
             "product_kind": "OLIVE",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-oil-sale"},
             "batch_code": "2627A0008",
             "status": "OPEN",
             "preproduction_quality_status": "RELEASED",
@@ -1784,6 +1785,7 @@ async def test_customer_oil_purchase_creates_bon_and_tracks_partial_then_final_p
             "id": "customer-owned-oil-lot",
             "season_code": "2627",
             "product_kind": "OIL",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-oil-sale"},
             "batch_code": "2627A0008",
             "source_olive_lot_id": "source-customer-olive-lot",
             "source_production_id": "production-from-approved-preproduction",
@@ -1963,6 +1965,7 @@ async def test_customer_olive_purchase_creates_bon_and_tracks_partial_then_final
             "id": "customer-owned-olive-lot",
             "season_code": "2627",
             "product_kind": "OLIVE",
+            "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-olive-sale"},
             "batch_code": "2627A0008",
             "status": "OPEN",
         })
