@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, ClipboardList, RefreshCw, ShieldAlert } from "lucide-react";
 import { apiGet } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Candidate = {
@@ -75,7 +76,8 @@ export default function ReconciliationPreview() {
     staleTime: 30_000,
     retry: 1,
   });
-  const ar = document.documentElement.lang === "ar" || document.documentElement.dir === "rtl";
+  const { lang } = useI18n();
+  const ar = lang === "ar";
 
   if (isPending) return <Card><CardContent className="p-6 text-sm text-stone-600">{ar ? "جارٍ تحميل معاينة التسوية…" : "Chargement de l’aperçu de rapprochement…"}</CardContent></Card>;
   if (isError || !data) return <Card className="border-red-200"><CardContent className="flex flex-wrap items-center gap-3 p-5 text-red-800">
