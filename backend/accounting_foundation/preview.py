@@ -96,10 +96,6 @@ def build_reconciliation_preview(
         event.get("eligibility", "UNKNOWN") for event in candidate_events
     )
     source_counts = Counter(event.get("source_type", "UNKNOWN") for event in candidate_events)
-    unresolved_counts = Counter(
-        item.get("reason", "UNKNOWN") for item in unresolved_items
-    )
-
     candidate_keys = [
         event.get("candidate_key") for event in candidate_events
         if event.get("candidate_key")
@@ -114,6 +110,9 @@ def build_reconciliation_preview(
             "candidate_key": key,
             "observed_count": candidate_keys.count(key),
         })
+    unresolved_counts = Counter(
+        item.get("reason", "UNKNOWN") for item in unresolved_items
+    )
 
     return {
         "candidate_events": candidate_events,
