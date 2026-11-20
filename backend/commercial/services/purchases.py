@@ -232,10 +232,21 @@ async def update_olive_purchase_draft(
     ), start=Decimal("0"))
     existing_weight = existing.get("weight_measurement")
     if existing_weight:
-        stored_net = existing_weight.get("net_kg")
-        stored_net = stored_net.to_decimal() if isinstance(stored_net, Decimal128) else Decimal(str(stored_net))
+        def stored_decimal(key: str) -> Decimal:
+            value = existing_weight.get(key)
+            return value.to_decimal() if isinstance(value, Decimal128) else Decimal(str(value))
+
+        stored_net = stored_decimal("net_kg")
         if total_quantity != stored_net:
             raise ValueError("Vehicle weight measurement must be corrected through an audited reweighing before changing net quantity")
+        # Editing a draft must never silently replace or ignore a new weigh-in.
+        if draft.gross_weight_kg is not None and (
+            draft.gross_weight_kg != stored_decimal("gross_kg")
+            or draft.tare_weight_kg != stored_decimal("tare_kg")
+        ):
+            raise ValueError("A new vehicle reading requires an audited reweighing, not a draft edit")
+    elif draft.gross_weight_kg is not None or draft.tare_weight_kg is not None:
+        raise ValueError("Vehicle weight can only be added through the original purchase creation")
     weight_snapshot = weight_measurement_audit_snapshot(existing_weight)
     now = updated_at.astimezone(timezone.utc)
     result = await purchases.update_one(
