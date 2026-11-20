@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 import asyncio
 
 from accounting_foundation.treasury_posting import build_movement_document, record_source_payment_movement
