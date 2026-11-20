@@ -66,6 +66,7 @@ function EmployeePermissionsPanel() {
   const permissions = [
     ["commercial.edit_records", lang === "ar" ? "تعديل السجلات التجارية" : "Modification des dossiers commerciaux"],
     ["commercial.delete_records", lang === "ar" ? "حذف / إلغاء السجلات التجارية" : "Suppression / annulation des dossiers commerciaux"],
+    ["commercial.register_olive_purchase", lang === "ar" ? "تسجيل شراء واستلام الزيتون مباشرة" : "Enregistrer directement les achats et réceptions d’olives"],
     ["commercial.lab_record", lang === "ar" ? "تسجيل التحاليل المخبرية" : "Saisie des analyses laboratoire"],
     ["commercial.manage_preproduction_samples", lang === "ar" ? "إجراء تجارب العصر قبل الإنتاج" : "Gérer les essais de trituration préproduction"],
     ["commercial.quality_release", lang === "ar" ? "المراجعة المستقلة للجودة" : "Validation indépendante de la qualité"],
