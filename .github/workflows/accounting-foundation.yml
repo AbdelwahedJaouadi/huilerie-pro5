@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - main
+      - erp/foundation-phase-1
     paths:
       - "backend/accounting_foundation/**"
       - "backend/tests/test_accounting_foundation.py"
