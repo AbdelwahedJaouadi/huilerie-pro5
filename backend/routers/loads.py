@@ -142,9 +142,6 @@ async def _existing_idempotent_load(actor_id: str, key: str, fingerprint: str, u
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
-    inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
-    if inactive_client:
-        raise HTTPException(409, "client_inactive")
     net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
     idempotency_key = (body.idempotency_key or "").strip()
     actor_id = str(user.get("id") or user.get("username") or "")
@@ -153,6 +150,10 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         existing = await _existing_idempotent_load(actor_id, idempotency_key, fingerprint, user)
         if existing is not None:
             return existing
+
+    inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
+    if inactive_client:
+        raise HTTPException(409, "client_inactive")
 
     now_local = datetime.now(_tz())
     season = await active_season()
