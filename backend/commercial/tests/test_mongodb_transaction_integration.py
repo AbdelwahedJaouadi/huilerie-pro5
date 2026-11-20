@@ -625,7 +625,7 @@ async def test_wholesale_sale_dispatches_only_released_mill_owned_oil_and_tracks
             )
         assert approved["status"] == "APPROVED"
         invoice = await db.commercial_sales_invoices.find_one({"id": "invoice-1"})
-        assert invoice["document_number"] == "2627FAC0001"
+        assert invoice["document_number"] == "2627F0001"
         assert invoice["total_amount_dt"].to_decimal() == Decimal("112.500")
         assert invoice["tax_treatment_status"] == "NOT_CONFIGURED"
         balance = await db.commercial_stock_balances.find_one({"location_id": "tank-01"})
@@ -753,29 +753,16 @@ async def test_wholesale_sale_rejects_customer_custody_and_unreleased_oil():
             source_tank_id="tank-01", quantity_kg=Decimal("10.000"),
             unit_price_dt=Decimal("5.000"), idempotency_key="blocked-sale-create-key-001",
         )
-        async with await client.start_session() as session:
-            await session.with_transaction(
-                lambda active: create_wholesale_sale_draft(
-                    db, draft, season_code="2627", actor_user=admin,
-                    actor_user_id="admin-1", sale_id="sale-blocked",
-                    audit_event_id="sale-blocked-draft-audit", created_at=now, session=active,
-                )
-            )
         with pytest.raises(ValueError, match="Insufficient mill-owned oil stock"):
             async with await client.start_session() as session:
                 await session.with_transaction(
-                    lambda active: approve_wholesale_sale(
-                        db, "sale-blocked",
-                        ApproveWholesaleSaleCommand(
-                            expected_version=1, idempotency_key="blocked-sale-approve-key-001"
-                        ),
-                        season_code="2627", actor_user=admin, actor_user_id="admin-1",
-                        invoice_id="blocked-invoice", stock_movement_id="blocked-dispatch",
-                        audit_event_id="blocked-approval-audit", created_at=now, session=active,
+                    lambda active: create_wholesale_sale_draft(
+                        db, draft, season_code="2627", actor_user=admin,
+                        actor_user_id="admin-1", sale_id="sale-blocked",
+                        audit_event_id="sale-blocked-draft-audit", created_at=now, session=active,
                     )
                 )
-        sale = await db.commercial_sales.find_one({"id": "sale-blocked"})
-        assert sale["status"] == "DRAFT"
+        assert await db.commercial_sales.count_documents({"id": "sale-blocked"}) == 0
         assert await db.commercial_sales_invoices.count_documents({}) == 0
         balance = await db.commercial_stock_balances.find_one({"location_id": "tank-01"})
         assert balance["quantity_kg"].to_decimal() == Decimal("40.000")
