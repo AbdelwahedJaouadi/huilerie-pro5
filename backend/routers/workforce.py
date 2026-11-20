@@ -62,13 +62,20 @@ async def _audit(record: dict, action: str, admin: dict, details: dict | None = 
 @router.get("/attendance")
 async def list_attendance(day: Date | None = None, _: dict = Depends(require_admin)):
     selected_day = day or _today_tunis()
-    workers = await db.users.find(
-        {"role": "worker", "active": True},
-        {"_id": 0, "id": 1, "full_name": 1, "username": 1},
-    ).sort("full_name", 1).to_list(500)
     records = await db["workforce_attendance"].find(
         {"day": selected_day.isoformat()}, {"_id": 0}
     ).sort("worker_name", 1).to_list(1000)
+    recorded_worker_ids = [record["worker_id"] for record in records]
+    workers = await db.users.find(
+        {
+            "role": "worker",
+            "$or": [
+                {"active": True},
+                {"id": {"$in": recorded_worker_ids}},
+            ],
+        },
+        {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1},
+    ).sort("full_name", 1).to_list(500)
     return {"day": selected_day.isoformat(), "workers": workers, "records": records}
 
 
@@ -123,7 +130,9 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin))
 @router.post("/attendance/check-out")
 async def check_out(body: AttendanceAction, admin: dict = Depends(require_admin)):
     _ensure_today(body.day)
-    worker = await _active_worker(body.worker_id)
+    worker = await db.users.find_one({"id": body.worker_id, "role": "worker"}, {"_id": 0, "id": 1})
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
     record = await db["workforce_attendance"].find_one(
