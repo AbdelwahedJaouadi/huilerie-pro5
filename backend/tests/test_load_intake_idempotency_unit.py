@@ -136,12 +136,24 @@ async def test_same_key_and_same_payload_returns_original_load_without_side_effe
     assert len(intake_env.code_calls) == 1
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"client_name": "Different Client"},
+        {"phone": "+216 99 999 999"},
+        {"olive_kg": 8301.125},
+        {"bags": 121},
+        {"variety": "Chetoui"},
+        {"notes": "Changed notes"},
+        {"initial_status": "pressing"},
+    ],
+)
 @pytest.mark.asyncio
-async def test_same_key_with_changed_business_payload_returns_409_without_writes(intake_env):
+async def test_same_key_with_changed_business_payload_returns_409_without_writes(intake_env, changes):
     await load_routes.create_load(_command(), USER)
 
     with pytest.raises(HTTPException) as exc:
-        await load_routes.create_load(_command(olive_kg=8301.125), USER)
+        await load_routes.create_load(_command(**changes), USER)
 
     assert exc.value.status_code == 409
     assert exc.value.detail == "idempotency_key_payload_conflict"
