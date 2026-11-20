@@ -64,7 +64,7 @@ def fake_db(monkeypatch):
         "olive_kg": 100.0,
         "oil_kg": 15.0,
         "day": "2026-10-27",
-        "season_id": "2627",
+        "season_id": "2026-2027",
         "cancelled": False,
     }
     fake = SimpleNamespace(
