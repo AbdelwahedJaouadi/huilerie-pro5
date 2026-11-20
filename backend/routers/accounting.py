@@ -23,6 +23,7 @@ from lib.season import active_season, season_prefix
 from accounting_foundation.preview import build_reconciliation_preview
 from accounting_foundation.treasury_preview import build_treasury_movement_preview
 from accounting_foundation.treasury_posting import record_source_payment_movement
+from accounting_foundation.treasury_register import build_movement_register_filter
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 RECENT_LIMIT = 200
@@ -467,6 +468,50 @@ async def create_treasury_movement(payload: TreasuryMovementCreateInput, user: d
         if existing:
             return _safe(existing)
         raise HTTPException(status_code=409, detail="Une opération de trésorerie concurrente doit être vérifiée.") from exc
+
+
+@router.get("/treasury/movements")
+async def list_treasury_movements(
+    account_id: str | None = None,
+    direction: Literal["IN", "OUT"] | None = None,
+    settlement_status: Literal[
+        "CASH_RECORDED", "PENDING_BANK_CONFIRMATION", "PENDING_CHEQUE_CLEARANCE"
+    ] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    _: dict = Depends(require_admin),
+):
+    """Read-only, active-season movement register; no running or closing balances."""
+    if isinstance(limit, bool) or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="limit doit être compris entre 1 et 200.")
+    if isinstance(offset, bool) or offset < 0 or offset > 50000:
+        raise HTTPException(status_code=422, detail="offset doit être compris entre 0 et 50000.")
+    season = await active_season()
+    season_code = season_prefix(season)
+    try:
+        match = build_movement_register_filter(
+            season_code=season_code, account_id=account_id, direction=direction,
+            settlement_status=settlement_status, start_date=start_date, end_date=end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    total_count = await db.accounting_treasury_movements.count_documents(match)
+    rows = await db.accounting_treasury_movements.find(match, {"_id": 0}).sort(
+        [("movement_date", -1), ("id", 1)]
+    ).skip(offset).limit(limit).to_list(length=limit)
+    return {
+        "rows": _safe(rows),
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "active_season": season,
+        "season_code": season_code,
+        "read_only": True,
+        "balances_calculated": False,
+        "currency": "TND",
+    }
 
 
 @router.get("/treasury/movement-preview")
