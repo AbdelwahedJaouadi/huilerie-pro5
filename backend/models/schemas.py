@@ -3,7 +3,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from lib.weighing import derive_net_weight_kg
+from lib.weighing import derive_net_weight_kg, validate_weight_kg
 
 Role = Literal["admin", "worker"]
 Grade = Literal["extra_vierge", "vierge", "lampante"]
@@ -131,6 +131,10 @@ class LoadCreate(BaseModel):
             # Validate the original JSON values before Pydantic can coerce bools
             # or other input types into floats and hide their original form.
             derive_net_weight_kg(gross, tare)
+        elif values.get("olive_kg") is not None:
+            # Legacy net-only requests remain supported, but booleans and
+            # readings finer than 0.001 kg are never valid weight evidence.
+            validate_weight_kg(values["olive_kg"], "olive_weight")
         return values
 
     @model_validator(mode="after")
