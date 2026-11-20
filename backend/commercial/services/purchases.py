@@ -13,10 +13,31 @@ from typing import Any
 
 from bson.decimal128 import Decimal128
 
+from lib.weighing import weight_measurement_audit_snapshot
 from commercial.permissions import require_commercial_permission
 from commercial.schemas.purchases import OlivePurchaseDraft
 from commercial.services.numbering import reserve_document_number, reserve_batch_code
 from lib.season import DEFAULT_VARIETIES
+
+
+def _validate_draft_weight_preservation(existing_weight: dict | None, draft: OlivePurchaseDraft) -> None:
+    """Prevent a draft edit from changing or silently adding vehicle weight evidence."""
+    if not existing_weight:
+        if draft.gross_weight_kg is not None or draft.tare_weight_kg is not None:
+            raise ValueError("Vehicle weight can only be added through the original purchase creation")
+        return
+
+    def stored_decimal(key: str) -> Decimal:
+        value = existing_weight.get(key)
+        return value.to_decimal() if isinstance(value, Decimal128) else Decimal(str(value))
+
+    if sum((line.quantity_kg for line in draft.lines), start=Decimal("0")) != stored_decimal("net_kg"):
+        raise ValueError("Vehicle weight measurement must be corrected through an audited reweighing before changing net quantity")
+    if draft.gross_weight_kg is not None and (
+        draft.gross_weight_kg != stored_decimal("gross_kg")
+        or draft.tare_weight_kg != stored_decimal("tare_kg")
+    ):
+        raise ValueError("A new vehicle reading requires an audited reweighing, not a draft edit")
 
 
 def _fingerprint(draft: OlivePurchaseDraft) -> str:
@@ -101,6 +122,19 @@ async def create_olive_purchase_draft(
         ),
         start=Decimal("0"),
     )
+    weight_measurement = None
+    if draft.gross_weight_kg is not None and draft.tare_weight_kg is not None:
+        weight_measurement = {
+            "gross_kg": Decimal128(draft.gross_weight_kg),
+            "tare_kg": Decimal128(draft.tare_weight_kg),
+            "net_kg": Decimal128(total_quantity),
+            "measured_at": created_at.astimezone(timezone.utc),
+            "operator_user_id": actor_user_id,
+            "operator_username": actor_user.get("username"),
+            "source": "manual",
+            "correction_of": None,
+        }
+
     record = {
         "id": purchase_id,
         "season_code": season_code,
@@ -114,6 +148,7 @@ async def create_olive_purchase_draft(
         "total_quantity_kg": Decimal128(total_quantity),
         "total_amount_dt": Decimal128(total_amount),
         "notes": draft.notes,
+        "weight_measurement": weight_measurement,
         "status": "DRAFT",
         "version": 1,
         "idempotency_scope": scope,
@@ -140,6 +175,7 @@ async def create_olive_purchase_draft(
                 "total_quantity_kg": Decimal128(total_quantity),
                 "total_amount_dt": Decimal128(total_amount),
                 "notes": draft.notes,
+                "weight_measurement": weight_measurement_audit_snapshot(weight_measurement),
                 "status": "DRAFT",
             },
         },
@@ -214,6 +250,9 @@ async def update_olive_purchase_draft(
             Decimal("0.001"), rounding=ROUND_HALF_UP
         ) for line in draft.lines
     ), start=Decimal("0"))
+    existing_weight = existing.get("weight_measurement")
+    _validate_draft_weight_preservation(existing_weight, draft)
+    weight_snapshot = weight_measurement_audit_snapshot(existing_weight)
     now = updated_at.astimezone(timezone.utc)
     result = await purchases.update_one(
         {"id": purchase_id, "status": "DRAFT", "version": draft.expected_version},
@@ -258,6 +297,8 @@ async def update_olive_purchase_draft(
             "new_total_amount_dt": Decimal128(total_amount),
             "previous_notes": existing.get("notes"),
             "new_notes": draft.notes,
+            "previous_weight_measurement": weight_snapshot,
+            "new_weight_measurement": weight_snapshot,
         },
     }, session=session)
     return await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)

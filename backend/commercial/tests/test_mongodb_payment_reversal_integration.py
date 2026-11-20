@@ -171,7 +171,7 @@ async def test_payment_reversal_reduces_only_unapplied_credit_from_same_invoice(
 @pytest.mark.asyncio
 async def test_payment_reversal_is_blocked_when_source_credit_was_already_applied():
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    name = "payment_reversal_consumed_credit_" + uuid.uuid4().hex
+    name = "rev_consumed_credit_" + uuid.uuid4().hex
     db = client[name]
     try:
         await ensure_inventory_indexes(db)
@@ -232,7 +232,7 @@ async def test_payment_reversal_is_blocked_when_source_credit_was_already_applie
 @pytest.mark.asyncio
 async def test_payment_reversal_rejects_invoice_credit_snapshot_without_cap_ledger():
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    name = "payment_reversal_cap_snapshot_mismatch_" + uuid.uuid4().hex
+    name = "rev_cap_snapshot_" + uuid.uuid4().hex
     db = client[name]
     now = datetime(2026, 11, 2, tzinfo=timezone.utc)
     try:

@@ -1,7 +1,10 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from lib.weighing import derive_net_weight_kg, validate_weight_kg
 
 Role = Literal["admin", "worker"]
 Grade = Literal["extra_vierge", "vierge", "lampante"]
@@ -74,6 +77,11 @@ class Load(BaseModel):
     phone: str
     olive_kg: float
     available_olive_kg: float
+    gross_weight_kg: Optional[float] = None
+    tare_weight_kg: Optional[float] = None
+    weight_source: Optional[Literal["manual", "scale"]] = None
+    weighed_at: Optional[datetime] = None
+    weighed_by: Optional[str] = None
     ownership_transferred: bool = False
     ownership_transferred_at: Optional[datetime] = None
     oil_kg: Optional[float] = None
@@ -103,11 +111,55 @@ class Load(BaseModel):
 class LoadCreate(BaseModel):
     client_name: str = Field(min_length=1, max_length=100)
     phone: str = Field(min_length=4, max_length=30)
-    olive_kg: float = Field(gt=0, le=1_000_000)
+    olive_kg: Optional[float] = Field(default=None, gt=0, le=1_000_000)
+    gross_weight_kg: Optional[Decimal] = Field(default=None, gt=0, le=1_000_000, max_digits=12)
+    tare_weight_kg: Optional[Decimal] = Field(default=None, gt=0, le=1_000_000, max_digits=12)
     bags: Optional[int] = Field(default=None, ge=0, le=100_000)
     variety: Optional[str] = Field(default=None, max_length=60)
     notes: Optional[str] = Field(default=None, max_length=500)
     initial_status: Literal["pending", "pressing"] = "pending"
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_weight_evidence(cls, values):
+        if not isinstance(values, dict):
+            return values
+        gross = values.get("gross_weight_kg")
+        tare = values.get("tare_weight_kg")
+        if (gross is None) != (tare is None):
+            raise ValueError("gross_and_tare_must_be_provided_together")
+        if gross is not None and tare is not None:
+            # Validate the original JSON values before Pydantic can coerce bools
+            # or other input types into floats and hide their original form.
+            derive_net_weight_kg(gross, tare)
+        elif values.get("olive_kg") is not None:
+            # Legacy net-only requests remain supported, but booleans and
+            # readings finer than 0.001 kg are never valid weight evidence.
+            validate_weight_kg(values["olive_kg"], "olive_weight")
+        return values
+
+    @model_validator(mode="after")
+    def validate_weight_evidence(self):
+        has_gross = self.gross_weight_kg is not None
+        has_tare = self.tare_weight_kg is not None
+
+        if has_gross != has_tare:
+            raise ValueError("gross_and_tare_must_be_provided_together")
+
+        if has_gross and has_tare:
+            try:
+                net_kg = derive_net_weight_kg(
+                    self.gross_weight_kg,
+                    self.tare_weight_kg,
+                )
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
+            # The API never trusts a client-supplied net when scale readings exist.
+            self.olive_kg = float(net_kg)
+        elif self.olive_kg is None:
+            raise ValueError("olive_kg_or_gross_and_tare_required")
+
+        return self
 
 
 class StatusUpdate(BaseModel):

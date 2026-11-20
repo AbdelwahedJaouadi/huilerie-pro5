@@ -23,7 +23,12 @@ class Collection:
         self.rows = list(rows or [])
 
     async def find_one(self, query, projection=None, session=None):
-        return next((row for row in self.rows if all(get_path(row, k) == v for k, v in query.items())), None)
+        def matches(row, key, expected):
+            actual = get_path(row, key)
+            if isinstance(expected, dict) and "$in" in expected:
+                return actual in expected["$in"]
+            return actual == expected
+        return next((row for row in self.rows if all(matches(row, k, v) for k, v in query.items())), None)
 
     async def insert_one(self, row, session=None):
         self.rows.append(dict(row))
@@ -70,7 +75,7 @@ def make_db(quantity="100"):
             "owner": {"kind": "MILL"},
         }]),
         "commercial_locations": Collection([{
-            "id": "receiving-1", "active": True, "kind": "STAGING",
+            "id": "receiving-1", "active": True, "kind": "OLIVE_STORAGE",
         }]),
         "commercial_stock_balances": Collection([{
             "product_kind": "OLIVE", "lot_id": "olive-1",

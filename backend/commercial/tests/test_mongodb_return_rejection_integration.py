@@ -106,7 +106,7 @@ async def test_rejecting_received_return_dispatches_quarantined_oil_and_reopens_
 @pytest.mark.asyncio
 async def test_rejected_return_fails_and_rolls_back_when_quarantine_stock_is_missing():
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db_name = "sale_return_rejection_missing_stock_" + uuid.uuid4().hex
+    db_name = "return_reject_stock_" + uuid.uuid4().hex
     db = client[db_name]
     now = datetime(2026, 11, 2, tzinfo=timezone.utc)
     admin = {"active": True, "role": "admin"}

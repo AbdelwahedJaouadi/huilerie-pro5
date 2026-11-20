@@ -87,6 +87,7 @@ def preproduction_db():
             "source_olive_lot_id": "olive-lot-1", "source_location_id": "receiving-1",
             "input_olive_quantity_kg": Decimal("12.500"), "owner": {"kind": "MILL"},
         }]),
+        "commercial_custody_owners": FakeCollection([{"id": "customer-1"}]),
     })
 
 

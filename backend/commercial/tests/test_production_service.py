@@ -13,7 +13,18 @@ class Collection:
         self.rows = list(rows or [])
 
     async def find_one(self, query, projection=None, session=None):
-        return next((row for row in self.rows if all(row.get(k) == v for k, v in query.items())), None)
+        def matches(row, criteria):
+            for key, expected in criteria.items():
+                if key == "$or":
+                    if not any(matches(row, clause) for clause in expected):
+                        return False
+                elif key == "$and":
+                    if not all(matches(row, clause) for clause in expected):
+                        return False
+                elif row.get(key) != expected:
+                    return False
+            return True
+        return next((row for row in self.rows if matches(row, query)), None)
 
     async def insert_one(self, row, session=None):
         self.rows.append(dict(row))
@@ -152,7 +163,8 @@ async def test_production_idempotency_returns_existing_run_without_reposting(mon
         db, make_draft(), production_id="different-retry-id", **args
     )
     assert first["id"] == second["id"] == "production-1"
-    assert len(calls) == 3
+    # make_draft() contains one olive input: one consumption plus one oil receipt.
+    assert len(calls) == 2
 
 
 @pytest.mark.asyncio

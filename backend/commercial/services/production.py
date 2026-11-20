@@ -89,12 +89,6 @@ async def complete_commercial_production(
         )
         if not lot:
             raise ValueError(f"Unknown olive lot: {line.olive_lot_id}")
-        current_batch_code = lot.get("batch_code")
-        if not current_batch_code:
-            raise ValueError("Production input is missing its purchase traceability code")
-        if source_batch_code is not None and source_batch_code != current_batch_code:
-            raise ValueError("A production run cannot mix different purchase traceability codes")
-        source_batch_code = current_batch_code
         if lot.get("product_kind") != "OLIVE":
             raise ValueError(f"Input lot is not olive stock: {line.olive_lot_id}")
         if line.owner != owner:
@@ -151,6 +145,12 @@ async def complete_commercial_production(
             raise ValueError(f"Preproduction quality approval is missing, rejected, or superseded: {line.olive_lot_id}")
         if sample_oil_lot.get("owner") != owner_doc:
             raise ValueError(f"Preproduction quality approval belongs to a different stock owner: {line.olive_lot_id}")
+        current_batch_code = lot.get("batch_code")
+        if not current_batch_code:
+            raise ValueError("Production input is missing its purchase traceability code")
+        if source_batch_code is not None and source_batch_code != current_batch_code:
+            raise ValueError("A production run cannot mix different purchase traceability codes")
+        source_batch_code = current_batch_code
         quality_gate_evidence.append({
             "olive_lot_id": line.olive_lot_id,
             "sample_id": sample["id"],

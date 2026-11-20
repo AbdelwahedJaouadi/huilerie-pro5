@@ -3,9 +3,11 @@ import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from lib.auth import current_user, require_admin
@@ -13,6 +15,7 @@ from lib.dates import today_iso
 from lib.db import db, run_transaction
 from lib.season import active_season, next_load_code, season_filter, season_of
 from lib.money import money_db, money_float, to_decimal
+from lib.weighing import derive_net_weight_kg, weight_measurement_audit_snapshot
 from lib.sms import send_load_sms
 from routers.invoices import create_invoice as create_load_invoice, _create_invoice_in_session
 from models.schemas import CancelBody, DailyPoint, LabAnalysis, Load, LoadCreate, OilUpdate, Stats, StatusUpdate
@@ -46,6 +49,15 @@ async def _price() -> float:
     return money_float(s["price_per_kg"]) if s else 0.0
 
 
+def _weight_measurement_value(measurement: dict, key: str) -> Optional[float]:
+    value = measurement.get(key)
+    if value is None:
+        return None
+    if isinstance(value, Decimal128):
+        value = value.to_decimal()
+    return float(value)
+
+
 def to_load(doc: dict, user: dict, lab: Optional[dict] = None) -> Load:
     is_admin = user["role"] == "admin"
     raw_oil = doc.get("oil_kg")
@@ -54,9 +66,16 @@ def to_load(doc: dict, user: dict, lab: Optional[dict] = None) -> Load:
     available_olive_kg = money_float(
         to_decimal(doc.get("customer_available_olive_kg", doc["olive_kg"]) or 0)
     )
+    weight_measurement = doc.get("weight_measurement") or {}
     return Load(
         id=doc["id"], code=doc["code"], client_name=doc["client_name"], phone=doc["phone"],
-        olive_kg=olive_kg, available_olive_kg=available_olive_kg, ownership_transferred=bool(doc.get("ownership_transferred", False)), ownership_transferred_at=_aware(doc["ownership_transferred_at"]) if doc.get("ownership_transferred_at") else None, oil_kg=oil,
+        olive_kg=olive_kg, available_olive_kg=available_olive_kg,
+        gross_weight_kg=_weight_measurement_value(weight_measurement, "gross_kg"),
+        tare_weight_kg=_weight_measurement_value(weight_measurement, "tare_kg"),
+        weight_source=weight_measurement.get("source"),
+        weighed_at=_aware(weight_measurement["measured_at"]) if weight_measurement.get("measured_at") else None,
+        weighed_by=weight_measurement.get("operator_username"),
+        ownership_transferred=bool(doc.get("ownership_transferred", False)), ownership_transferred_at=_aware(doc["ownership_transferred_at"]) if doc.get("ownership_transferred_at") else None, oil_kg=oil,
         yield_pct=round(oil / olive_kg * 100, 2) if oil is not None and olive_kg else None,
         status="cancelled" if doc.get("cancelled") else (
             "delivered" if doc.get("delivered") else (
@@ -94,15 +113,27 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     season = await active_season()
     code = await next_load_code(season)
     now = datetime.now(timezone.utc)
+    net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
     doc = {
         "id": str(uuid.uuid4()), "code": code, "season_id": season, "client_name": body.client_name.strip(),
-        "phone": phone, "olive_kg": body.olive_kg, "oil_kg": None,
+        "phone": phone, "olive_kg": float(net_kg), "oil_kg": None,
         "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
         "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
         "price_per_kg": money_db(await _price()),
         "bags": body.bags, "variety": (body.variety or "").strip() or None,
         "notes": (body.notes or "").strip() or None, "pressing": body.initial_status == "pressing",
     }
+    if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
+        doc["weight_measurement"] = {
+            "gross_kg": Decimal128(body.gross_weight_kg),
+            "tare_kg": Decimal128(body.tare_weight_kg),
+            "net_kg": Decimal128(str(net_kg)),
+            "measured_at": now,
+            "operator_user_id": user.get("id"),
+            "operator_username": user["username"],
+            "source": "manual",
+            "correction_of": None,
+        }
 
     async def operation(session):
         client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
@@ -125,6 +156,9 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
             "phone": doc.get("phone"), "initial_status": body.initial_status,
+            "weight_measurement": weight_measurement_audit_snapshot(
+                doc.get("weight_measurement")
+            ),
         }, session=session)
 
     await run_transaction(operation)
@@ -446,6 +480,7 @@ async def _delete_load_in_transaction(load_id: str, session, user: dict):
     await _audit_load_event(doc, user, "LOAD_DELETED", {
         "olive_kg": doc.get("olive_kg"), "oil_kg": doc.get("oil_kg"),
         "created_at": doc.get("created_at"),
+        "weight_measurement": weight_measurement_audit_snapshot(doc.get("weight_measurement")),
     }, session=session)
     return {"ok": True}
 

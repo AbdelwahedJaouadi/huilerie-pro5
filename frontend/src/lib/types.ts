@@ -64,6 +64,11 @@ export interface Load {
   phone: string;
   olive_kg: number;
   available_olive_kg: number;
+  gross_weight_kg?: number | null;
+  tare_weight_kg?: number | null;
+  weight_source?: "manual" | "scale" | null;
+  weighed_at?: string | null;
+  weighed_by?: string | null;
   ownership_transferred: boolean;
   ownership_transferred_at: string | null;
   oil_kg: number | null;
@@ -94,7 +99,9 @@ export type LoadStatus = "pending" | "pressing" | "done" | "delivered" | "cancel
 export interface LoadCreate {
   client_name: string;
   phone: string;
-  olive_kg: number;
+  olive_kg?: number;
+  gross_weight_kg?: number | string;
+  tare_weight_kg?: number | string;
   bags?: number | null;
   variety?: string | null;
   notes?: string | null;

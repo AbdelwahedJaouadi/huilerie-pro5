@@ -1,10 +1,12 @@
 from datetime import date
 from decimal import Decimal
 
+from bson.decimal128 import Decimal128
 import pytest
 from pydantic import ValidationError
 
 from commercial.schemas.purchases import OlivePurchaseDraft, OliveReceptionPurchaseLine
+from commercial.services.purchases import _fingerprint, _validate_draft_weight_preservation
 
 
 def test_olive_purchase_accepts_multiple_varieties_and_decimal_values():
@@ -89,3 +91,148 @@ def test_reception_price_rejects_fractional_millime():
             quantity_kg="1000",
             unit_price_millimes="1500.5",
         )
+
+
+
+def test_olive_purchase_accepts_gross_tare_and_exact_net_quantity():
+    draft = OlivePurchaseDraft(
+        supplier_id="supplier-1",
+        purchase_date=date(2026, 11, 2),
+        lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        gross_weight_kg="12500.000",
+        tare_weight_kg="4200.000",
+        idempotency_key="purchase-weight-request-01",
+    )
+    assert draft.gross_weight_kg == Decimal("12500.000")
+    assert draft.tare_weight_kg == Decimal("4200.000")
+    assert draft.lines[0].quantity_kg == Decimal("8300.000")
+
+
+def test_olive_purchase_accepts_redundant_trailing_decimal_zeroes_in_vehicle_readings():
+    draft = OlivePurchaseDraft(
+        supplier_id="supplier-1",
+        purchase_date=date(2026, 11, 2),
+        lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        gross_weight_kg="12500.0000",
+        tare_weight_kg="4200.0000",
+        idempotency_key="purchase-weight-trailing-zeroes-01",
+    )
+    assert draft.gross_weight_kg == Decimal("12500.0000")
+    assert draft.tare_weight_kg == Decimal("4200.0000")
+
+
+def test_olive_purchase_rejects_partial_vehicle_weight_pair():
+    with pytest.raises(ValidationError, match="gross_and_tare_must_be_provided_together"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+            gross_weight_kg="12500.000",
+            idempotency_key="purchase-weight-request-02",
+        )
+
+
+def test_olive_purchase_rejects_net_quantity_not_matching_gross_minus_tare():
+    with pytest.raises(ValidationError, match="purchase_quantity_must_match_vehicle_net_weight"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[{"variety_id": "chemlali", "quantity_kg": "8299.000", "unit_price_dt": "1.500"}],
+            gross_weight_kg="12500.000",
+            tare_weight_kg="4200.000",
+            idempotency_key="purchase-weight-request-03",
+        )
+
+
+def test_vehicle_weight_is_not_accepted_for_multiple_purchase_lines():
+    with pytest.raises(ValidationError, match="vehicle_weight_requires_single_purchase_line"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[
+                {"variety_id": "chemlali", "quantity_kg": "5000.000", "unit_price_dt": "1.500"},
+                {"variety_id": "chetoui", "quantity_kg": "3300.000", "unit_price_dt": "1.400"},
+            ],
+            gross_weight_kg="12500.000",
+            tare_weight_kg="4200.000",
+            idempotency_key="purchase-weight-request-04",
+        )
+
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("gross_weight_kg", True, "gross_weight_kg_invalid"),
+        ("tare_weight_kg", False, "tare_weight_kg_invalid"),
+        ("gross_weight_kg", "12500.0001", "gross_weight_kg_invalid_precision"),
+        ("tare_weight_kg", "1000001", "tare_weight_kg_out_of_range"),
+    ],
+)
+def test_vehicle_weight_rejects_invalid_raw_readings(field, value, error):
+    payload = {
+        "supplier_id": "supplier-1",
+        "purchase_date": date(2026, 11, 2),
+        "lines": [{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        "gross_weight_kg": "12500.000",
+        "tare_weight_kg": "4200.000",
+        "idempotency_key": "purchase-weight-raw-check",
+    }
+    payload[field] = value
+    with pytest.raises(ValidationError, match=error):
+        OlivePurchaseDraft(**payload)
+
+
+
+def _weight_edit_draft(*, quantity="8300.000", gross=None, tare=None):
+    payload = {
+        "supplier_id": "supplier-1",
+        "purchase_date": date(2026, 11, 2),
+        "lines": [{"variety_id": "chemlali", "quantity_kg": quantity, "unit_price_dt": "1.500"}],
+        "idempotency_key": "purchase-weight-edit-check",
+    }
+    if gross is not None:
+        payload["gross_weight_kg"] = gross
+    if tare is not None:
+        payload["tare_weight_kg"] = tare
+    return OlivePurchaseDraft(**payload)
+
+
+def _stored_weight():
+    return {
+        "gross_kg": Decimal128("12500.000"),
+        "tare_kg": Decimal128("4200.000"),
+        "net_kg": Decimal128("8300.000"),
+    }
+
+
+def test_weighted_purchase_edit_preserves_original_measurement_when_readings_omitted():
+    _validate_draft_weight_preservation(_stored_weight(), _weight_edit_draft())
+
+
+def test_weighted_purchase_edit_rejects_changed_net_quantity():
+    with pytest.raises(ValueError, match="audited reweighing"):
+        _validate_draft_weight_preservation(_stored_weight(), _weight_edit_draft(quantity="8299.000"))
+
+
+def test_weighted_purchase_edit_rejects_replacing_original_readings():
+    with pytest.raises(ValueError, match="new vehicle reading requires an audited reweighing"):
+        _validate_draft_weight_preservation(
+            _stored_weight(), _weight_edit_draft(gross="12501.000", tare="4201.000")
+        )
+
+
+def test_unweighted_purchase_edit_rejects_adding_vehicle_readings():
+    with pytest.raises(ValueError, match="only be added through the original purchase creation"):
+        _validate_draft_weight_preservation(
+            None, _weight_edit_draft(gross="12500.000", tare="4200.000")
+        )
+
+
+def test_purchase_idempotency_fingerprint_includes_vehicle_readings():
+    original = _weight_edit_draft(gross="12500.000", tare="4200.000")
+    changed_gross = _weight_edit_draft(gross="12501.000", tare="4201.000")
+    assert _fingerprint(original) != _fingerprint(changed_gross)
+    assert _fingerprint(original) == _fingerprint(
+        _weight_edit_draft(gross="12500.000", tare="4200.000")
+    )

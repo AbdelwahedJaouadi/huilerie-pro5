@@ -1559,7 +1559,7 @@ async def test_traditional_invoice_creation_audit_failure_rolls_back_invoice_and
     from routers import invoices as invoice_routes
 
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db_name = "traditional_invoice_audit_rollback_" + uuid.uuid4().hex
+    db_name = "inv_audit_" + uuid.uuid4().hex
     db = client[db_name]
     monkeypatch.setattr(invoice_routes, "db", db)
     invoice_id = "invoice-audit-rollback"
@@ -1619,7 +1619,7 @@ async def test_traditional_invoice_update_audit_failure_rolls_back_invoice_value
     from routers import invoices as invoice_routes
 
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db_name = "traditional_invoice_update_audit_rollback_" + uuid.uuid4().hex
+    db_name = "inv_update_audit_" + uuid.uuid4().hex
     db = client[db_name]
     monkeypatch.setattr(invoice_routes, "db", db)
     try:
@@ -1672,7 +1672,7 @@ async def test_traditional_invoice_delete_audit_failure_restores_deleted_invoice
     from routers import invoices as invoice_routes
 
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db_name = "traditional_invoice_delete_audit_rollback_" + uuid.uuid4().hex
+    db_name = "inv_delete_audit_" + uuid.uuid4().hex
     db = client[db_name]
     monkeypatch.setattr(invoice_routes, "db", db)
     try:

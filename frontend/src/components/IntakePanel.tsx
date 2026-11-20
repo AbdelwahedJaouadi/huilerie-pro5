@@ -78,6 +78,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [kg, setKg] = useState("");
+  const [grossKg, setGrossKg] = useState("");
+  const [tareKg, setTareKg] = useState("");
   const [created, setCreated] = useState<Load | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
@@ -90,6 +92,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [supplierDate, setSupplierDate] = useState(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10));
   const [supplierVariety, setSupplierVariety] = useState("");
   const [supplierKg, setSupplierKg] = useState("");
+  const [supplierGrossKg, setSupplierGrossKg] = useState("");
+  const [supplierTareKg, setSupplierTareKg] = useState("");
   const [supplierPrice, setSupplierPrice] = useState("");
   const [supplierLocationId, setSupplierLocationId] = useState("");
   const [supplierNotes, setSupplierNotes] = useState("");
@@ -109,7 +113,15 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const supplierPurchases = (supplierPurchasesQuery.data ?? []).filter((purchase) => purchase.supplier_id === supplierId);
   const oliveLocations = locationsQuery.data ?? [];
   const chosenLocationId = supplierLocationId || oliveLocations.find((location) => /réception|reception|receiving/i.test((location.name || "") + " " + (location.code || "")))?.id || "";
-  const supplierKgValue = Number(supplierKg.replace(",", "."));
+  const parseSupplierKg = (value: string) => value.trim() === "" ? Number.NaN : Number(value.replace(/\s/g, "").replace(",", "."));
+  const supplierGrossValue = parseSupplierKg(supplierGrossKg);
+  const supplierTareValue = parseSupplierKg(supplierTareKg);
+  const supplierHasGross = supplierGrossKg.trim() !== "";
+  const supplierHasTare = supplierTareKg.trim() !== "";
+  const supplierHasVehicleWeight = supplierHasGross && supplierHasTare;
+  const supplierNetFromVehicle = supplierHasVehicleWeight && Number.isFinite(supplierGrossValue) && Number.isFinite(supplierTareValue) && supplierGrossValue > supplierTareValue && supplierGrossValue <= 1000000 && supplierTareValue > 0 && Number.isInteger(supplierGrossValue * 1000) && Number.isInteger(supplierTareValue * 1000) ? supplierGrossValue - supplierTareValue : Number.NaN;
+  const supplierKgValue = supplierHasVehicleWeight ? supplierNetFromVehicle : parseSupplierKg(supplierKg);
+  const supplierWeightValid = supplierHasGross === supplierHasTare && (supplierHasVehicleWeight ? Number.isFinite(supplierNetFromVehicle) : supplierKg.trim() !== "" && Number.isFinite(supplierKgValue) && supplierKgValue > 0 && Number.isInteger(supplierKgValue * 1000));
   // The operator enters the unit price in whole millimes; the API stores TND.
   const supplierPriceValue = Number(supplierPrice.replace(",", "."));
   const supplierPriceValid = supplierPrice.trim() !== "" && Number.isSafeInteger(supplierPriceValue) && supplierPriceValue >= 0;
@@ -119,7 +131,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     mutationFn: (body: Record<string, unknown>) => apiPost<any>("/commercial/v1/olive-receptions", body),
     onSuccess: (result) => {
       setSupplierReceipt(result);
-      setSupplierKg(""); setSupplierPrice(""); setSupplierNotes("");
+      setSupplierKg(""); setSupplierGrossKg(""); setSupplierTareKg(""); setSupplierPrice(""); setSupplierNotes("");
       setNewSupplier(false); setNewSupplierName(""); setNewSupplierPhone(""); setNewSupplierTaxId("");
       setSupplierId(result.supplier?.id ?? "");
       setSupplierRequestKey("");
@@ -155,6 +167,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       setName("");
       setPhone("");
       setKg("");
+      setGrossKg("");
+      setTareKg("");
       setBags("");
       setVariety("");
       setNotes("");
@@ -169,11 +183,21 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     onError: (e) => toast.error(errMsg(e)),
   });
 
-  const kgVal = parseFloat(kg.replace(",", "."));
+  const parseKgInput = (value: string) =>
+    value.trim() === "" ? Number.NaN : Number(value.replace(/\s/g, "").replace(",", "."));
+  const kgVal = parseKgInput(kg);
+  const grossVal = parseKgInput(grossKg);
+  const tareVal = parseKgInput(tareKg);
+  const hasGross = grossKg.trim() !== "";
+  const hasTare = tareKg.trim() !== "";
+  const hasNetOnly = kg.trim() !== "" && !hasGross && !hasTare;
+  const grossTareValid = hasGross && hasTare && Number.isFinite(grossVal) && Number.isFinite(tareVal) && grossVal > tareVal && grossVal <= 1_000_000 && tareVal > 0 && Number.isInteger(grossVal * 1000) && Number.isInteger(tareVal * 1000);
   const bagsVal = bags.trim() ? parseInt(bags, 10) : null;
   const bagsOk = bagsVal === null || (Number.isInteger(bagsVal) && bagsVal >= 0 && /^\d+$/.test(bags.trim()));
   const kgBad = kg.trim() !== "" && !(kgVal > 0);
-  const valid = name.trim() && phone.trim().length >= 4 && kgVal > 0 && bagsOk;
+  const weightBad = (hasGross !== hasTare) || (hasGross && !grossTareValid) || (!hasGross && !hasTare && !(kgVal > 0));
+  const netPreview = grossTareValid ? grossVal - tareVal : null;
+  const valid = !!name.trim() && phone.trim().length >= 4 && !weightBad && bagsOk;
 
   return (
     <div className={stacked ? "grid gap-4" : "grid gap-4 xl:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]"}>
@@ -185,7 +209,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, olive_kg: kgVal, bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) m.mutate({ client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
@@ -265,10 +289,28 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           <Input id="ph" dir="ltr" inputMode="tel" data-testid="intake-client-phone-input" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-11 rounded-xl bg-white text-start" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="kg">{t("olive_kg")} *</Label>
-          <Input id="kg" inputMode="decimal" data-testid="intake-olive-kg-input" value={kg} onChange={(e) => setKg(e.target.value)} aria-invalid={kgBad} className="h-11 rounded-xl bg-white text-lg font-semibold" />
-          {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
+          <Label htmlFor="gross-kg">{ar ? "الوزن الإجمالي للعربة (كغ)" : "Poids brut du véhicule (kg)"}</Label>
+          <Input id="gross-kg" inputMode="decimal" data-testid="intake-gross-kg-input" value={grossKg} onChange={(e) => { setGrossKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasGross && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 12500,000" />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="tare-kg">{ar ? "وزن العربة فارغة (كغ)" : "Tare / poids à vide (kg)"}</Label>
+          <Input id="tare-kg" inputMode="decimal" data-testid="intake-tare-kg-input" value={tareKg} onChange={(e) => { setTareKg(e.target.value); if (e.target.value) setKg(""); }} aria-invalid={hasTare && !grossTareValid} className="h-11 rounded-xl bg-white text-lg font-semibold" placeholder="Ex. 4200,000" />
+        </div>
+        {netPreview !== null ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3" data-testid="intake-net-preview">
+            <div className="text-xs font-medium text-emerald-800">{ar ? "الصافي المحسوب (معاينة)" : "Poids net calculé (aperçu)"}</div>
+            <div className="text-2xl font-bold text-emerald-900">{fmtNum(netPreview, 3)} kg</div>
+            <div className="text-xs text-emerald-700">{ar ? "سيعيد الخادم احتسابه ويعتمد القيمة النهائية" : "Le serveur recalcule et valide la valeur définitive"}</div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Label htmlFor="kg">{ar ? "الصافي (إدخال يدوي قديم)" : "Poids net (saisie manuelle historique)"}</Label>
+            <Input id="kg" inputMode="decimal" data-testid="intake-olive-kg-input" value={kg} onChange={(e) => { setKg(e.target.value); if (e.target.value) { setGrossKg(""); setTareKg(""); } }} aria-invalid={kgBad} className="h-11 rounded-xl bg-white text-lg font-semibold" />
+            {kgBad && <p className="text-xs text-red-600" data-testid="intake-kg-error">{t("weight_required")}</p>}
+            <p className="text-xs text-stone-500">{ar ? "متاح للتوافق مع التسجيل اليدوي القديم عند عدم توفر قياس الإجمالي والفارغ." : "Conservé pour compatibilité lorsque les pesées brut/tare ne sont pas disponibles."}</p>
+          </div>
+        )}
+        {weightBad && <p className="text-xs text-red-600" data-testid="intake-weight-error">{ar ? "أدخل الإجمالي والفارغ معاً، مع كون الإجمالي أكبر، ودقة لا تتجاوز 0.001 كغ." : "Saisissez brut et tare ensemble ; le brut doit dépasser la tare, avec une précision maximale de 0,001 kg."}</p>}
         <div className="space-y-1">
           <Label htmlFor="bags">{t("bags")}</Label>
           <Input id="bags" inputMode="numeric" data-testid="intake-bags-input" value={bags} onChange={(e) => setBags(e.target.value)} aria-invalid={!bagsOk} className="h-11 rounded-xl bg-white" />
@@ -304,7 +346,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
 
       </form> : <form onSubmit={(e) => {
         e.preventDefault();
-        if (!chosenLocationId || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
+        if (!chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
         const requestKey = supplierRequestKey || crypto.randomUUID();
         setSupplierRequestKey(requestKey);
         supplierMutation.mutate({
@@ -314,6 +356,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           new_supplier_tax_identifier: newSupplier ? (newSupplierTaxId.trim() || null) : null,
           purchase_date: supplierDate,
           lines: [{ variety_id: supplierVariety || varietyList[0] || "Olives", quantity_kg: supplierKgValue, unit_price_millimes: supplierPriceValue }],
+          ...(supplierHasVehicleWeight ? { gross_weight_kg: supplierGrossKg.trim().replace(",", "."), tare_weight_kg: supplierTareKg.trim().replace(",", ".") } : {}),
           receiving_location_id: chosenLocationId,
           notes: supplierNotes.trim() || null,
           idempotency_key: requestKey,
@@ -362,13 +405,15 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           <div className="space-y-1"><Label className="text-xs">{ar ? "تاريخ الشراء / الاستلام *" : "Date d’achat / réception *"}</Label><Input type="date" value={supplierDate} onChange={(e) => setSupplierDate(e.target.value)} className="h-11 rounded-xl bg-white" /></div>
           <div className="space-y-1"><Label className="text-xs">{ar ? "مكان الاستلام *" : "Emplacement de réception *"}</Label><Select value={chosenLocationId || null} onValueChange={(v) => setSupplierLocationId(String(v ?? ""))}><SelectTrigger className="h-11 rounded-xl bg-white"><SelectValue>{(v) => v ? (oliveLocations.find((x) => x.id === v)?.name ?? (ar ? "الموقع المحدد" : "Emplacement sélectionné")) : <span className="text-stone-400">{ar ? "اختر الموقع" : "Choisir l’emplacement"}</span>}</SelectValue></SelectTrigger><SelectContent>{oliveLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.name} · {location.code}</SelectItem>)}</SelectContent></Select>{oliveLocations.length === 0 && <p className="text-xs text-red-700">{ar ? "لا يوجد موقع نشط. قم بإعداد موقع استلام في GS &gt; الإعدادات &gt; الخزانات." : "Aucun emplacement actif. Configurez un emplacement de réception dans GS &gt; Paramètres &gt; Cuves."}</p>}</div>
           <div className="space-y-1"><Label className="text-xs">{ar ? "الصنف *" : "Variété *"}</Label><Select value={supplierVariety || varietyList[0] || null} onValueChange={(v) => setSupplierVariety(String(v ?? ""))}><SelectTrigger className="h-11 rounded-xl bg-white"><SelectValue>{(v) => v ? String(v) : <span className="text-stone-400">{ar ? "اختر الصنف" : "Choisir la variété"}</span>}</SelectValue></SelectTrigger><SelectContent>{varietyList.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-1"><Label className="text-xs">{ar ? "كمية الزيتون (كغ) *" : "Quantité d’olives (kg) *"}</Label><Input inputMode="decimal" value={supplierKg} onChange={(e) => setSupplierKg(e.target.value)} className="h-11 rounded-xl bg-white" /></div>
+          <div className="space-y-1"><Label className="text-xs">{ar ? "الوزن الإجمالي للعربة (كغ)" : "Poids brut du véhicule (kg)"}</Label><Input inputMode="decimal" value={supplierGrossKg} onChange={(e) => { setSupplierGrossKg(e.target.value); if (e.target.value) setSupplierKg(""); }} className="h-11 rounded-xl bg-white" placeholder="Ex. 12500,000" /></div>
+           <div className="space-y-1"><Label className="text-xs">{ar ? "وزن العربة فارغة (كغ)" : "Tare / poids à vide (kg)"}</Label><Input inputMode="decimal" value={supplierTareKg} onChange={(e) => { setSupplierTareKg(e.target.value); if (e.target.value) setSupplierKg(""); }} className="h-11 rounded-xl bg-white" placeholder="Ex. 4200,000" /></div>
+           {supplierHasVehicleWeight ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 md:col-span-2"><div className="text-xs font-medium text-emerald-800">{ar ? "الصافي المحسوب (معاينة)" : "Poids net calculé (aperçu)"}</div><div className="text-xl font-bold text-emerald-900">{Number.isFinite(supplierNetFromVehicle) ? supplierNetFromVehicle.toLocaleString("fr-TN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : "—"} kg</div></div> : <div className="space-y-1"><Label className="text-xs">{ar ? "كمية الزيتون الصافية (كغ) *" : "Quantité nette d’olives (kg) *"}</Label><Input inputMode="decimal" value={supplierKg} onChange={(e) => { setSupplierKg(e.target.value); if (e.target.value) { setSupplierGrossKg(""); setSupplierTareKg(""); } }} className="h-11 rounded-xl bg-white" /></div>}
           <div className="space-y-1"><Label className="text-xs">{ar ? "سعر الشراء / كغ (مليم) *" : "Prix d’achat / kg (millimes) *"}</Label><Input type="number" min="0" step="1" inputMode="numeric" value={supplierPrice} onChange={(e) => setSupplierPrice(e.target.value)} className="h-11 rounded-xl bg-white" /></div>
           <div className="rounded-xl border border-blue-200 bg-white p-3"><div className="text-xs text-stone-500">{ar ? "المبلغ الإجمالي المحسوب" : "Montant total calculé (TND)"}</div><div className="text-xl font-bold text-blue-900">{Number.isFinite(supplierTotal) ? supplierTotal.toLocaleString("fr-TN", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : "—"}</div></div>
         </div>
         <div className="space-y-1"><Label className="text-xs">{ar ? "ملاحظات" : "Observations"}</Label><Textarea value={supplierNotes} onChange={(e) => setSupplierNotes(e.target.value)} maxLength={1000} className="min-h-14 rounded-lg bg-white" /></div>
         <div className="rounded-xl border border-blue-200 bg-white p-3 text-sm text-blue-950">{ar ? "ينشئ التأكيد ضمن عملية واحدة: المزوّد (إن كان جديداً)، والشراء، ورمز التتبع الموحد، والدفعة، وحركة إدخال المخزون. ويمكن تسجيل الدفع بشكل منفصل." : "La validation crée dans une seule transaction : le fournisseur (si nouveau), l’achat, le code de traçabilité unique, le lot et le mouvement d’entrée en stock. Le paiement pourra être enregistré séparément."}</div>
-        <Button type="submit" disabled={supplierMutation.isPending || !chosenLocationId || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)} className="h-10 w-full rounded-lg bg-blue-700 text-sm hover:bg-blue-800"><Plus className="size-5"/> {ar ? "تأكيد الاستلام وإنشاء الشراء" : "Valider la réception et créer l’achat"} </Button>
+        <Button type="submit" disabled={supplierMutation.isPending || !chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)} className="h-10 w-full rounded-lg bg-blue-700 text-sm hover:bg-blue-800"><Plus className="size-5"/> {ar ? "تأكيد الاستلام وإنشاء الشراء" : "Valider la réception et créer l’achat"} </Button>
       </form>}
       </div>
       <NewClientDialog open={newOpen} onClose={() => setNewOpen(false)} onCreated={(c) => pick(c)} />

@@ -68,9 +68,10 @@ async def test_unregistered_source_document_type_is_rejected_closed():
         "CIN": "commercial_customer_custody_receipts",
         "CUS": "commercial_customer_custody_releases",
         "RJT": "commercial_sale_return_rejections",
+        "ESS": "commercial_preproduction_samples",
     }
     db = Database({
-        "commercial_lots": Collection([{"id": "lot-1"}]),
+        "commercial_lots": Collection([{"id": "lot-1", "product_kind": "OIL"}]),
         "commercial_tanks": Collection([{"id": "tank-01", "active": True}]),
     })
     with pytest.raises(ValueError, match="Unsupported source document type"):
@@ -80,8 +81,9 @@ async def test_unregistered_source_document_type_is_rejected_closed():
 @pytest.mark.asyncio
 async def test_inactive_tank_is_rejected():
     db = Database({
-        "commercial_lots": Collection([{"id": "lot-1"}]),
+        "commercial_lots": Collection([{"id": "lot-1", "product_kind": "OIL"}]),
         "commercial_tanks": Collection([{"id": "tank-01", "active": False}]),
+        "commercial_olive_purchases": Collection([{"id": "purchase-1"}]),
     })
     with pytest.raises(ValueError, match="Unknown or inactive commercial tank"):
         await validate_stock_references(db, Draft(), session=object())
@@ -91,8 +93,9 @@ async def test_inactive_tank_is_rejected():
 async def test_quarantine_tank_rejects_ordinary_stock_receipt():
     draft = Draft()
     db = Database({
-        "commercial_lots": Collection([{"id": "lot-1", "quality_status": "PENDING"}]),
+        "commercial_lots": Collection([{"id": "lot-1", "product_kind": "OIL", "quality_status": "PENDING"}]),
         "commercial_tanks": Collection([{"id": "tank-01", "active": True, "role": "QUARANTINE"}]),
+        "commercial_olive_purchases": Collection([{"id": "purchase-1"}]),
     })
     with pytest.raises(ValueError, match="dedicated return workflow"):
         await validate_stock_references(db, draft, session=object())
@@ -107,7 +110,7 @@ async def test_quarantine_tank_rejects_dispatch_without_reinspection():
     draft.source_owner = Owner("MILL")
     draft.movement_kind = "DISPATCH"
     db = Database({
-        "commercial_lots": Collection([{"id": "lot-1", "quality_status": "PENDING"}]),
+        "commercial_lots": Collection([{"id": "lot-1", "product_kind": "OIL", "quality_status": "PENDING"}]),
         "commercial_tanks": Collection([{"id": "tank-01", "active": True, "role": "QUARANTINE"}]),
     })
     with pytest.raises(ValueError, match="quality-released transfer or approved return rejection"):

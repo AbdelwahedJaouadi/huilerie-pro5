@@ -233,7 +233,7 @@ async def test_credit_application_rejects_amount_above_outstanding_or_available_
 @pytest.mark.asyncio
 async def test_credit_application_fails_closed_when_invoice_cash_paid_does_not_reconcile_to_pay_and_rev():
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    name = "buyer_credit_cash_ledger_mismatch_" + uuid.uuid4().hex
+    name = "credit_cash_mismatch_" + uuid.uuid4().hex
     db = client[name]
     try:
         await ensure_inventory_indexes(db)
@@ -280,7 +280,7 @@ async def test_credit_application_fails_closed_when_invoice_cash_paid_does_not_r
 @pytest.mark.asyncio
 async def test_credit_application_fails_closed_when_invoice_applied_credit_does_not_reconcile_to_cap_documents():
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-    name = "buyer_credit_cap_ledger_mismatch_" + uuid.uuid4().hex
+    name = "credit_cap_mismatch_" + uuid.uuid4().hex
     db = client[name]
     try:
         await ensure_inventory_indexes(db)
