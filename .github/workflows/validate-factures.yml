@@ -205,7 +205,8 @@ jobs:
             commercial/tests/test_mongodb_credit_application_integration.py \
             commercial/tests/test_mongodb_payment_reversal_integration.py \
             commercial/tests/test_payment_reversal_concurrency_integration.py \
-            commercial/tests/test_mongodb_return_rejection_integration.py
+            commercial/tests/test_mongodb_return_rejection_integration.py \
+            tests/test_workforce_attendance_integration.py
 
   frontend-build:
     runs-on: ubuntu-latest
