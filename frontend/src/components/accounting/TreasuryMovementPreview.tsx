@@ -17,7 +17,7 @@ type Preview = {
   candidates: Candidate[];
   unresolved_items: Array<{source_type:string;source_id:string;source_document_number?:string;reason:string;detail:string}>;
   summary: {candidate_count:number;eligible_for_review:number;blocked:number;unresolved_count:number};
-  read_only: true; database_writes: false; movement_creation_enabled: false;
+  read_only: true; database_writes: false; movement_creation_enabled: true;
   opening_balances_used: false; active_season: string; has_more: Record<string,boolean>;
 };
 const labels: Record<string,{ar:string;fr:string}> = {
@@ -81,7 +81,7 @@ export default function TreasuryMovementPreview() {
         <td className="px-2 py-3"><span className={row.eligibility==="ELIGIBLE_FOR_REVIEW"?"font-semibold text-emerald-700":"font-semibold text-rose-700"}>{row.eligibility==="ELIGIBLE_FOR_REVIEW"?(ar?"صالحة للمراجعة":"À examiner"):(ar?"موقوفة":"Bloquée")}</span>
           {row.blocking_reasons.length>0&&<ul className="mt-1 list-disc ps-4 text-xs text-rose-700">{row.blocking_reasons.map(reason=><li key={reason}>{reasonLabels[reason]?.[ar?"ar":"fr"]||reason}</li>)}</ul>}
           {row.warnings.map(w=><p key={w} className="mt-1 text-xs text-amber-700">{w}</p>)}
-          {row.recorded_movement_id ? <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="size-4"/>{ar?"تم تسجيل الحركة":"Mouvement enregistré"} · {row.settlement_status}</p> :
+          {row.recorded_movement_id ? <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="size-4"/>{ar?"تم تسجيل الحركة":"Mouvement enregistré"} · {row.settlement_status==="CASH_RECORDED"?(ar?"نقداً مسجّل":"Espèces enregistrées"):row.settlement_status==="PENDING_BANK_CONFIRMATION"?(ar?"بانتظار تأكيد البنك":"Confirmation bancaire en attente"):row.settlement_status==="PENDING_CHEQUE_CLEARANCE"?(ar?"بانتظار خلاص الشيك":"Compensation du chèque en attente"):row.settlement_status}</p> :
             row.eligibility==="ELIGIBLE_FOR_REVIEW" ? <button type="button" disabled={recordMovement.isPending} onClick={()=>{
               const message=ar
                 ? `تأكيد تسجيل حركة ${row.direction==="IN"?"قبض":"صرف"} بقيمة ${money(row.amount)} TND في حساب ${row.account_name}؟ لن يتغير رصيد الحساب أو الفاتورة.`
