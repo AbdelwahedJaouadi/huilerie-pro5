@@ -7,6 +7,8 @@ from datetime import date
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from lib.weighing import derive_net_weight_kg
+
 
 class OlivePurchaseLine(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -35,11 +37,21 @@ class OlivePurchaseDraft(BaseModel):
     lines: tuple[OlivePurchaseLine, ...] = Field(min_length=1, max_length=100)
     notes: str | None = Field(default=None, max_length=1000)
     idempotency_key: str = Field(min_length=16, max_length=128)
+    gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
+    tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
 
     @model_validator(mode="after")
     def validate_lines(self):
         if sum((line.quantity_kg for line in self.lines), Decimal("0")) <= 0:
             raise ValueError("Purchase quantity must be positive")
+        if (self.gross_weight_kg is None) != (self.tare_weight_kg is None):
+            raise ValueError("gross_and_tare_must_be_provided_together")
+        if self.gross_weight_kg is not None:
+            if len(self.lines) != 1:
+                raise ValueError("vehicle_weight_requires_single_purchase_line")
+            net = derive_net_weight_kg(self.gross_weight_kg, self.tare_weight_kg)
+            if self.lines[0].quantity_kg != net:
+                raise ValueError("purchase_quantity_must_match_vehicle_net_weight")
         return self
 
 
