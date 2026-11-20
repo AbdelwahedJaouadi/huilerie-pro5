@@ -6,6 +6,7 @@ A payment reversal is not evidence that money physically returned to the company
 from __future__ import annotations
 
 import hashlib
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
@@ -38,8 +39,12 @@ def _candidate(
         amount = None
         blockers.append("AMOUNT_MISSING_OR_INVALID")
 
-    business_date = str(source.get(date_field) or "")[:10]
-    if len(business_date) != 10:
+    raw_date = source.get(date_field)
+    business_date = str(raw_date or "")[:10]
+    try:
+        date.fromisoformat(business_date)
+    except (TypeError, ValueError):
+        business_date = ""
         blockers.append("PAYMENT_DATE_MISSING_OR_INVALID")
 
     method = str(source.get("method") or source.get("payment_method") or "").upper()
