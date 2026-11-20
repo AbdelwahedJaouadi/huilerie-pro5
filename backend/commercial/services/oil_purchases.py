@@ -351,8 +351,6 @@ async def record_oil_purchase_payment(
         "amount_tnd": Decimal128(amount),
         "payment_date": draft.payment_date.isoformat(),
         "method": draft.method,
-        "treasury_account_id": treasury_account_id,
-        "treasury_allocation_status": treasury_allocation_status,
         "reference": draft.reference,
         "currency": "TND",
         "notes": draft.notes,
@@ -406,8 +404,6 @@ async def record_oil_purchase_payment(
             "previous_outstanding_amount_tnd": purchase["outstanding_amount_tnd"],
             "new_outstanding_amount_tnd": Decimal128(remaining),
             "payment_status": status,
-            "treasury_account_id": treasury_account_id,
-            "treasury_allocation_status": treasury_allocation_status,
         },
     }, session=session)
     return payment
