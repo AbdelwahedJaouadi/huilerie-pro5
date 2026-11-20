@@ -13,7 +13,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -59,6 +59,7 @@ from commercial.schemas.customer_custody import (
 )
 from commercial.schemas.credit_application import BuyerCreditApplicationDraft
 from commercial.schemas.payment_reversal import PaymentReversalDraft
+from lib.weighing import derive_net_weight_kg
 from commercial.services.production import complete_commercial_production
 from commercial.services.preproduction import create_preproduction_sample, cancel_preproduction_sample, auto_complete_preproduction_sample_for_purchase
 from commercial.services.purchase_approval import approve_olive_purchase
@@ -121,6 +122,20 @@ class OliveReceptionPurchaseCommand(BaseModel):
     receiving_location_id: str = Field(min_length=1, max_length=100)
     notes: str | None = Field(default=None, max_length=1000)
     idempotency_key: str = Field(min_length=16, max_length=128)
+    gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
+    tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
+
+    @model_validator(mode="after")
+    def validate_vehicle_weight(self):
+        if (self.gross_weight_kg is None) != (self.tare_weight_kg is None):
+            raise ValueError("gross_and_tare_must_be_provided_together")
+        if self.gross_weight_kg is not None:
+            if len(self.lines) != 1:
+                raise ValueError("vehicle_weight_requires_single_purchase_line")
+            net = derive_net_weight_kg(self.gross_weight_kg, self.tare_weight_kg)
+            if self.lines[0].quantity_kg != net:
+                raise ValueError("purchase_quantity_must_match_vehicle_net_weight")
+        return self
 
 
 class DirectOliveLoadPurchaseCommand(BaseModel):
@@ -1757,6 +1772,8 @@ async def create_olive_reception_purchase(
         ),
         notes=command.notes,
         idempotency_key=command.idempotency_key,
+        gross_weight_kg=command.gross_weight_kg,
+        tare_weight_kg=command.tare_weight_kg,
     )
     approval = ApproveOlivePurchaseCommand(
         expected_version=1,
