@@ -58,7 +58,7 @@ export default function TreasuryMovementPreview() {
   return <div className="space-y-4" data-testid="treasury-movement-preview">
     <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
       <ShieldCheck className="mt-0.5 size-5 shrink-0"/>
-      <div><strong>{ar?"معاينة فقط — لم تُنشأ أي حركة مالية":"Aperçu uniquement — aucun mouvement financier créé"}</strong>
+      <div><strong>{ar?"المعاينة لا تُنشئ الحركات تلقائياً — التسجيل يحتاج تأكيداً":"L’aperçu ne crée aucun mouvement automatiquement — confirmation requise"}</strong>
       <p className="mt-1">{ar?"تسجيل الحركة يتطلب تأكيداً صريحاً من المدير لكل دفعة. لا يتغير رصيد الحساب ولا الفاتورة ولا الدين، ولا يتم تنفيذ تحويل بنكي. التحويلات والشيكات تبقى معلّقة إلى حين إثبات التسوية.":"Chaque mouvement exige une confirmation explicite de l’administrateur. Aucun solde, facture ou dette n’est modifié et aucun virement bancaire n’est exécuté. Les virements et chèques restent en attente de preuve de compensation."}</p></div>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">
