@@ -238,7 +238,7 @@ async def test_customer_oil_pickup_debits_only_matching_customer_stock():
             "id": "customer-oil-lot-a", "season_code": "2627",
             "document_type": "LOT", "document_number": "2627LOT0001",
             # The lot records its origin; the balance is currently customer-owned after an ownership transfer.
-            "product_kind": "OIL", "owner": {"kind": "MILL"},
+            "product_kind": "OIL", "owner": {"kind": "CUSTOMER", "customer_id": "custody-owner-a"},
             "quality_status": "RELEASED", "status": "OPEN", "version": 1,
         })
         await db.commercial_stock_balances.insert_one({
@@ -322,7 +322,7 @@ async def test_customer_oil_pickup_rejects_other_customer_and_pending_quality():
             quantity_kg=Decimal("1.000"), customer_acknowledgement_reference="ACK-001",
             reason="Attempt cross-customer pickup", idempotency_key="cross-customer-pickup-001",
         )
-        with pytest.raises(ValueError, match="does not belong"):
+        with pytest.raises(ValueError, match="owned by the releasing customer"):
             async with await client.start_session() as session:
                 await session.with_transaction(
                     lambda active: release_customer_oil_custody(
