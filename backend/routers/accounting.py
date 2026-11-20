@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from lib.auth import require_admin
 from lib.db import db
 from lib.season import active_season, season_prefix
+from accounting_foundation.preview import build_reconciliation_preview
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 RECENT_LIMIT = 200
@@ -273,6 +274,77 @@ async def accounting_overview(
         "recent_limit": None if period_selected else RECENT_LIMIT,
         "date_range": {"start_date": start_day, "end_date": end_day} if period_selected else None,
         "accounting_basis": "ACTIVE_SEASON_SOURCE_DOCUMENTS_READ_ONLY",
+    }
+
+
+@router.get("/reconciliation-preview")
+async def accounting_reconciliation_preview(
+    limit: int = 100,
+    _: dict = Depends(require_admin),
+):
+    """Read-only source-event and ledger-evidence preview; never posts or mutates data."""
+    if isinstance(limit, bool) or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="limit doit être compris entre 1 et 200.")
+
+    season = await active_season()
+    season_code = season_prefix(season)
+    load_ids = await db.loads.distinct("id", {"season_id": season})
+
+    invoice_rows = await db.invoices.find(
+        {"load_id": {"$in": load_ids}}, {"_id": 0}
+    ).sort([("day", -1), ("id", 1)]).to_list(limit + 1)
+    purchase_rows = await db.commercial_olive_purchases.find(
+        {"season_code": season_code}, {"_id": 0}
+    ).sort([("purchase_date", -1), ("id", 1)]).to_list(limit + 1)
+
+    has_more_invoices = len(invoice_rows) > limit
+    has_more_purchases = len(purchase_rows) > limit
+    invoices = invoice_rows[:limit]
+    purchases = purchase_rows[:limit]
+    purchase_ids = [str(item["id"]) for item in purchases if item.get("id")]
+
+    payment_rows = []
+    lot_rows = []
+    movement_rows = []
+    if purchase_ids:
+        payment_rows = await db.commercial_supplier_olive_purchase_payments.find(
+            {"purchase_id": {"$in": purchase_ids}}, {"_id": 0}
+        ).sort([("payment_date", 1), ("id", 1)]).to_list(None)
+        lot_ids = list(dict.fromkeys(
+            str(lot_id)
+            for purchase in purchases
+            for lot_id in (purchase.get("lot_ids") if isinstance(purchase.get("lot_ids"), list) else [])
+        ))
+        movement_ids = list(dict.fromkeys(
+            str(movement_id)
+            for purchase in purchases
+            for movement_id in (purchase.get("receipt_movement_ids") if isinstance(purchase.get("receipt_movement_ids"), list) else [])
+        ))
+        if lot_ids:
+            lot_rows = await db.commercial_lots.find(
+                {"id": {"$in": lot_ids}}, {"_id": 0}
+            ).to_list(None)
+        if movement_ids:
+            movement_rows = await db.commercial_stock_movements.find(
+                {"id": {"$in": movement_ids}}, {"_id": 0}
+            ).to_list(None)
+
+    preview = build_reconciliation_preview(
+        traditional_invoices=invoices,
+        gs_purchases=purchases,
+        supplier_payments=payment_rows,
+        lots=lot_rows,
+        stock_movements=movement_rows,
+    )
+    return {
+        **preview,
+        "active_season": season,
+        "season_code": season_code,
+        "limit_per_source": limit,
+        "has_more": {
+            "traditional_invoices": has_more_invoices,
+            "gs_purchases": has_more_purchases,
+        },
     }
 
 class PassiveIncomeInput(BaseModel):
