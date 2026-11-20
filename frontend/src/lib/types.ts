@@ -106,6 +106,7 @@ export interface LoadCreate {
   variety?: string | null;
   notes?: string | null;
   initial_status?: "pending" | "pressing";
+  idempotency_key?: string;
 }
 
 export interface StatusUpdate {

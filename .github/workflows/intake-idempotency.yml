@@ -1,0 +1,77 @@
+name: Verify intake idempotency
+
+on:
+  push:
+    branches:
+      - feat/intake-idempotency
+
+concurrency:
+  group: intake-idempotency-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  intake-idempotency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017/?replicaSet=rs0
+      DB_NAME: intake_idempotency_ci
+      JWT_SECRET: intake-idempotency-ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install "pydantic>=2" fastapi pymongo motor python-dotenv pyjwt passlib httpx pytest pytest-asyncio pytest-xdist
+      - name: Start MongoDB replica set
+        run: docker run -d --name mongo-rs -p 27017:27017 mongo:7.0 mongod --replSet rs0 --bind_ip_all
+      - name: Initialize MongoDB replica set
+        run: |
+          python - <<'PY'
+          import time
+          from pymongo import MongoClient
+
+          direct = MongoClient(
+              "mongodb://127.0.0.1:27017/?directConnection=true",
+              serverSelectionTimeoutMS=2000,
+          )
+          for _ in range(30):
+              try:
+                  direct.admin.command("ping")
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("MongoDB did not become available")
+
+          try:
+              direct.admin.command(
+                  "replSetInitiate",
+                  {"_id": "rs0", "members": [{"_id": 0, "host": "127.0.0.1:27017"}]},
+              )
+          except Exception as exc:
+              if "already initialized" not in str(exc).lower():
+                  raise
+          direct.close()
+
+          replica = MongoClient(
+              "mongodb://127.0.0.1:27017/?replicaSet=rs0",
+              serverSelectionTimeoutMS=2000,
+          )
+          for _ in range(30):
+              try:
+                  if replica.admin.command("hello").get("isWritablePrimary"):
+                      break
+              except Exception:
+                  pass
+              time.sleep(1)
+          else:
+              raise RuntimeError("MongoDB replica set did not elect a primary")
+          replica.close()
+          PY
+      - name: Run intake idempotency unit and real concurrency tests
+        run: python -m pytest -o addopts= tests/test_load_intake_idempotency_unit.py tests/test_load_intake_idempotency_mongodb.py

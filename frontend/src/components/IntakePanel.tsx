@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
@@ -50,6 +50,17 @@ function NewClientDialog({ open, onClose, onCreated }: { open: boolean; onClose:
   );
 }
 
+function createIntakeRequestKey(): string {
+  // randomUUID is restricted to secure contexts; getRandomValues also works
+  // on the mill's private HTTP network when the app is accessed by LAN IP.
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
+}
+
 export default function IntakePanel({ stacked = false }: { stacked?: boolean }) {
   const { t, errMsg, lang } = useI18n();
   const ar = lang === "ar";
@@ -81,6 +92,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [grossKg, setGrossKg] = useState("");
   const [tareKg, setTareKg] = useState("");
   const [created, setCreated] = useState<Load | null>(null);
+  const loadRequestRef = useRef<{ fingerprint: string; key: string } | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
@@ -164,6 +176,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
     mutationFn: (b: LoadCreate) => apiPost<Load>("/loads", b),
     onSuccess: (l) => {
       setCreated(l);
+      loadRequestRef.current = null;
       setName("");
       setPhone("");
       setKg("");
@@ -209,7 +222,14 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) {
+            const payload: LoadCreate = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
+            const fingerprint = JSON.stringify(payload);
+            if (!loadRequestRef.current || loadRequestRef.current.fingerprint !== fingerprint) {
+              loadRequestRef.current = { fingerprint, key: createIntakeRequestKey() };
+            }
+            m.mutate({ ...payload, idempotency_key: loadRequestRef.current.key });
+          }
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
@@ -347,7 +367,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       </form> : <form onSubmit={(e) => {
         e.preventDefault();
         if (!chosenLocationId || !supplierWeightValid || !(supplierKgValue > 0) || !supplierPriceValid || (!newSupplier && !supplierId) || (newSupplier && newSupplierName.trim().length < 2)) return;
-        const requestKey = supplierRequestKey || crypto.randomUUID();
+        const requestKey = supplierRequestKey || createIntakeRequestKey();
         setSupplierRequestKey(requestKey);
         supplierMutation.mutate({
           supplier_id: newSupplier ? null : supplierId,

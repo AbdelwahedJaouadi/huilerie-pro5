@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import re
@@ -8,6 +10,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from bson.decimal128 import Decimal128
+from pymongo.errors import DuplicateKeyError
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from lib.auth import current_user, require_admin
@@ -106,65 +109,113 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     phone = re.sub(r"\s+", "", body.phone)
+    client_name = body.client_name.strip()
+    variety = (body.variety or "").strip() or None
+    notes = (body.notes or "").strip() or None
+    net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
+    request_scope = str(user.get("id") or user["username"])
+    request_key = body.idempotency_key
+    canonical_payload = {
+        "client_name": client_name, "phone": phone, "net_kg": format(net_kg, "f"),
+        "gross_weight_kg": format(body.gross_weight_kg, "f") if body.gross_weight_kg is not None else None,
+        "tare_weight_kg": format(body.tare_weight_kg, "f") if body.tare_weight_kg is not None else None,
+        "bags": body.bags, "variety": variety, "notes": notes,
+        "initial_status": body.initial_status,
+    }
+    fingerprint = hashlib.sha256(json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+    async def replay_if_present():
+        if not request_key:
+            return None
+        existing = await db.loads.find_one(
+            {"idempotency_scope": request_scope, "idempotency_key": request_key}, {"_id": 0},
+        )
+        if existing:
+            if existing.get("idempotency_fingerprint") != fingerprint:
+                raise HTTPException(409, "idempotency_key_payload_conflict")
+            return existing
+        return None
+
+    replay = await replay_if_present()
+    if replay:
+        return to_load(replay, user)
+
     inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
     if inactive_client:
         raise HTTPException(409, "client_inactive")
-    now_local = datetime.now(_tz())
-    season = await active_season()
-    code = await next_load_code(season)
-    now = datetime.now(timezone.utc)
-    net_kg = derive_net_weight_kg(body.gross_weight_kg, body.tare_weight_kg) if body.gross_weight_kg is not None else Decimal(str(body.olive_kg))
-    doc = {
-        "id": str(uuid.uuid4()), "code": code, "season_id": season, "client_name": body.client_name.strip(),
-        "phone": phone, "olive_kg": float(net_kg), "oil_kg": None,
-        "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
-        "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
-        "price_per_kg": money_db(await _price()),
-        "bags": body.bags, "variety": (body.variety or "").strip() or None,
-        "notes": (body.notes or "").strip() or None, "pressing": body.initial_status == "pressing",
-    }
-    if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
-        doc["weight_measurement"] = {
-            "gross_kg": Decimal128(body.gross_weight_kg),
-            "tare_kg": Decimal128(body.tare_weight_kg),
-            "net_kg": Decimal128(str(net_kg)),
-            "measured_at": now,
-            "operator_user_id": user.get("id"),
-            "operator_username": user["username"],
-            "source": "manual",
-            "correction_of": None,
-        }
+    price = money_db(await _price())
 
     async def operation(session):
+        if request_key:
+            existing = await db.loads.find_one(
+                {"idempotency_scope": request_scope, "idempotency_key": request_key},
+                {"_id": 0}, session=session,
+            )
+            if existing:
+                if existing.get("idempotency_fingerprint") != fingerprint:
+                    raise HTTPException(409, "idempotency_key_payload_conflict")
+                return {"replay": True, "doc": existing}
+
         client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
         if client_doc and client_doc.get("active") is False:
             raise HTTPException(409, "client_inactive")
         if client_doc:
             guard = await db.clients.update_one(
                 {"phone": phone, "active": {"$ne": False}},
-                {"$inc": {"intake_guard_version": 1}},
-                session=session,
+                {"$inc": {"intake_guard_version": 1}}, session=session,
             )
             if not guard.matched_count:
                 raise HTTPException(409, "client_inactive")
         else:
             await db.clients.insert_one({
-                "phone": phone, "client_name": body.client_name.strip(),
-                "active": True, "intake_guard_version": 1, "created_at": now,
+                "phone": phone, "client_name": client_name, "active": True,
+                "intake_guard_version": 1, "created_at": datetime.now(timezone.utc),
             }, session=session)
+
+        # The replay check precedes code allocation, and the counter update is
+        # in the same transaction so a failed/replayed operation consumes no code.
+        now_local = datetime.now(_tz())
+        season = await active_season()
+        code = await next_load_code(season, session=session)
+        now = datetime.now(timezone.utc)
+        doc = {
+            "id": str(uuid.uuid4()), "code": code, "season_id": season,
+            "client_name": client_name, "phone": phone, "olive_kg": float(net_kg),
+            "oil_kg": None, "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
+            "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
+            "price_per_kg": price, "bags": body.bags, "variety": variety, "notes": notes,
+            "pressing": body.initial_status == "pressing",
+        }
+        if request_key:
+            doc.update(idempotency_scope=request_scope, idempotency_key=request_key, idempotency_fingerprint=fingerprint)
+        if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
+            doc["weight_measurement"] = {
+                "gross_kg": Decimal128(body.gross_weight_kg), "tare_kg": Decimal128(body.tare_weight_kg),
+                "net_kg": Decimal128(str(net_kg)), "measured_at": now,
+                "operator_user_id": user.get("id"), "operator_username": user["username"],
+                "source": "manual", "correction_of": None,
+            }
         await db.loads.insert_one(doc, session=session)
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
             "phone": doc.get("phone"), "initial_status": body.initial_status,
-            "weight_measurement": weight_measurement_audit_snapshot(
-                doc.get("weight_measurement")
-            ),
+            "weight_measurement": weight_measurement_audit_snapshot(doc.get("weight_measurement")),
         }, session=session)
+        return {"replay": False, "doc": doc}
 
-    await run_transaction(operation)
-    doc.pop("_id", None)
-    await send_load_sms(doc, "arrival")
-    return to_load(doc, user)
+    try:
+        outcome = await run_transaction(operation)
+    except DuplicateKeyError:
+        replay = await replay_if_present()
+        if replay:
+            return to_load(replay, user)
+        raise
+    result = outcome["doc"]
+    if outcome["replay"]:
+        return to_load(result, user)
+    result.pop("_id", None)
+    await send_load_sms(result, "arrival")
+    return to_load(result, user)
 
 
 @router.get("/loads", response_model=list[Load])
