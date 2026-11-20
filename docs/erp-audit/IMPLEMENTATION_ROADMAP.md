@@ -538,7 +538,7 @@ The earlier weighing and idempotency observations above are historical findings 
 - The shared scale profile/settings panel is merged to `main` (PR #3). This stores device configuration only; it does **not** connect to a physical indicator or prove live readings.
 - Traditional load request idempotency is merged (PR #6), including same-key replay, changed-payload conflict and duplicate-key winner recovery.
 - Designated-worker direct olive reception is enabled through the separate `commercial.register_olive_purchase` capability (PR #7). The capability is assignable by an administrator and does not add a second-person approval queue.
-- Complete outer-command idempotency for GS supplier reception is under review in PR #8; do not count it as merged until all CI checks pass and the PR is merged.
+- Complete outer-command idempotency for GS supplier reception is merged in PR #8. It fingerprints supplier contact/tax metadata and the complete reception command, commits the unique idempotency record atomically, and fails closed if required unique indexes cannot be created.
 - Still outstanding before reliable offline operation: durable client-side operation queue, server inbox, transactional SMS outbox, and explicit retry/reconciliation tests.
 - Before deploying the additive idempotency collections/indexes, take a production database backup as requested. Do not alter existing business records or rewrite historical weights.
 - Render deployment is not confirmed: the inspected `Oroverde` workspace services are connected to `abdelwehed-hue/huilerie-pro5`, while the active code changes are in `AbdelwahedJaouadi/huilerie-pro5`. Resolve the service repository binding and verify the target live URL before rollout.
