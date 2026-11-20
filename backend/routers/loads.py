@@ -108,7 +108,7 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
-    phone = re.sub(r"\\s+", "", body.phone)
+    phone = re.sub(r"\s+", "", body.phone)
     client_name = body.client_name.strip()
     variety = (body.variety or "").strip() or None
     notes = (body.notes or "").strip() or None
