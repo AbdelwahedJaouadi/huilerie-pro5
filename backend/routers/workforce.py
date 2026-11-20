@@ -1,5 +1,5 @@
 import uuid
-from datetime import date as Date, datetime, timezone
+from datetime import date as Date, datetime, timedelta, timezone
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
@@ -215,6 +215,13 @@ async def correct_attendance(
         raise HTTPException(400, "present_requires_check_in")
     if check_out is not None and (check_in is None or check_out < check_in):
         raise HTTPException(400, "checkout_must_follow_checkin")
+    now = datetime.now(timezone.utc)
+    for attendance_time in (check_in, check_out):
+        if attendance_time is not None:
+            if attendance_time.astimezone(ZoneInfo("Africa/Tunis")).date().isoformat() != record["day"]:
+                raise HTTPException(400, "attendance_time_must_match_day")
+            if attendance_time > now + timedelta(minutes=1):
+                raise HTTPException(400, "attendance_time_cannot_be_future")
     if status == "ABSENT" and (check_in is not None or check_out is not None):
         raise HTTPException(400, "absent_cannot_have_times")
     if not changes:
