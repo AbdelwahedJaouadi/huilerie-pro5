@@ -22,6 +22,7 @@ from lib.db import db, run_transaction
 from lib.season import active_season, season_prefix
 from accounting_foundation.preview import build_reconciliation_preview
 from accounting_foundation.treasury_preview import build_treasury_movement_preview
+from accounting_foundation.treasury_posting import record_source_payment_movement
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 RECENT_LIMIT = 200
@@ -331,6 +332,13 @@ class TreasuryAccountStatusInput(BaseModel):
     active: bool
 
 
+class TreasuryMovementCreateInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    source_type: Literal["GS_SALE_PAYMENT", "GS_SUPPLIER_PAYMENT"]
+    source_id: str = Field(min_length=1, max_length=100)
+    confirm: Literal[True]
+
+
 def _treasury_name_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
@@ -429,6 +437,38 @@ async def update_treasury_account_status(account_id: str, payload: TreasuryAccou
     return _safe(await run_transaction(operation))
 
 
+@router.post("/treasury/movements", status_code=201)
+async def create_treasury_movement(payload: TreasuryMovementCreateInput, user: dict = Depends(require_admin)):
+    """Explicitly record one operational movement from an existing immutable GS payment."""
+    from pymongo.errors import DuplicateKeyError
+
+    season = await active_season()
+    season_code = season_prefix(season)
+    actor_id = _treasury_actor(user)
+    now = datetime.now(timezone.utc)
+
+    async def operation(session):
+        return await record_source_payment_movement(
+            db, source_type=payload.source_type, source_id=payload.source_id,
+            season_code=season_code, actor_user_id=actor_id,
+            recorded_at=now, session=session,
+        )
+
+    try:
+        return _safe(await run_transaction(operation))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except DuplicateKeyError as exc:
+        existing = await db.accounting_treasury_movements.find_one(
+            {"source_type": payload.source_type, "source_id": payload.source_id}, {"_id": 0}
+        )
+        if existing:
+            return _safe(existing)
+        raise HTTPException(status_code=409, detail="Une opération de trésorerie concurrente doit être vérifiée.") from exc
+
+
 @router.get("/treasury/movement-preview")
 async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_admin)):
     """Read-only proposals from mapped GS payment documents; never posts money movements."""
@@ -473,6 +513,17 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         supplier_purchases=supplier_purchases,
         treasury_accounts=accounts,
     )
+    source_ids = [row["source_id"] for row in preview["candidates"]]
+    recorded_rows = await db.accounting_treasury_movements.find(
+        {"season_code": season_code, "source_id": {"$in": source_ids}},
+        {"_id": 0, "source_type": 1, "source_id": 1, "id": 1, "settlement_status": 1, "recorded_at": 1},
+    ).to_list(limit * 2)
+    recorded = {(row["source_type"], row["source_id"]): row for row in recorded_rows}
+    for candidate in preview["candidates"]:
+        movement = recorded.get((candidate["source_type"], candidate["source_id"]))
+        candidate["recorded_movement_id"] = movement.get("id") if movement else None
+        candidate["settlement_status"] = movement.get("settlement_status") if movement else None
+        candidate["recorded_at"] = movement.get("recorded_at").isoformat() if movement and movement.get("recorded_at") else None
     return {
         **preview, "active_season": season, "season_code": season_code,
         "limit_per_source": limit, "has_more": has_more,
