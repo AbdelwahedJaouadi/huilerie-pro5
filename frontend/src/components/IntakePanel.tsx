@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
@@ -209,7 +209,14 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, idempotency_key: loadRequestKey, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) {
+            const payload: LoadCreate = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
+            const fingerprint = JSON.stringify(payload);
+            if (!loadRequestRef.current || loadRequestRef.current.fingerprint !== fingerprint) {
+              loadRequestRef.current = { fingerprint, key: crypto.randomUUID() };
+            }
+            m.mutate({ ...payload, idempotency_key: loadRequestRef.current.key });
+          }
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
