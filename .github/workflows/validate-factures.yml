@@ -12,6 +12,7 @@ on:
       - feature/commercial-audit
       - feature/comptabilite
       - audit/erp-foundation
+      - feat/intake-idempotency
       - feature/vehicle-weighing-foundation
   pull_request:
     branches:
