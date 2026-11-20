@@ -362,7 +362,7 @@ async def create_treasury_account(payload: TreasuryAccountInput, user: dict = De
     now, account_id = datetime.now(timezone.utc), str(uuid4())
     name_key = _treasury_name_key(payload.name)
     record = {
-        "id": account_id, "name": re.sub(r"\\s+", " ", payload.name.strip()),
+        "id": account_id, "name": re.sub(r"\s+", " ", payload.name.strip()),
         "name_key": name_key, "account_type": payload.account_type, "currency": "TND",
         "bank_name": payload.bank_name.strip() if payload.bank_name else None,
         "account_suffix": payload.account_suffix,
