@@ -75,3 +75,10 @@ def test_float_amount_is_rejected_not_silently_rounded():
         sale_payments=[sale_payment(amount_dt=25.5)], treasury_accounts=[account()]
     )
     assert "AMOUNT_MISSING_OR_INVALID" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_malformed_calendar_date_is_blocked():
+    result = build_treasury_movement_preview(
+        sale_payments=[sale_payment(payment_date="2026-19-42")], treasury_accounts=[account()]
+    )
+    assert "PAYMENT_DATE_MISSING_OR_INVALID" in result["candidates"][0]["blocking_reasons"]
