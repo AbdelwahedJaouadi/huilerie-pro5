@@ -108,7 +108,7 @@ async def _labs_for(ids: list[str]) -> dict[str, dict]:
 
 @router.post("/loads", response_model=Load)
 async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
-    phone = re.sub(r"\s+", "", body.phone)
+    phone = re.sub(r"\\s+", "", body.phone)
     client_name = body.client_name.strip()
     variety = (body.variety or "").strip() or None
     notes = (body.notes or "").strip() or None
@@ -128,8 +128,7 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         if not request_key:
             return None
         existing = await db.loads.find_one(
-            {"idempotency_scope": request_scope, "idempotency_key": request_key},
-            {"_id": 0},
+            {"idempotency_scope": request_scope, "idempotency_key": request_key}, {"_id": 0},
         )
         if existing:
             if existing.get("idempotency_fingerprint") != fingerprint:
@@ -144,32 +143,9 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     inactive_client = await db.clients.find_one({"phone": phone, "active": False}, {"_id": 0, "phone": 1})
     if inactive_client:
         raise HTTPException(409, "client_inactive")
-    now_local = datetime.now(_tz())
-    season = await active_season()
-    # Allocate the sequential code only after the replay check.
-    code = await next_load_code(season)
-    now = datetime.now(timezone.utc)
-    doc = {
-        "id": str(uuid.uuid4()), "code": code, "season_id": season, "client_name": client_name,
-        "phone": phone, "olive_kg": float(net_kg), "oil_kg": None,
-        "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
-        "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
-        "price_per_kg": money_db(await _price()),
-        "bags": body.bags, "variety": variety, "notes": notes,
-        "pressing": body.initial_status == "pressing",
-    }
-    if request_key:
-        doc.update(idempotency_scope=request_scope, idempotency_key=request_key, idempotency_fingerprint=fingerprint)
-    if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
-        doc["weight_measurement"] = {
-            "gross_kg": Decimal128(body.gross_weight_kg), "tare_kg": Decimal128(body.tare_weight_kg),
-            "net_kg": Decimal128(str(net_kg)), "measured_at": now,
-            "operator_user_id": user.get("id"), "operator_username": user["username"],
-            "source": "manual", "correction_of": None,
-        }
+    price = money_db(await _price())
 
     async def operation(session):
-        # Recheck inside the transaction to close the common retry race.
         if request_key:
             existing = await db.loads.find_one(
                 {"idempotency_scope": request_scope, "idempotency_key": request_key},
@@ -179,6 +155,7 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
                 if existing.get("idempotency_fingerprint") != fingerprint:
                     raise HTTPException(409, "idempotency_key_payload_conflict")
                 return existing
+
         client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
         if client_doc and client_doc.get("active") is False:
             raise HTTPException(409, "client_inactive")
@@ -192,8 +169,32 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
         else:
             await db.clients.insert_one({
                 "phone": phone, "client_name": client_name, "active": True,
-                "intake_guard_version": 1, "created_at": now,
+                "intake_guard_version": 1, "created_at": datetime.now(timezone.utc),
             }, session=session)
+
+        # The replay check precedes code allocation, and the counter update is
+        # in the same transaction so a failed/replayed operation consumes no code.
+        now_local = datetime.now(_tz())
+        season = await active_season()
+        code = await next_load_code(season, session=session)
+        now = datetime.now(timezone.utc)
+        doc = {
+            "id": str(uuid.uuid4()), "code": code, "season_id": season,
+            "client_name": client_name, "phone": phone, "olive_kg": float(net_kg),
+            "oil_kg": None, "day": now_local.strftime("%Y-%m-%d"), "created_at": now,
+            "created_by": user["username"], "created_by_name": user.get("full_name") or user["username"],
+            "price_per_kg": price, "bags": body.bags, "variety": variety, "notes": notes,
+            "pressing": body.initial_status == "pressing",
+        }
+        if request_key:
+            doc.update(idempotency_scope=request_scope, idempotency_key=request_key, idempotency_fingerprint=fingerprint)
+        if body.gross_weight_kg is not None and body.tare_weight_kg is not None:
+            doc["weight_measurement"] = {
+                "gross_kg": Decimal128(body.gross_weight_kg), "tare_kg": Decimal128(body.tare_weight_kg),
+                "net_kg": Decimal128(str(net_kg)), "measured_at": now,
+                "operator_user_id": user.get("id"), "operator_username": user["username"],
+                "source": "manual", "correction_of": None,
+            }
         await db.loads.insert_one(doc, session=session)
         await _audit_load_event(doc, user, "LOAD_CREATED", {
             "olive_kg": doc.get("olive_kg"), "variety": doc.get("variety"),
@@ -205,13 +206,15 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
     try:
         result = await run_transaction(operation)
     except DuplicateKeyError:
-        # A concurrent request may have won the unique idempotency index.
         replay = await replay_if_present()
         if replay:
             return to_load(replay, user)
         raise
-    if request_key and result.get("id") != doc["id"]:
-        return to_load(result, user)
+    if request_key and result.get("idempotency_key") == request_key and result.get("idempotency_fingerprint") == fingerprint:
+        # Only the request that actually inserted the record sends the arrival SMS.
+        created_by_this_request = result.get("created_by") == user["username"] and result.get("id") is not None
+        if not created_by_this_request:
+            return to_load(result, user)
     result.pop("_id", None)
     await send_load_sms(result, "arrival")
     return to_load(result, user)
