@@ -260,8 +260,6 @@ async def create_oil_purchase_document_for_transfer(
             "initial_payment_reference": draft.initial_payment_reference,
             "outstanding_amount_tnd": Decimal128(outstanding),
             "payment_status": status,
-            "treasury_account_id": treasury_account_id,
-            "treasury_allocation_status": treasury_allocation_status,
         },
     }, session=session)
     return document
@@ -389,6 +387,8 @@ async def record_oil_purchase_payment(
             "previous_outstanding_amount_tnd": purchase["outstanding_amount_tnd"],
             "new_outstanding_amount_tnd": Decimal128(remaining),
             "payment_status": status,
+            "treasury_account_id": treasury_account_id,
+            "treasury_allocation_status": treasury_allocation_status,
         },
     }, session=session)
     return payment
