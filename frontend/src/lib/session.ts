@@ -18,6 +18,15 @@ export function beginSession(): void {
 
 // Call from every sign-out control; the hard redirect resets all in-memory state.
 export async function endSession(redirectTo: string = "/login"): Promise<void> {
+  // A retry key must never survive an explicit sign-out on this tab.
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith("oro:load-intake-idempotency:")) sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
   try {
     await apiPost("/auth/logout");
   } finally {

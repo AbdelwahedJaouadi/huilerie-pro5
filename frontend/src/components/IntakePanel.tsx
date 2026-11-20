@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
@@ -14,6 +14,7 @@ import type { ClientCreate, ClientHistory, ClientSummary, Load, LoadCreate, Mill
 import { fmtNum, useI18n } from "@/lib/i18n";
 import { StatusPill } from "@/components/shared";
 import ReceptionTicket from "@/components/ReceptionTicket";
+import { useMe } from "@/lib/useMe";
 
 function NewClientDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (c: ClientSummary) => void }) {
   const { t, errMsg, lang } = useI18n();
@@ -54,6 +55,8 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const { t, errMsg, lang } = useI18n();
   const ar = lang === "ar";
   const qc = useQueryClient();
+  const me = useMe();
+  const actorId = me.data?.id;
   const [bags, setBags] = useState("");
   const [variety, setVariety] = useState("");
   const [notes, setNotes] = useState("");
@@ -81,6 +84,29 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [grossKg, setGrossKg] = useState("");
   const [tareKg, setTareKg] = useState("");
   const [loadRequestIdentity, setLoadRequestIdentity] = useState<{ fingerprint: string; key: string } | null>(null);
+  // Keep the same request key across reloads so a lost response cannot create a
+  // second load. Scope it to the authenticated operator and expire it after 24h.
+  const loadIdentityStorageKey = actorId ? `oro:load-intake-idempotency:${actorId}` : null;
+  useEffect(() => {
+    if (!loadIdentityStorageKey) {
+      setLoadRequestIdentity(null);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(loadIdentityStorageKey);
+      if (!raw) { setLoadRequestIdentity(null); return; }
+      const saved = JSON.parse(raw) as { fingerprint?: string; key?: string; createdAt?: number };
+      if (typeof saved.fingerprint === "string" && typeof saved.key === "string" &&
+          typeof saved.createdAt === "number" && Date.now() - saved.createdAt < 24 * 60 * 60 * 1000) {
+        setLoadRequestIdentity({ fingerprint: saved.fingerprint, key: saved.key });
+      } else {
+        sessionStorage.removeItem(loadIdentityStorageKey);
+        setLoadRequestIdentity(null);
+      }
+    } catch {
+      setLoadRequestIdentity(null);
+    }
+  }, [loadIdentityStorageKey]);
   const [created, setCreated] = useState<Load | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
@@ -170,6 +196,9 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       setKg("");
       setGrossKg("");
       setTareKg("");
+      if (loadIdentityStorageKey) {
+        try { sessionStorage.removeItem(loadIdentityStorageKey); } catch { /* storage may be unavailable */ }
+      }
       setLoadRequestIdentity(null);
       setBags("");
       setVariety("");
@@ -211,11 +240,26 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) {
-            const payload = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
-            const fingerprint = JSON.stringify(payload);
+          if (valid && actorId) {
+            const payload = { client_name: name.trim(), phone: phone.replace(/\s+/g, ""), ...(grossTareValid ? { gross_weight_kg: String(grossVal), tare_weight_kg: String(tareVal) } : { olive_kg: kgVal }), bags: bagsVal, variety: variety.trim() || null, notes: notes.trim() || null, initial_status: initStatus };
+            // Normalize formatting while preserving the exact weight inputs.
+            const fingerprint = JSON.stringify({
+              client_name: payload.client_name,
+              phone: payload.phone,
+              weight: grossTareValid
+                ? { gross_kg: String(grossVal), tare_kg: String(tareVal) }
+                : { olive_kg: String(kgVal) },
+              bags: bagsVal,
+              variety: payload.variety,
+              notes: payload.notes,
+              initial_status: initStatus,
+            });
             const key = loadRequestIdentity?.fingerprint === fingerprint ? loadRequestIdentity.key : crypto.randomUUID();
             setLoadRequestIdentity({ fingerprint, key });
+            if (loadIdentityStorageKey) {
+              try { sessionStorage.setItem(loadIdentityStorageKey, JSON.stringify({ fingerprint, key, createdAt: Date.now() })); }
+              catch { /* server-side idempotency still protects requests within this mounted session */ }
+            }
             m.mutate({ ...payload, idempotency_key: key });
           }
         }}
@@ -347,7 +391,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           <Label htmlFor="obs">{t("observations")}</Label>
           <Textarea id="obs" data-testid="intake-notes-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} className="min-h-14 rounded-lg bg-white" />
         </div>
-        <Button type="submit" disabled={!valid || m.isPending} data-testid="intake-submit-button" className="h-10 w-full rounded-lg bg-lime-700 text-sm hover:bg-lime-800 active:scale-[0.98] transition-transform">
+        <Button type="submit" disabled={!valid || !actorId || m.isPending} data-testid="intake-submit-button" className="h-10 w-full rounded-lg bg-lime-700 text-sm hover:bg-lime-800 active:scale-[0.98] transition-transform">
           <Plus className="size-5" />
           {t("register_arrival")}
         </Button>
