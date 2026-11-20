@@ -80,6 +80,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
   const [kg, setKg] = useState("");
   const [grossKg, setGrossKg] = useState("");
   const [tareKg, setTareKg] = useState("");
+  const [loadRequestIdentity, setLoadRequestIdentity] = useState<{ fingerprint: string; key: string } | null>(null);
   const [created, setCreated] = useState<Load | null>(null);
   const [receptionType, setReceptionType] = useState<"client" | "supplier">("client");
   const [supplierId, setSupplierId] = useState("");
@@ -169,6 +170,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       setKg("");
       setGrossKg("");
       setTareKg("");
+      setLoadRequestIdentity(null);
       setBags("");
       setVariety("");
       setNotes("");
@@ -209,7 +211,13 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) {
+            const payload = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
+            const fingerprint = JSON.stringify(payload);
+            const key = loadRequestIdentity?.fingerprint === fingerprint ? loadRequestIdentity.key : crypto.randomUUID();
+            setLoadRequestIdentity({ fingerprint, key });
+            m.mutate({ ...payload, idempotency_key: key });
+          }
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
