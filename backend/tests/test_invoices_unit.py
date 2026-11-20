@@ -423,3 +423,43 @@ async def test_initial_payment_rejects_wrong_or_inactive_account(fake_db):
     assert exc.value.detail == "treasury_account_invalid"
     assert fake_db.invoices.docs == []
     assert fake_db.accounting_treasury_movements.docs == []
+
+
+@pytest.mark.asyncio
+async def test_automatic_unpaid_customer_invoice_records_later_receipt_once_in_treasury(fake_db):
+    # Load completion creates the invoice without collecting money or touching treasury.
+    created = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0},
+        {"username": "worker"},
+    )
+    assert created["number"] == "FAC-2627100"
+    assert created["payments"] == []
+    assert created["paid_amount"] == 0
+    assert len(fake_db.accounting_treasury_movements.docs) == 0
+
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "cash-automatic", "name": "Caisse principale",
+        "account_type": "CASH", "currency": "TND", "active": True,
+    })
+
+    # The first later payment is entered from the invoice edit flow.
+    updated = await invoice_routes.update_invoice(
+        created["id"],
+        {"payment_amount": 0.5, "payment_method": "CASH",
+         "treasury_account_id": "cash-automatic"},
+        {"username": "cashier"},
+    )
+    assert updated["paid_amount"] == 0.5
+    assert updated["balance"] == 2.2
+    assert len(updated["payments"]) == 1
+    assert updated["payments"][0]["treasury_allocation_status"] == "MAPPED"
+    assert len(fake_db.accounting_treasury_movements.docs) == 1
+    movement = fake_db.accounting_treasury_movements.docs[0]
+    assert movement["source_type"] == "TRADITIONAL_RECEIPT"
+    assert movement["source_id"] == updated["payments"][0]["id"]
+    assert movement["source_document_id"] == created["id"]
+    assert movement["source_document_number"] == created["number"]
+    assert movement["account_id"] == "cash-automatic"
+    assert movement["opening_balance_applied"] is False
+    assert movement["gl_posting_status"] == "NOT_POSTED"
+    assert len(fake_db.accounting_treasury_movement_events.docs) == 1
