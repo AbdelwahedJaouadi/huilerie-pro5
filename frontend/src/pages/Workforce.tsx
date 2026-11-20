@@ -57,6 +57,8 @@ export default function Workforce() {
   const [editIn, setEditIn] = useState("");
   const [editOut, setEditOut] = useState("");
   const [reason, setReason] = useState("");
+  const [editStatus, setEditStatus] = useState<"PRESENT" | "ABSENT">("PRESENT");
+  const isToday = day === localDay();
   const queryKey = ["workforce", "attendance", day];
   const data = useQuery({
     queryKey,
@@ -75,9 +77,9 @@ export default function Workforce() {
     mutationFn: () => {
       if (!editing) throw new Error("attendance_not_selected");
       return apiPatch<Attendance>(`/workforce/attendance/${editing.id}`, {
-        check_in_at: editIn ? tunisInputToIso(editIn) : null,
-        check_out_at: editOut ? tunisInputToIso(editOut) : null,
-        status: editing.status,
+        check_in_at: editStatus === "PRESENT" && editIn ? tunisInputToIso(editIn) : null,
+        check_out_at: editStatus === "PRESENT" && editOut ? tunisInputToIso(editOut) : null,
+        status: editStatus,
         reason: reason.trim(),
       });
     },
@@ -104,6 +106,7 @@ export default function Workforce() {
     setEditIn(localDateTime(record.check_in_at));
     setEditOut(localDateTime(record.check_out_at));
     setReason("");
+    setEditStatus(record.status);
   };
 
   return (
@@ -137,6 +140,7 @@ export default function Workforce() {
           </div>
           <div className="text-sm text-stone-500">{ar ? "الأوقات بتوقيت تونس، وتُحفظ داخلياً بتوقيت UTC." : "Les heures sont affichées à l’heure de Tunisie et conservées en UTC."}</div>
         </div>
+        {!isToday && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{ar ? "يمكن مراجعة الأيام السابقة وتصحيح سجلاتها، أما تسجيل الحضور والانصراف والغياب فيتم لليوم الحالي فقط." : "Les journées passées restent consultables et corrigibles; les arrivées, départs et absences ne peuvent être enregistrés que pour aujourd’hui."}</p>}
         {data.isLoading ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "جارٍ تحميل جدول العمال..." : "Chargement du pointage…"}</p> :
           data.isError ? <p className="py-8 text-center text-sm text-red-700">{ar ? "تعذر تحميل جدول العمال." : "Impossible de charger le pointage."}</p> :
           workers.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا توجد حسابات عمال نشطة." : "Aucun employé actif."}</p> :
@@ -166,9 +170,9 @@ export default function Workforce() {
                     <td className="px-3 py-4 font-mono tabular-nums">{displayTime(record?.check_out_at, locale)}</td>
                     <td className="px-3 py-4">
                       <div className="flex justify-end gap-2">
-                        {!checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkin-${worker.id}`} disabled={action.isPending} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
-                        {checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkout-${worker.id}`} disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
-                        {!record && <Button size="sm" variant="outline" data-testid={`workforce-absent-${worker.id}`} disabled={action.isPending} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
+                        {!checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkin-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
+                        {checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkout-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
+                        {!record && <Button size="sm" variant="outline" data-testid={`workforce-absent-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
                         {record && <Button size="sm" variant="outline" data-testid={`workforce-edit-${worker.id}`} onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
                       </div>
                     </td>
@@ -186,8 +190,9 @@ export default function Workforce() {
         <DialogContent data-testid="workforce-correction-dialog">
           <DialogHeader><DialogTitle>{ar ? "تصحيح سجل الحضور" : "Corriger le pointage"} — {editing?.worker_name}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1"><Label>{ar ? "وقت الحضور" : "Heure d’arrivée"}</Label><Input type="datetime-local" value={editIn} onChange={(event) => setEditIn(event.target.value)} /></div>
-            <div className="space-y-1"><Label>{ar ? "وقت الانصراف" : "Heure de départ"}</Label><Input type="datetime-local" value={editOut} onChange={(event) => setEditOut(event.target.value)} /></div>
+            <div className="space-y-1"><Label>{ar ? "الحالة" : "Statut"}</Label><select value={editStatus} onChange={(event) => { const value = event.target.value as "PRESENT" | "ABSENT"; setEditStatus(value); if (value === "ABSENT") { setEditIn(""); setEditOut(""); } }} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="PRESENT">{ar ? "حاضر" : "Présent"}</option><option value="ABSENT">{ar ? "غائب" : "Absent"}</option></select></div>
+            <div className="space-y-1"><Label>{ar ? "وقت الحضور" : "Heure d’arrivée"}</Label><Input type="datetime-local" disabled={editStatus === "ABSENT"} value={editIn} onChange={(event) => setEditIn(event.target.value)} /></div>
+            <div className="space-y-1"><Label>{ar ? "وقت الانصراف" : "Heure de départ"}</Label><Input type="datetime-local" disabled={editStatus === "ABSENT"} value={editOut} onChange={(event) => setEditOut(event.target.value)} /></div>
             <div className="space-y-1"><Label>{ar ? "سبب التصحيح (إجباري)" : "Motif de correction (obligatoire)"}</Label><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder={ar ? "مثال: تم إدخال وقت خاطئ" : "Ex. : heure saisie incorrectement"} /></div>
           </div>
           <DialogFooter>
