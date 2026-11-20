@@ -122,8 +122,8 @@ class OliveReceptionPurchaseCommand(BaseModel):
     receiving_location_id: str = Field(min_length=1, max_length=100)
     notes: str | None = Field(default=None, max_length=1000)
     idempotency_key: str = Field(min_length=16, max_length=128)
-    gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
-    tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
+    gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
+    tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
 
     @field_validator("gross_weight_kg", "tare_weight_kg", mode="before")
     @classmethod
