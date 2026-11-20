@@ -163,7 +163,8 @@ async def test_production_idempotency_returns_existing_run_without_reposting(mon
         db, make_draft(), production_id="different-retry-id", **args
     )
     assert first["id"] == second["id"] == "production-1"
-    assert len(calls) == 3
+    # make_draft() contains one olive input: one consumption plus one oil receipt.
+    assert len(calls) == 2
 
 
 @pytest.mark.asyncio
