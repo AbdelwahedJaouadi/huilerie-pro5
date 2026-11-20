@@ -15,10 +15,10 @@ from uuid import uuid4
 
 from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from lib.auth import require_admin
-from lib.db import db
+from lib.db import db, run_transaction
 from lib.season import active_season, season_prefix
 from accounting_foundation.preview import build_reconciliation_preview
 
@@ -309,6 +309,121 @@ async def accounting_reconciliation_preview(limit: int = 100, _: dict = Depends(
       lots=lots,stock_movements=movements,gs_sales_invoices=gs_invoices,gs_sale_payments=gs_payments,gs_sale_reversals=gs_reversals,
       check_gs_sale_payment_snapshots=not has_more["gs_sale_payments"] and not has_more["gs_sale_reversals"])
     return {**preview,"active_season":season,"season_code":season_code,"limit_per_source":limit,"has_more":has_more}
+
+
+class TreasuryAccountInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=2, max_length=80)
+    account_type: Literal["CASH", "BANK"]
+    bank_name: str | None = Field(default=None, max_length=100)
+    account_suffix: str | None = Field(default=None, pattern=r"^\d{4}$")
+    location: str | None = Field(default=None, max_length=120)
+    custodian_user_id: str | None = Field(default=None, max_length=80)
+    notes: str = Field(default="", max_length=500)
+
+
+class TreasuryAccountStatusInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    active: bool
+
+
+def _treasury_name_key(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip()).casefold()
+
+
+def _treasury_actor(user: dict) -> str:
+    actor = user.get("id") or user.get("username") or user.get("_id")
+    if not actor:
+        raise HTTPException(status_code=403, detail="Identité administrateur manquante.")
+    return str(actor)
+
+
+@router.get("/treasury/accounts")
+async def list_treasury_accounts(_: dict = Depends(require_admin)):
+    """Account directory only: no opening balances, ledger movements or calculated balances."""
+    rows = await db.accounting_treasury_accounts.find({}, {"_id": 0}).sort(
+        [("active", -1), ("account_type", 1), ("name", 1)]
+    ).to_list(500)
+    return {"accounts": _safe(rows), "currency": "TND", "opening_balances_configured": False,
+            "ledger_enabled": False, "read_only_balances": True}
+
+
+@router.post("/treasury/accounts")
+async def create_treasury_account(payload: TreasuryAccountInput, user: dict = Depends(require_admin)):
+    """Create a named cash/bank account shell; deliberately does not create a balance."""
+    if payload.account_type == "BANK" and not (payload.bank_name or "").strip():
+        raise HTTPException(status_code=422, detail="Le nom de la banque est obligatoire.")
+    if payload.account_type == "CASH" and (payload.bank_name or payload.account_suffix):
+        raise HTTPException(status_code=422, detail="Un tiroir-caisse ne peut pas contenir de coordonnées bancaires.")
+    if len(payload.name.strip()) < 2:
+        raise HTTPException(status_code=422, detail="Le nom du compte doit contenir au moins deux caractères.")
+    actor_id = _treasury_actor(user)
+    now, account_id = datetime.now(timezone.utc), str(uuid4())
+    name_key = _treasury_name_key(payload.name)
+    record = {
+        "id": account_id, "name": re.sub(r"\s+", " ", payload.name.strip()),
+        "name_key": name_key, "account_type": payload.account_type, "currency": "TND",
+        "bank_name": payload.bank_name.strip() if payload.bank_name else None,
+        "account_suffix": payload.account_suffix,
+        "location": payload.location.strip() if payload.location else None,
+        "custodian_user_id": payload.custodian_user_id.strip() if payload.custodian_user_id else None,
+        "notes": payload.notes.strip(), "active": True, "version": 1,
+        "opening_balance_status": "NOT_CONFIGURED",
+        "created_by": actor_id, "created_at": now, "updated_at": now,
+    }
+    async def operation(session):
+        duplicate = await db.accounting_treasury_accounts.find_one(
+            {"account_type": payload.account_type, "name_key": name_key}, {"_id": 0, "id": 1}, session=session
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Un compte de même type et de même nom existe déjà.")
+        await db.accounting_treasury_accounts.insert_one(record, session=session)
+        await db.accounting_treasury_account_events.insert_one({
+            "id": str(uuid4()), "account_id": account_id, "action": "ACCOUNT_CREATED",
+            "actor_user_id": actor_id, "created_at": now,
+            "details": {"account_type": payload.account_type, "name": record["name"], "currency": "TND"},
+        }, session=session)
+        return record
+    try:
+        return _safe(await run_transaction(operation))
+    except Exception as exc:
+        from pymongo.errors import DuplicateKeyError
+        if isinstance(exc, DuplicateKeyError):
+            raise HTTPException(status_code=409, detail="Un compte de même type et de même nom existe déjà.") from exc
+        raise
+
+
+@router.patch("/treasury/accounts/{account_id}/status")
+async def update_treasury_account_status(account_id: str, payload: TreasuryAccountStatusInput,
+                                         user: dict = Depends(require_admin)):
+    """Deactivate/reactivate an account shell; never delete it or alter a balance."""
+    actor_id, now = _treasury_actor(user), datetime.now(timezone.utc)
+    async def operation(session):
+        account = await db.accounting_treasury_accounts.find_one({"id": account_id}, {"_id": 0}, session=session)
+        if not account:
+            raise HTTPException(status_code=404, detail="Compte de trésorerie introuvable.")
+        if account.get("version", 1) != payload.expected_version:
+            raise HTTPException(status_code=409, detail="Le compte a été modifié. Actualisez la liste.")
+        if account.get("active") == payload.active:
+            return account
+        update = await db.accounting_treasury_accounts.update_one(
+            {"id": account_id, "version": payload.expected_version},
+            {"$set": {"active": payload.active, "updated_at": now, "updated_by": actor_id},
+             "$inc": {"version": 1}}, session=session,
+        )
+        if update.matched_count != 1:
+            raise HTTPException(status_code=409, detail="Le compte a été modifié simultanément.")
+        await db.accounting_treasury_account_events.insert_one({
+            "id": str(uuid4()), "account_id": account_id,
+            "action": "ACCOUNT_REACTIVATED" if payload.active else "ACCOUNT_DEACTIVATED",
+            "actor_user_id": actor_id, "created_at": now,
+            "details": {"previous_active": account.get("active"), "new_active": payload.active,
+                        "previous_version": payload.expected_version, "new_version": payload.expected_version + 1},
+        }, session=session)
+        account["active"], account["version"], account["updated_at"] = payload.active, payload.expected_version + 1, now
+        return account
+    return _safe(await run_transaction(operation))
 
 class PassiveIncomeInput(BaseModel):
     income_type: Literal["RENT", "EQUIPMENT_RENTAL", "INTEREST", "INVESTMENT", "OTHER"]

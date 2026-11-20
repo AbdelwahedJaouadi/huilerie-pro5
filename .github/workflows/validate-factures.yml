@@ -67,6 +67,7 @@ jobs:
           tests/test_client_options_unit.py
           tests/test_required_idempotency_indexes.py
           tests/test_accounting_foundation.py
+          tests/test_treasury_accounts.py
 
   vehicle-weighing-tests:
     runs-on: ubuntu-latest
