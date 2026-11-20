@@ -31,6 +31,7 @@ INDEXES: dict[str, list[IndexModel]] = {
     "loads": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("code", ASCENDING)], name="code", unique=True),
+        IndexModel([("idempotency_scope", ASCENDING), ("idempotency_key", ASCENDING)], name="intake_idempotency_unique", unique=True, partialFilterExpression={"idempotency_key": {"$type": "string"}}),
         IndexModel([("created_at", DESCENDING)], name="created_desc"),
         IndexModel([("phone", ASCENDING), ("created_at", DESCENDING)], name="phone_created"),
         IndexModel([("day", ASCENDING)], name="day"),
