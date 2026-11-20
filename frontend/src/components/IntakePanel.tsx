@@ -240,9 +240,21 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) {
-            const payload = { client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus };
-            const fingerprint = JSON.stringify(payload);
+          if (valid && actorId) {
+            const payload = { client_name: name.trim(), phone: phone.replace(/\\s+/g, ""), ...(grossTareValid ? { gross_weight_kg: String(grossVal), tare_weight_kg: String(tareVal) } : { olive_kg: kgVal }), bags: bagsVal, variety: variety.trim() || null, notes: notes.trim() || null, initial_status: initStatus };
+            // Match the server's normalized business fields, not the user's raw formatting.
+            const fingerprint = JSON.stringify({
+              client_name: payload.client_name,
+              phone: payload.phone,
+              net_kg: String(grossTareValid ? grossVal - tareVal : kgVal),
+              gross_weight_kg: grossTareValid ? String(grossVal) : null,
+              tare_weight_kg: grossTareValid ? String(tareVal) : null,
+              weight_source: grossTareValid ? "manual" : "legacy_net",
+              bags: bagsVal,
+              variety: payload.variety,
+              notes: payload.notes,
+              initial_status: initStatus,
+            });
             const key = loadRequestIdentity?.fingerprint === fingerprint ? loadRequestIdentity.key : crypto.randomUUID();
             setLoadRequestIdentity({ fingerprint, key });
             if (loadIdentityStorageKey) {
@@ -380,7 +392,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
           <Label htmlFor="obs">{t("observations")}</Label>
           <Textarea id="obs" data-testid="intake-notes-input" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} className="min-h-14 rounded-lg bg-white" />
         </div>
-        <Button type="submit" disabled={!valid || m.isPending} data-testid="intake-submit-button" className="h-10 w-full rounded-lg bg-lime-700 text-sm hover:bg-lime-800 active:scale-[0.98] transition-transform">
+        <Button type="submit" disabled={!valid || !actorId || m.isPending} data-testid="intake-submit-button" className="h-10 w-full rounded-lg bg-lime-700 text-sm hover:bg-lime-800 active:scale-[0.98] transition-transform">
           <Plus className="size-5" />
           {t("register_arrival")}
         </Button>
