@@ -51,7 +51,11 @@ function useLiveBoard() {
     let stopped = false;
     const connect = () => {
       try {
-        ws = new WebSocket(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/tv/ws`);
+        // The TV page is served by the static frontend, while the WebSocket
+        // endpoint belongs to the separate FastAPI service (API_ORIGIN).
+        const socketUrl = new URL("/api/tv/ws", API_ORIGIN);
+        socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
+        ws = new WebSocket(socketUrl.toString());
       } catch {
         retry = setTimeout(connect, 30000);
         return;
