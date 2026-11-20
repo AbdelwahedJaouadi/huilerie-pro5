@@ -19,24 +19,38 @@ type Attendance = {
 type AttendanceResponse = { day: string; workers: Worker[]; records: Attendance[] };
 type Action = "check-in" | "check-out" | "mark-absent";
 
+function tunisParts(value: Date) {
+  return Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Tunis", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
 function localDay() {
-  const now = new Date();
-  return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+  const parts = tunisParts(new Date());
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 function localDateTime(value: string | null | undefined) {
   if (!value) return "";
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16);
+  const parts = tunisParts(new Date(value));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+function tunisInputToIso(value: string) {
+  const [datePart, timePart] = value.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute] = timePart.split(":").map(Number);
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+  const atGuess = tunisParts(new Date(guess));
+  const tunisAsUtc = Date.UTC(Number(atGuess.year), Number(atGuess.month) - 1, Number(atGuess.day), Number(atGuess.hour), Number(atGuess.minute), Number(atGuess.second));
+  return new Date(guess - (tunisAsUtc - guess)).toISOString();
 }
 function displayTime(value: string | null | undefined, locale: string) {
-  return value ? new Date(value).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : "—";
+  return value ? new Date(value).toLocaleTimeString(locale, { timeZone: "Africa/Tunis", hour: "2-digit", minute: "2-digit" }) : "—";
 }
 
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
   const ar = lang === "ar";
-  const locale = ar ? "ar-TN" : "fr-CA";
+  const locale = ar ? "ar-TN" : "fr-FR";
   const qc = useQueryClient();
   const [day, setDay] = useState(localDay);
   const [editing, setEditing] = useState<Attendance | null>(null);
@@ -61,8 +75,8 @@ export default function Workforce() {
     mutationFn: () => {
       if (!editing) throw new Error("attendance_not_selected");
       return apiPatch<Attendance>(`/workforce/attendance/${editing.id}`, {
-        check_in_at: editIn ? new Date(editIn).toISOString() : null,
-        check_out_at: editOut ? new Date(editOut).toISOString() : null,
+        check_in_at: editIn ? tunisInputToIso(editIn) : null,
+        check_out_at: editOut ? tunisInputToIso(editOut) : null,
         status: editing.status,
         reason: reason.trim(),
       });
@@ -120,7 +134,7 @@ export default function Workforce() {
               <Input id="workforce-day" data-testid="workforce-date" type="date" value={day} onChange={(event) => setDay(event.target.value)} className="w-auto" />
             </div>
           </div>
-          <div className="text-sm text-stone-500">{ar ? "التوقيت يُحفظ بتوقيت UTC ويُعرض حسب توقيت الجهاز." : "Les heures sont conservées en UTC et affichées selon le fuseau de l’appareil."}</div>
+          <div className="text-sm text-stone-500">{ar ? "الأوقات بتوقيت تونس، وتُحفظ داخلياً بتوقيت UTC." : "Les heures sont affichées à l’heure de Tunisie et conservées en UTC."}</div>
         </div>
         {data.isLoading ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "جارٍ تحميل جدول العمال..." : "Chargement du pointage…"}</p> :
           data.isError ? <p className="py-8 text-center text-sm text-red-700">{ar ? "تعذر تحميل جدول العمال." : "Impossible de charger le pointage."}</p> :
