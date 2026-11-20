@@ -129,8 +129,14 @@ export default function Factures() {
   });
   const loads = eligible.data ?? [];
   const create = useMutation({
-    mutationFn:()=>apiPost<Invoice>("/invoices",{load_id:loadId,paid_amount:parseTariffPrice(paid)}),
-    onSuccess:(invoice)=>{toast.success(t("invoice_created"));setLoadId("");setPaid("0,000");qc.invalidateQueries({queryKey:["invoices"]});qc.invalidateQueries({queryKey:["invoice-eligible-loads"]});qc.invalidateQueries({queryKey:["client-account"]});setSelected(invoice);},
+    mutationFn:()=>{
+      const amount=parseTariffPrice(paid);
+      return apiPost<Invoice>("/invoices",{
+        load_id:loadId, paid_amount:amount,
+        ...(amount>0?{payment_method:paymentMethod,treasury_account_id:treasuryAccountId||undefined,payment_reference:paymentReference.trim()||undefined}:{}),
+      });
+    },
+    onSuccess:(invoice)=>{toast.success(t("invoice_created"));setLoadId("");setPaid("0,000");setTreasuryAccountId("");setPaymentReference("");qc.invalidateQueries({queryKey:["invoices"]});qc.invalidateQueries({queryKey:["invoice-eligible-loads"]});qc.invalidateQueries({queryKey:["client-account"]});setSelected(invoice);},
     onError:(e)=>toast.error(errMsg(e)),
   });
   const update = useMutation({
@@ -150,6 +156,31 @@ export default function Factures() {
   return <div className="min-h-full rounded-2xl bg-blue-50 p-2 sm:p-4">
     <div className="no-print"><PageHeader title={t("factures")} sub={t("invoice_sub")} accent="bg-emerald-600"/></div>
     {admin && <ClientAccounts />}
+    {admin && <section className="no-print mb-5 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+      <h2 className="mb-3 text-lg font-bold text-emerald-900">{lang==="ar"?"إنشاء فاتورة جديدة":"Créer une facture"}</h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1 lg:col-span-2"><Label>{lang==="ar"?"الحمولة المنتهية":"Chargement terminé"}</Label>
+          <Select value={loadId} onValueChange={setLoadId}><SelectTrigger><SelectValue placeholder={lang==="ar"?"اختر الحمولة":"Choisir un chargement"}/></SelectTrigger><SelectContent>
+            {loads.map(l=><SelectItem key={l.id} value={l.id}>{l.code} — {l.client_name} · {fmtNum(l.oil_kg)} {t("liter")}</SelectItem>)}
+          </SelectContent></Select>
+          {currentLoad&&<p className="text-xs text-stone-500">{currentLoad.client_name} · {currentLoad.phone||"—"}</p>}
+        </div>
+        <div className="space-y-1"><Label>{lang==="ar"?"المبلغ المدفوع عند الإنشاء":"Montant reçu à la création"}</Label><Input value={paid} inputMode="decimal" onChange={e=>setPaid(e.target.value)} onBlur={()=>setPaid(formatTariffPrice(paid))}/></div>
+        {parseTariffPrice(paid)>0&&<>
+          <div className="space-y-1"><Label>{lang==="ar"?"طريقة الدفع":"Mode de paiement"}</Label><Select value={paymentMethod} onValueChange={(v:any)=>{setPaymentMethod(v);setTreasuryAccountId("");}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="CASH">{lang==="ar"?"نقداً":"Espèces"}</SelectItem><SelectItem value="BANK_TRANSFER">{lang==="ar"?"تحويل بنكي":"Virement bancaire"}</SelectItem><SelectItem value="CHEQUE">{lang==="ar"?"شيك":"Chèque"}</SelectItem></SelectContent></Select></div>
+          <div className="space-y-1"><Label>{lang==="ar"?"حساب الخزينة":"Compte de trésorerie"}</Label><Select value={treasuryAccountId} onValueChange={setTreasuryAccountId}><SelectTrigger><SelectValue placeholder={lang==="ar"?"اختر الحساب":"Choisir un compte"}/></SelectTrigger><SelectContent>{suitableAccounts.map(a=><SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}</SelectContent></Select>
+            {treasuryAccounts.length===0&&!treasury.isLoading&&!treasury.isError&&<p className="text-xs text-amber-700">{lang==="ar"?"لا توجد حسابات مهيأة؛ ستسجل الدفعة كغير مخصصة للخزينة.":"Aucun compte configuré : le paiement sera enregistré comme non affecté."}</p>}
+            {treasuryAccounts.length>0&&suitableAccounts.length===0&&<p className="text-xs text-rose-700">{lang==="ar"?"لا يوجد حساب نشط ومتوافق مع طريقة الدفع.":"Aucun compte actif compatible avec ce mode."}</p>}
+          </div>
+          {paymentMethod!=="CASH"&&<div className="space-y-1"><Label>{lang==="ar"?"مرجع التحويل / رقم الشيك":"Référence du virement / numéro du chèque"}</Label><Input value={paymentReference} onChange={e=>setPaymentReference(e.target.value)} placeholder={lang==="ar"?"مرجع إلزامي":"Référence obligatoire"}/></div>}
+        </>}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-stone-500">{lang==="ar"?"يمكن إنشاء الفاتورة دون دفعة أولى. عند تسجيل دفعة، يجب تحديد طريقة الدفع.":"La facture peut être créée sans acompte. Toute somme reçue doit avoir un mode de paiement explicite."}</p>
+        <Button disabled={!loadId||!validAmount(paid)||create.isPending||(parseTariffPrice(paid)>0&&(treasury.isLoading||treasury.isError||(treasuryAccounts.length>0&&(!treasuryAccountId||!suitableAccounts.some(a=>a.id===treasuryAccountId)))||(paymentMethod!=="CASH"&&!paymentReference.trim())))} onClick={()=>create.mutate()} className="bg-emerald-700 hover:bg-emerald-800"><Plus className="mr-2 size-4"/>{create.isPending?(lang==="ar"?"جارٍ الإنشاء…":"Création…"):(lang==="ar"?"إنشاء الفاتورة":"Créer la facture")}</Button>
+      </div>
+      {eligible.isError&&<p className="mt-2 text-sm text-rose-700">{lang==="ar"?"تعذر تحميل الحمولات المؤهلة للفوترة.":"Impossible de charger les chargements facturables."}</p>}
+    </section>}
     <div className="no-print mb-5 flex justify-start rounded-2xl border bg-white p-4">
       <div className="w-full max-w-sm space-y-2">
         <Label>{t("invoice_status")}</Label>
