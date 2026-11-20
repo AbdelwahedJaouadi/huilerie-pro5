@@ -191,3 +191,14 @@ The arrival-SMS path has a narrower failure mode than a generic provider outage:
 - The traditional intake form disables its submit button while the mutation is pending, but it does not send or retain a request key. That protects against ordinary double-clicks in one mounted form, not retries after timeout, reload, lost response or another device.
 
 Consequently, the primary duplicate-load risk remains the missing server-side idempotency key, not an ordinary Twilio provider failure. The outbox is still the correct durable notification design, but its dispatcher must record provider failures without changing the committed intake result.
+
+
+## Runtime implementation status update (20 Nov 2026)
+
+The original findings above describe the pre-implementation state. The following changes have since been made in the active pro5 codebase:
+
+- **Traditional customer-load intake:** PR #6 is merged to `main`. The updated intake UI sends a stable request key for an unchanged form payload. The API fingerprints normalized client/weight/business fields, stores the idempotency claim in the same transaction as the load and audit event, replays the original load for an identical retry, rejects changed payloads, and recovers a concurrent unique-key winner. Arrival SMS is emitted only by the request that actually creates the load.
+- **GS direct worker capability:** PR #7 is merged to `main`. Selected workers can be assigned `commercial.register_olive_purchase`; it is distinct from general purchase management and does not authorize supplier payments, sales, stock adjustments or reversals.
+- **GS supplier reception outer command:** PR #8 adds a complete command fingerprint and transactional idempotency record, including new-supplier phone and tax metadata. This is pending CI/merge at the time of this update; do not treat it as deployed.
+- **Still not implemented:** durable offline operation queue/inbox synchronization, a transactional SMS notification outbox, and live physical-scale communication. The current request key is retained in the active form session; this is not a durable offline queue and does not guarantee exactly-once external SMS delivery.
+- **Database rollout gate:** the new idempotency collections and unique indexes are additive schema changes. Before production deployment, take the requested database backup, verify index creation, and then run the intake retry/concurrency checks against the deployed service.
