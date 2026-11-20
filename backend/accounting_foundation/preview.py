@@ -28,9 +28,7 @@ def build_reconciliation_preview(
     payments = list(supplier_payments)
     lot_rows = list(lots)
     movement_rows = list(stock_movements)
-    sale_invoices = list(gs_sales_invoices)
-    sale_payments = list(gs_sale_payments)
-    sale_reversals = list(gs_sale_reversals)
+    sale_invoices, sale_payments, sale_reversals = list(gs_sales_invoices), list(gs_sale_payments), list(gs_sale_reversals)
 
     candidate_events: list[dict[str, Any]] = []
     unresolved_items: list[dict[str, Any]] = []

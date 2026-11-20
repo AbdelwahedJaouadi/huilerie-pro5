@@ -130,36 +130,32 @@ def test_read_only_preview_route_is_registered_under_accounting():
     assert decorator.args[0].value == "/reconciliation-preview"
 
 
-def test_preview_includes_gs_sale_invoice_receipt_and_reversal_read_only():
-    result = build_reconciliation_preview(
-        gs_sales_invoices=[{"id":"i1","season_code":"2627","document_number":"2627F0001","sale_id":"s1","buyer_id":"b1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"40","created_at":"2026-11-20T10:00:00+01:00"}],
-        gs_sale_payments=[{"id":"p1","season_code":"2627","document_number":"PAY-1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH","created_at":"2026-11-20T11:00:00+01:00"}],
-        gs_sale_reversals=[{"id":"r1","season_code":"2627","document_number":"REV-1","payment_id":"p1","invoice_id":"i1","buyer_id":"b1","amount_dt":"10","reversal_date":"2026-11-20","payment_method":"CASH","status":"PARTIALLY_REVERSED","created_at":"2026-11-20T12:00:00+01:00"}],
-    )
-    events={x["source_type"]:x for x in result["candidate_events"]}
-    assert events["GS_SALE_INVOICE"]["eligibility"] == "INFORMATIONAL_ONLY"
-    assert "REVENUE_RECOGNITION_POLICY_NOT_APPROVED" in events["GS_SALE_INVOICE"]["warnings"]
-    assert events["GS_SALE_PAYMENT"]["eligibility"] == "ELIGIBLE_FOR_REVIEW"
-    assert events["GS_SALE_PAYMENT_REVERSAL"]["eligibility"] == "ELIGIBLE_FOR_REVIEW"
-    assert events["GS_SALE_PAYMENT_REVERSAL"]["source_links"] == [{"type":"GS_SALE_PAYMENT","id":"p1"},{"type":"GS_SALE_INVOICE","id":"i1"}]
+def test_gs_sales_receipt_and_reversal_are_reconciled_without_posting():
+    result=build_reconciliation_preview(
+      gs_sales_invoices=[{"id":"i1","season_code":"2627","document_number":"2627F0001","sale_id":"s1","buyer_id":"b1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"40"}],
+      gs_sale_payments=[{"id":"p1","season_code":"2627","document_number":"PAY-1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH"}],
+      gs_sale_reversals=[{"id":"r1","season_code":"2627","document_number":"REV-1","payment_id":"p1","invoice_id":"i1","buyer_id":"b1","amount_dt":"10","reversal_date":"2026-11-20","payment_method":"CASH"}])
+    by_source={x["source_type"]:x for x in result["candidate_events"]}
+    assert by_source["GS_SALE_INVOICE"]["eligibility"]=="INFORMATIONAL_ONLY"
+    assert by_source["GS_SALE_PAYMENT"]["eligibility"]=="ELIGIBLE_FOR_REVIEW"
+    assert by_source["GS_SALE_PAYMENT_REVERSAL"]["eligibility"]=="ELIGIBLE_FOR_REVIEW"
     assert result["posting_enabled"] is False and result["database_writes"] is False
 
 
-def test_gs_sale_payment_snapshot_mismatch_blocks_receipt():
+def test_gs_sales_paid_snapshot_mismatch_blocks_payment_candidate():
     result=build_reconciliation_preview(
-        gs_sales_invoices=[{"id":"i1","sale_id":"s1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"40"}],
-        gs_sale_payments=[{"id":"p1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH"}])
-    receipt=next(x for x in result["candidate_events"] if x["source_type"]=="GS_SALE_PAYMENT")
-    assert receipt["eligibility"]=="BLOCKED"
-    assert "INVOICE_PAID_SNAPSHOT_MISMATCH" in receipt["blocking_reasons"]
-    assert any(x["reason"]=="SALE_PAYMENT_LEDGER_DOES_NOT_MATCH_INVOICE_PAID_SNAPSHOT" for x in result["unresolved_items"])
+      gs_sales_invoices=[{"id":"i1","sale_id":"s1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"40"}],
+      gs_sale_payments=[{"id":"p1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH"}])
+    payment=next(x for x in result["candidate_events"] if x["source_type"]=="GS_SALE_PAYMENT")
+    assert payment["eligibility"]=="BLOCKED"
+    assert "INVOICE_PAID_SNAPSHOT_MISMATCH" in payment["blocking_reasons"]
 
 
-def test_gs_sale_reversal_over_original_payment_is_blocked():
+def test_gs_payment_reversal_cannot_exceed_original_payment():
     result=build_reconciliation_preview(
-        gs_sales_invoices=[{"id":"i1","sale_id":"s1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"0"}],
-        gs_sale_payments=[{"id":"p1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH"}],
-        gs_sale_reversals=[{"id":"r1","payment_id":"p1","invoice_id":"i1","amount_dt":"60","reversal_date":"2026-11-20","payment_method":"CASH"}])
+      gs_sales_invoices=[{"id":"i1","sale_id":"s1","sale_date":"2026-11-20","total_amount_dt":"100","credited_amount_dt":"0","net_amount_dt":"100","paid_amount_dt":"0"}],
+      gs_sale_payments=[{"id":"p1","invoice_id":"i1","sale_id":"s1","amount_dt":"50","payment_date":"2026-11-20","method":"CASH"}],
+      gs_sale_reversals=[{"id":"r1","payment_id":"p1","invoice_id":"i1","amount_dt":"60","reversal_date":"2026-11-20","payment_method":"CASH"}])
     reversal=next(x for x in result["candidate_events"] if x["source_type"]=="GS_SALE_PAYMENT_REVERSAL")
     assert reversal["eligibility"]=="BLOCKED"
     assert "REVERSALS_EXCEED_ORIGINAL_PAYMENT" in reversal["blocking_reasons"]

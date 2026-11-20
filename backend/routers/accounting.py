@@ -285,37 +285,30 @@ async def accounting_reconciliation_preview(limit: int = 100, _: dict = Depends(
     season = await active_season()
     season_code = season_prefix(season)
     load_ids = await db.loads.distinct("id", {"season_id": season})
-    invoice_rows = await db.invoices.find({"load_id": {"$in": load_ids}}, {"_id": 0}).sort([("day", -1), ("id", 1)]).to_list(limit + 1)
-    purchase_rows = await db.commercial_olive_purchases.find({"season_code": season_code}, {"_id": 0}).sort([("purchase_date", -1), ("id", 1)]).to_list(limit + 1)
-    gs_invoice_rows = await db.commercial_sales_invoices.find({"season_code": season_code}, {"_id": 0}).sort([("sale_date", -1), ("id", 1)]).to_list(limit + 1)
-    gs_payment_rows = await db.commercial_sale_payments.find({"season_code": season_code}, {"_id": 0}).sort([("payment_date", 1), ("id", 1)]).to_list(limit + 1)
-    gs_reversal_rows = await db.commercial_payment_reversals.find({"season_code": season_code}, {"_id": 0}).sort([("reversal_date", 1), ("id", 1)]).to_list(limit + 1)
-    has_more = {
-        "traditional_invoices": len(invoice_rows) > limit, "gs_purchases": len(purchase_rows) > limit,
-        "gs_sales_invoices": len(gs_invoice_rows) > limit, "gs_sale_payments": len(gs_payment_rows) > limit,
-        "gs_sale_reversals": len(gs_reversal_rows) > limit,
-    }
-    invoices, purchases = invoice_rows[:limit], purchase_rows[:limit]
-    gs_sales_invoices, gs_sale_payments, gs_sale_reversals = gs_invoice_rows[:limit], gs_payment_rows[:limit], gs_reversal_rows[:limit]
-    purchase_ids = [str(x["id"]) for x in purchases if x.get("id")]
-    supplier_payments, lot_rows, movement_rows = [], [], []
+    invoices = await db.invoices.find({"load_id":{"$in":load_ids}},{"_id":0}).sort([("day",-1),("id",1)]).to_list(limit+1)
+    purchases = await db.commercial_olive_purchases.find({"season_code":season_code},{"_id":0}).sort([("purchase_date",-1),("id",1)]).to_list(limit+1)
+    gs_invoices = await db.commercial_sales_invoices.find({"season_code":season_code},{"_id":0}).sort([("sale_date",-1),("id",1)]).to_list(limit+1)
+    gs_payments = await db.commercial_sale_payments.find({"season_code":season_code},{"_id":0}).sort([("payment_date",1),("id",1)]).to_list(limit+1)
+    gs_reversals = await db.commercial_payment_reversals.find({"season_code":season_code},{"_id":0}).sort([("reversal_date",1),("id",1)]).to_list(limit+1)
+    has_more={"traditional_invoices":len(invoices)>limit,"gs_purchases":len(purchases)>limit,
+      "gs_sales_invoices":len(gs_invoices)>limit,"gs_sale_payments":len(gs_payments)>limit,"gs_sale_reversals":len(gs_reversals)>limit}
+    invoices,purchases,gs_invoices,gs_payments,gs_reversals=[x[:limit] for x in (invoices,purchases,gs_invoices,gs_payments,gs_reversals)]
+    purchase_ids=[str(x["id"]) for x in purchases if x.get("id")]
+    supplier_payments=[]; lots=[]; movements=[]
     if purchase_ids:
-        supplier_payments = await db.commercial_supplier_olive_purchase_payments.find({"purchase_id": {"$in": purchase_ids}}, {"_id": 0}).sort([("payment_date", 1), ("id", 1)]).to_list(limit + 1)
-        lot_ids = list(dict.fromkeys(str(v) for p in purchases for v in (p.get("lot_ids") if isinstance(p.get("lot_ids"), list) else [])))
-        movement_ids = list(dict.fromkeys(str(v) for p in purchases for v in (p.get("receipt_movement_ids") if isinstance(p.get("receipt_movement_ids"), list) else [])))
-        if lot_ids: lot_rows = await db.commercial_lots.find({"id": {"$in": lot_ids}}, {"_id": 0}).to_list(limit + 1)
-        if movement_ids: movement_rows = await db.commercial_stock_movements.find({"id": {"$in": movement_ids}}, {"_id": 0}).to_list(limit + 1)
-    has_more["gs_supplier_payments"] = len(supplier_payments) > limit
-    has_more["gs_purchase_lots"] = len(lot_rows) > limit
-    has_more["gs_purchase_movements"] = len(movement_rows) > limit
-    supplier_payments, lot_rows, movement_rows = supplier_payments[:limit], lot_rows[:limit], movement_rows[:limit]
-    preview = build_reconciliation_preview(
-        traditional_invoices=invoices, gs_purchases=purchases, supplier_payments=supplier_payments,
-        lots=lot_rows, stock_movements=movement_rows, gs_sales_invoices=gs_sales_invoices,
-        gs_sale_payments=gs_sale_payments, gs_sale_reversals=gs_sale_reversals,
-        check_gs_sale_payment_snapshots=not has_more["gs_sale_payments"] and not has_more["gs_sale_reversals"],
-    )
-    return {**preview, "active_season": season, "season_code": season_code, "limit_per_source": limit, "has_more": has_more}
+        supplier_payments=await db.commercial_supplier_olive_purchase_payments.find({"purchase_id":{"$in":purchase_ids}},{"_id":0}).sort([("payment_date",1),("id",1)]).to_list(limit+1)
+        lot_ids=list(dict.fromkeys(str(v) for p in purchases for v in (p.get("lot_ids") if isinstance(p.get("lot_ids"),list) else [])))
+        movement_ids=list(dict.fromkeys(str(v) for p in purchases for v in (p.get("receipt_movement_ids") if isinstance(p.get("receipt_movement_ids"),list) else [])))
+        if lot_ids: lots=await db.commercial_lots.find({"id":{"$in":lot_ids}},{"_id":0}).to_list(limit+1)
+        if movement_ids: movements=await db.commercial_stock_movements.find({"id":{"$in":movement_ids}},{"_id":0}).to_list(limit+1)
+    has_more["gs_supplier_payments"]=len(supplier_payments)>limit
+    has_more["gs_purchase_lots"]=len(lots)>limit
+    has_more["gs_purchase_movements"]=len(movements)>limit
+    supplier_payments,lots,movements=[x[:limit] for x in (supplier_payments,lots,movements)]
+    preview=build_reconciliation_preview(traditional_invoices=invoices,gs_purchases=purchases,supplier_payments=supplier_payments,
+      lots=lots,stock_movements=movements,gs_sales_invoices=gs_invoices,gs_sale_payments=gs_payments,gs_sale_reversals=gs_reversals,
+      check_gs_sale_payment_snapshots=not has_more["gs_sale_payments"] and not has_more["gs_sale_reversals"])
+    return {**preview,"active_season":season,"season_code":season_code,"limit_per_source":limit,"has_more":has_more}
 
 class PassiveIncomeInput(BaseModel):
     income_type: Literal["RENT", "EQUIPMENT_RENTAL", "INTEREST", "INVESTMENT", "OTHER"]
