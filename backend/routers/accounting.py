@@ -290,6 +290,7 @@ async def accounting_reconciliation_preview(limit: int = 100, _: dict = Depends(
     gs_invoices = await db.commercial_sales_invoices.find({"season_code":season_code},{"_id":0}).sort([("sale_date",-1),("id",1)]).to_list(limit+1)
     gs_payments = await db.commercial_sale_payments.find({"season_code":season_code},{"_id":0}).sort([("payment_date",1),("id",1)]).to_list(limit+1)
     gs_reversals = await db.commercial_payment_reversals.find({"season_code":season_code},{"_id":0}).sort([("reversal_date",1),("id",1)]).to_list(limit+1)
+    treasury_accounts = await db.accounting_treasury_accounts.find({}, {"_id":0,"id":1,"account_type":1,"currency":1,"active":1}).to_list(500)
     has_more={"traditional_invoices":len(invoices)>limit,"gs_purchases":len(purchases)>limit,
       "gs_sales_invoices":len(gs_invoices)>limit,"gs_sale_payments":len(gs_payments)>limit,"gs_sale_reversals":len(gs_reversals)>limit}
     invoices,purchases,gs_invoices,gs_payments,gs_reversals=[x[:limit] for x in (invoices,purchases,gs_invoices,gs_payments,gs_reversals)]
@@ -307,6 +308,7 @@ async def accounting_reconciliation_preview(limit: int = 100, _: dict = Depends(
     supplier_payments,lots,movements=[x[:limit] for x in (supplier_payments,lots,movements)]
     preview=build_reconciliation_preview(traditional_invoices=invoices,gs_purchases=purchases,supplier_payments=supplier_payments,
       lots=lots,stock_movements=movements,gs_sales_invoices=gs_invoices,gs_sale_payments=gs_payments,gs_sale_reversals=gs_reversals,
+      treasury_accounts=treasury_accounts,
       check_gs_sale_payment_snapshots=not has_more["gs_sale_payments"] and not has_more["gs_sale_reversals"])
     return {**preview,"active_season":season,"season_code":season_code,"limit_per_source":limit,"has_more":has_more}
 
