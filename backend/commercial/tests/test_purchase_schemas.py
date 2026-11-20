@@ -1,10 +1,12 @@
 from datetime import date
 from decimal import Decimal
 
+from bson.decimal128 import Decimal128
 import pytest
 from pydantic import ValidationError
 
 from commercial.schemas.purchases import OlivePurchaseDraft, OliveReceptionPurchaseLine
+from commercial.services.purchases import _fingerprint, _validate_draft_weight_preservation
 
 
 def test_olive_purchase_accepts_multiple_varieties_and_decimal_values():
@@ -168,9 +170,6 @@ def test_vehicle_weight_rejects_invalid_raw_readings(field, value, error):
         OlivePurchaseDraft(**payload)
 
 
-from bson.decimal128 import Decimal128
-from commercial.services.purchases import _validate_draft_weight_preservation
-
 
 def _weight_edit_draft(*, quantity="8300.000", gross=None, tare=None):
     payload = {
@@ -215,3 +214,12 @@ def test_unweighted_purchase_edit_rejects_adding_vehicle_readings():
         _validate_draft_weight_preservation(
             None, _weight_edit_draft(gross="12500.000", tare="4200.000")
         )
+
+
+def test_purchase_idempotency_fingerprint_includes_vehicle_readings():
+    original = _weight_edit_draft(gross="12500.000", tare="4200.000")
+    changed_gross = _weight_edit_draft(gross="12501.000", tare="4201.000")
+    assert _fingerprint(original) != _fingerprint(changed_gross)
+    assert _fingerprint(original) == _fingerprint(
+        _weight_edit_draft(gross="12500.000", tare="4200.000")
+    )
