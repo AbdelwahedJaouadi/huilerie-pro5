@@ -24,6 +24,7 @@ from accounting_foundation.preview import build_reconciliation_preview
 from accounting_foundation.treasury_preview import build_treasury_movement_preview
 from accounting_foundation.treasury_posting import record_source_payment_movement
 from accounting_foundation.treasury_register import build_movement_register_filter
+from accounting_foundation.cash_count import calculate_cash_count
 from accounting_foundation.bank_statement_preview import (
     classify_statement_line, movement_date_window, parse_bank_statement_csv,
 )
@@ -343,6 +344,14 @@ class TreasuryMovementCreateInput(BaseModel):
     confirm: Literal[True]
 
 
+class CashCountInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    account_id: str = Field(min_length=1, max_length=120)
+    count_date: str = Field(pattern=r"^\\d{4}-\\d{2}-\\d{2}$")
+    denomination_counts: dict[str, Any]
+    notes: str = Field(default="", max_length=1000)
+
+
 def _treasury_name_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
@@ -545,6 +554,111 @@ async def preview_bank_statement(
         "imported": False,
         "matching_window_days": 7,
         "currency": "TND",
+    }
+
+
+
+
+@router.post("/treasury/cash-counts", status_code=201)
+async def create_cash_count(payload: CashCountInput, user: dict = Depends(require_admin)):
+    """Record an immutable physical cash count; never infer expected cash or variance."""
+    try:
+        parsed_day = date.fromisoformat(payload.count_date)
+        if parsed_day.isoformat() != payload.count_date:
+            raise ValueError("count_date must use YYYY-MM-DD")
+        normalized_counts, total = calculate_cash_count(payload.denomination_counts)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    account = await db.accounting_treasury_accounts.find_one(
+        {"id": payload.account_id, "active": True, "account_type": "CASH", "currency": "TND"},
+        {"_id": 0, "id": 1, "name": 1, "account_type": 1, "currency": 1},
+    )
+    if not account:
+        raise HTTPException(status_code=422, detail="An active TND cash account must be selected.")
+    season = await active_season()
+    season_code = season_prefix(season)
+    actor_id, now, count_id = _treasury_actor(user), datetime.now(timezone.utc), str(uuid4())
+    record = {
+        "id": count_id, "season_code": season_code, "active_season": season,
+        "account_id": account["id"], "account_name_snapshot": account["name"],
+        "count_date": payload.count_date, "counted_at": now,
+        "denomination_counts": normalized_counts,
+        "counted_amount_tnd": Decimal128(total),
+        "currency": "TND", "notes": payload.notes.strip(),
+        "recorded_by": actor_id, "recorded_at": now,
+        "evidence_type": "PHYSICAL_DENOMINATION_COUNT",
+        "expected_amount_calculated": False, "variance_calculated": False,
+        "immutable": True,
+    }
+
+    async def operation(session):
+        await db.accounting_cash_counts.insert_one(record, session=session)
+        await db.accounting_cash_count_events.insert_one({
+            "id": str(uuid4()), "cash_count_id": count_id, "account_id": account["id"],
+            "action": "CASH_COUNT_RECORDED", "actor_user_id": actor_id,
+            "created_at": now, "details": {
+                "count_date": payload.count_date, "counted_amount_tnd": Decimal128(total),
+                "currency": "TND", "denomination_counted": len(normalized_counts),
+            },
+        }, session=session)
+        return record
+
+    try:
+        return _safe(await run_transaction(operation))
+    except Exception as exc:
+        from pymongo.errors import DuplicateKeyError
+        if isinstance(exc, DuplicateKeyError):
+            raise HTTPException(status_code=409, detail="Cash count identity conflict. Please retry.") from exc
+        raise
+
+
+@router.get("/treasury/cash-counts")
+async def list_cash_counts(
+    account_id: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    _: dict = Depends(require_admin),
+):
+    """Read-only cash count evidence register, always scoped to the active season."""
+    if isinstance(limit, bool) or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="limit must be between 1 and 200.")
+    if isinstance(offset, bool) or offset < 0 or offset > 50000:
+        raise HTTPException(status_code=422, detail="offset must be between 0 and 50000.")
+    season = await active_season()
+    season_code = season_prefix(season)
+    match: dict[str, Any] = {"season_code": season_code}
+    if account_id:
+        if not account_id.strip() or len(account_id) > 120:
+            raise HTTPException(status_code=422, detail="Invalid account_id.")
+        match["account_id"] = account_id.strip()
+    try:
+        start_day = date.fromisoformat(start_date).isoformat() if start_date else None
+        end_day = date.fromisoformat(end_date).isoformat() if end_date else None
+        if start_date and start_day != start_date:
+            raise ValueError("start_date must use YYYY-MM-DD")
+        if end_date and end_day != end_date:
+            raise ValueError("end_date must use YYYY-MM-DD")
+        if start_day and end_day and start_day > end_day:
+            raise ValueError("start_date must not be after end_date")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if start_day or end_day:
+        match["count_date"] = {}
+        if start_day:
+            match["count_date"]["$gte"] = start_day
+        if end_day:
+            match["count_date"]["$lte"] = end_day
+    total_count = await db.accounting_cash_counts.count_documents(match)
+    rows = await db.accounting_cash_counts.find(match, {"_id": 0}).sort(
+        [("counted_at", -1), ("id", 1)]
+    ).skip(offset).limit(limit).to_list(length=limit)
+    return {
+        "rows": _safe(rows), "total_count": total_count, "limit": limit, "offset": offset,
+        "active_season": season, "season_code": season_code, "read_only": True,
+        "expected_cash_calculated": False, "variance_calculated": False, "currency": "TND",
     }
 
 
