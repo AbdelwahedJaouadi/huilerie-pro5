@@ -92,9 +92,6 @@ def build_reconciliation_preview(
         candidate_events.extend(payment_result["candidate_events"])
         unresolved_items.extend(payment_result["unresolved_items"])
 
-    eligibility_counts = Counter(
-        event.get("eligibility", "UNKNOWN") for event in candidate_events
-    )
     source_counts = Counter(event.get("source_type", "UNKNOWN") for event in candidate_events)
     candidate_keys = [
         event.get("candidate_key") for event in candidate_events
@@ -104,12 +101,22 @@ def build_reconciliation_preview(
         key for key, count in Counter(candidate_keys).items() if count > 1
     )
     for key in duplicate_keys:
+        for event in candidate_events:
+            if event.get("candidate_key") == key:
+                event["eligibility"] = "BLOCKED"
+                reasons = list(event.get("blocking_reasons") or [])
+                if "DUPLICATE_CANDIDATE_EVENT_IDENTITY" not in reasons:
+                    reasons.append("DUPLICATE_CANDIDATE_EVENT_IDENTITY")
+                event["blocking_reasons"] = reasons
         unresolved_items.append({
             "source_type": "ACCOUNTING_PREVIEW",
             "reason": "DUPLICATE_CANDIDATE_EVENT_IDENTITY",
             "candidate_key": key,
             "observed_count": candidate_keys.count(key),
         })
+    eligibility_counts = Counter(
+        event.get("eligibility", "UNKNOWN") for event in candidate_events
+    )
     unresolved_counts = Counter(
         item.get("reason", "UNKNOWN") for item in unresolved_items
     )
