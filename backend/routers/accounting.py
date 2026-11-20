@@ -352,7 +352,7 @@ def _treasury_actor(user: dict) -> str:
 
 @router.get("/treasury/accounts")
 async def list_treasury_accounts(_: dict = Depends(require_admin)):
-    """Account directory only: no opening balances, ledger movements or calculated balances."""
+    """List treasury account metadata; balances remain unconfigured and are never inferred here."""
     rows = await db.accounting_treasury_accounts.find({}, {"_id": 0}).sort(
         [("active", -1), ("account_type", 1), ("name", 1)]
     ).to_list(500)
