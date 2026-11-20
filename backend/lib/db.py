@@ -67,6 +67,19 @@ INDEXES: dict[str, list[IndexModel]] = {
 }
 
 
+INDEXES.update({
+    "accounting_treasury_accounts": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("account_type", ASCENDING), ("name_key", ASCENDING)], name="type_name_unique", unique=True),
+        IndexModel([("active", ASCENDING), ("account_type", ASCENDING), ("name", ASCENDING)], name="active_type_name"),
+    ],
+    "accounting_treasury_account_events": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("account_id", ASCENDING), ("created_at", DESCENDING)], name="account_created_desc"),
+    ],
+})
+
+
 REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
     "load_intake_idempotency",
     "commercial_olive_reception_idempotency",
