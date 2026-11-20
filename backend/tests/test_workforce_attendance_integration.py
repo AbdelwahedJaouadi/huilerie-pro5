@@ -89,6 +89,19 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
         )
         assert corrected["check_out_at"] >= corrected["check_in_at"]
 
+        absence_corrected = await workforce.correct_attendance(
+            restored["id"],
+            workforce.AttendanceCorrection(
+                check_in_at=None,
+                check_out_at=None,
+                status="ABSENT",
+                reason="Corrected the absence status after review",
+            ),
+            admin,
+        )
+        assert absence_corrected["status"] == "ABSENT"
+        assert absence_corrected["marked_absent_at"] is not None
+
         events = await test_db["workforce_attendance_events"].find(
             {}, {"_id": 0, "action": 1}
         ).to_list(20)
@@ -100,7 +113,7 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
             "CHECK_IN_AFTER_ABSENCE_MARK",
             "CORRECT",
         } <= actions
-        assert len(events) == 5
+        assert len(events) == 6
 
         with pytest.raises(HTTPException) as past_day:
             await workforce.check_in(
