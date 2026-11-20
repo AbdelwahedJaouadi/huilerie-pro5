@@ -260,6 +260,8 @@ async def create_oil_purchase_document_for_transfer(
             "initial_payment_reference": draft.initial_payment_reference,
             "outstanding_amount_tnd": Decimal128(outstanding),
             "payment_status": status,
+            "treasury_account_id": treasury_account_id,
+            "treasury_allocation_status": treasury_allocation_status,
         },
     }, session=session)
     return document
@@ -332,6 +334,8 @@ async def record_oil_purchase_payment(
         "amount_tnd": Decimal128(amount),
         "payment_date": draft.payment_date.isoformat(),
         "method": draft.method,
+        "treasury_account_id": treasury_account_id,
+        "treasury_allocation_status": treasury_allocation_status,
         "reference": draft.reference,
         "currency": "TND",
         "notes": draft.notes,
@@ -422,6 +426,30 @@ async def record_supplier_olive_purchase_payment(
         if prior.get("request_fingerprint") != fingerprint or prior.get("purchase_id") != purchase_id:
             raise ValueError("Payment idempotency key was used for a different supplier payment")
         return prior
+
+    treasury_accounts = db["accounting_treasury_accounts"]
+    any_treasury_account = await treasury_accounts.find_one({}, {"_id": 0, "id": 1}, session=session)
+    treasury_account_id = (draft.treasury_account_id or "").strip() or None
+    treasury_allocation_status = "UNALLOCATED"
+    if any_treasury_account:
+        if not treasury_account_id:
+            raise ValueError("An active treasury account is required for supplier payments")
+        treasury_account = await treasury_accounts.find_one(
+            {"id": treasury_account_id}, {"_id": 0, "id": 1, "account_type": 1, "currency": 1, "active": 1},
+            session=session,
+        )
+        if not treasury_account:
+            raise ValueError("Selected treasury account does not exist")
+        expected_account_type = "CASH" if draft.method == "CASH" else "BANK"
+        if treasury_account.get("active") is not True:
+            raise ValueError("Selected treasury account is inactive")
+        if treasury_account.get("account_type") != expected_account_type:
+            raise ValueError("Treasury account type does not match supplier payment method")
+        if treasury_account.get("currency") != "TND":
+            raise ValueError("Supplier payments require a TND treasury account")
+        treasury_allocation_status = "MAPPED"
+    elif treasury_account_id:
+        raise ValueError("Treasury account directory is empty; record this payment as unallocated")
 
     total = _decimal(purchase.get("total_amount_dt"))
     existing_paid = _decimal(purchase.get("paid_amount_dt", Decimal128("0.000")))
