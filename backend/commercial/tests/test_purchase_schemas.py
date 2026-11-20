@@ -89,3 +89,56 @@ def test_reception_price_rejects_fractional_millime():
             quantity_kg="1000",
             unit_price_millimes="1500.5",
         )
+
+
+
+def test_olive_purchase_accepts_gross_tare_and_exact_net_quantity():
+    draft = OlivePurchaseDraft(
+        supplier_id="supplier-1",
+        purchase_date=date(2026, 11, 2),
+        lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+        gross_weight_kg="12500.000",
+        tare_weight_kg="4200.000",
+        idempotency_key="purchase-weight-request-01",
+    )
+    assert draft.gross_weight_kg == Decimal("12500.000")
+    assert draft.tare_weight_kg == Decimal("4200.000")
+    assert draft.lines[0].quantity_kg == Decimal("8300.000")
+
+
+def test_olive_purchase_rejects_partial_vehicle_weight_pair():
+    with pytest.raises(ValidationError, match="gross_and_tare_must_be_provided_together"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[{"variety_id": "chemlali", "quantity_kg": "8300.000", "unit_price_dt": "1.500"}],
+            gross_weight_kg="12500.000",
+            idempotency_key="purchase-weight-request-02",
+        )
+
+
+def test_olive_purchase_rejects_net_quantity_not_matching_gross_minus_tare():
+    with pytest.raises(ValidationError, match="purchase_quantity_must_match_vehicle_net_weight"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[{"variety_id": "chemlali", "quantity_kg": "8299.000", "unit_price_dt": "1.500"}],
+            gross_weight_kg="12500.000",
+            tare_weight_kg="4200.000",
+            idempotency_key="purchase-weight-request-03",
+        )
+
+
+def test_vehicle_weight_is_not_accepted_for_multiple_purchase_lines():
+    with pytest.raises(ValidationError, match="vehicle_weight_requires_single_purchase_line"):
+        OlivePurchaseDraft(
+            supplier_id="supplier-1",
+            purchase_date=date(2026, 11, 2),
+            lines=[
+                {"variety_id": "chemlali", "quantity_kg": "5000.000", "unit_price_dt": "1.500"},
+                {"variety_id": "chetoui", "quantity_kg": "3300.000", "unit_price_dt": "1.400"},
+            ],
+            gross_weight_kg="12500.000",
+            tare_weight_kg="4200.000",
+            idempotency_key="purchase-weight-request-04",
+        )
