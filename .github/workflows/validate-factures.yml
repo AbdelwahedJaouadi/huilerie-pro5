@@ -13,6 +13,7 @@ on:
       - feature/comptabilite
       - audit/erp-foundation
       - feature/vehicle-weighing-foundation
+      - erp/treasury-movement-preview-phase-10
   pull_request:
     branches:
       - main
