@@ -98,6 +98,14 @@ def adapt_gs_olive_purchase(
         warnings.append("PURCHASE_NOT_APPROVED_NO_RECOGNIZED_STOCK_EVENT")
         if status not in {"DRAFT", "CANCELLED"}:
             warnings.append("PURCHASE_STATUS_UNRECOGNIZED")
+        raw_amount = raw_quantity = None
+        try:
+            if purchase.get("total_amount_dt") is not None:
+                raw_amount = _decimal(purchase.get("total_amount_dt"))
+            if purchase.get("total_quantity_kg") is not None:
+                raw_quantity = _decimal(purchase.get("total_quantity_kg"))
+        except (TypeError, ValueError, InvalidOperation):
+            warnings.append("PURCHASE_TOTALS_INVALID")
         return {
             "candidate_event": build_candidate_envelope(
                 source_type="GS_OLIVE_PURCHASE",
@@ -108,16 +116,18 @@ def adapt_gs_olive_purchase(
                     "status": status,
                     "document_number": purchase.get("document_number"),
                     "purchase_date": purchase.get("purchase_date"),
+                    "total_amount_dt": canonical_decimal(raw_amount) if raw_amount is not None else None,
+                    "total_quantity_kg": canonical_decimal(raw_quantity) if raw_quantity is not None else None,
                 },
                 eligibility=eligibility,
                 source_document_number=str(purchase.get("document_number")) if purchase.get("document_number") else None,
                 business_date=purchase_date,
                 recorded_at=_recorded_at(purchase.get("created_at")),
                 party_ref={"type": "COMMERCIAL_SUPPLIER", "id": str(purchase.get("supplier_id"))} if purchase.get("supplier_id") else None,
-                currency="TND" if purchase.get("total_amount_dt") is not None else None,
-                amount=purchase.get("total_amount_dt"),
-                quantity=purchase.get("total_quantity_kg"),
-                unit="kg" if purchase.get("total_quantity_kg") is not None else None,
+                currency="TND" if raw_amount is not None else None,
+                amount=raw_amount,
+                quantity=raw_quantity,
+                unit="kg" if raw_quantity is not None else None,
                 dimensions={"season_code": str(purchase.get("season_code"))} if purchase.get("season_code") else {},
                 warnings=warnings,
             ),
@@ -129,6 +139,8 @@ def adapt_gs_olive_purchase(
         blockers.append("PURCHASE_DATE_MISSING_OR_INVALID")
     if not purchase.get("supplier_id"):
         blockers.append("PURCHASE_SUPPLIER_MISSING")
+    if not purchase.get("receiving_location_id"):
+        blockers.append("PURCHASE_RECEIVING_LOCATION_MISSING")
     if not lines:
         blockers.append("PURCHASE_LINES_MISSING")
 
@@ -238,9 +250,9 @@ def adapt_gs_olive_purchase(
         blockers.append("PURCHASE_LOT_RECEIPTS_DO_NOT_RECONCILE_TO_PURCHASE_QUANTITY")
     if movement_quantity != declared_quantity:
         blockers.append("PURCHASE_STOCK_MOVEMENTS_DO_NOT_RECONCILE_TO_PURCHASE_QUANTITY")
-    if len(matched_lot_ids) != len(set(str(item) for item in lot_ids)):
+    if len(lot_ids) != len(set(str(item) for item in lot_ids)) or len(matched_lot_ids) != len(set(str(item) for item in lot_ids)):
         blockers.append("PURCHASE_LOT_LINKS_DUPLICATED_OR_UNRESOLVED")
-    if len(matched_movement_ids) != len(set(str(item) for item in movement_ids)):
+    if len(movement_ids) != len(set(str(item) for item in movement_ids)) or len(matched_movement_ids) != len(set(str(item) for item in movement_ids)):
         blockers.append("PURCHASE_MOVEMENT_LINKS_DUPLICATED_OR_UNRESOLVED")
 
     source_facts = {
