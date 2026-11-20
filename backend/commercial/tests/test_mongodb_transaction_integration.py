@@ -1659,7 +1659,10 @@ async def test_traditional_invoice_update_audit_failure_rolls_back_invoice_value
         assert invoice["price_per_kg"] == 1.5
         assert invoice["total"] == 30.0
         assert invoice["balance"] == 25.0
-        stored_updated_at = invoice["updated_at"]\n        if stored_updated_at.tzinfo is None:\n            stored_updated_at = stored_updated_at.replace(tzinfo=timezone.utc)\n        assert stored_updated_at == original_updated_at
+        stored_updated_at = invoice["updated_at"]
+        if stored_updated_at.tzinfo is None:
+            stored_updated_at = stored_updated_at.replace(tzinfo=timezone.utc)
+        assert stored_updated_at == original_updated_at
         assert len(invoice["history"]) == 1
         assert await db.commercial_audit_events.count_documents({}) == 1
     finally:
