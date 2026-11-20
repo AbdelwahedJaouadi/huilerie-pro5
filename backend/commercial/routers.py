@@ -1756,7 +1756,7 @@ async def create_olive_reception_purchase(
     user: dict = Depends(current_user),
 ):
     """Create supplier (when requested), purchase, traceability lot and stock receipt in one transaction."""
-    _authorize(user, "commercial.manage_purchases")
+    _authorize(user, "commercial.register_olive_purchase")
     season, season_code = await _require_commercial_ready()
     if season_of(command.purchase_date.isoformat()) != season:
         raise HTTPException(422, "purchase_date_outside_active_season")
