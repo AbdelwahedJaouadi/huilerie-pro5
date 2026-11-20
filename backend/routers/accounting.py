@@ -910,6 +910,9 @@ async def accounting_daily_situation(
                      detail=invoice.get("client_name", ""))
         current_receivables += max(Decimal("0"), _accounting_decimal(invoice.get("balance")))
         known_paid = Decimal("0.000")
+        # Itemized payment children are the canonical receipt evidence. The generic
+        # history entry records the same paid_amount transition for audit purposes;
+        # projecting both creates a duplicate cash receipt.
         for payment in invoice.get("payments") or []:
             amount = _accounting_decimal(payment.get("amount"))
             payment_day = _accounting_day(payment.get("at") or payment.get("date"))
@@ -918,18 +921,8 @@ async def accounting_daily_situation(
                              reference=invoice.get("number", ""), amount=amount, kind="receipt",
                              detail=invoice.get("client_name", ""))
                 known_paid += amount
-        for history in invoice.get("history") or []:
-            if history.get("action") != "updated":
-                continue
-            before = _accounting_decimal((history.get("before") or {}).get("paid_amount"))
-            after = _accounting_decimal((history.get("after") or {}).get("paid_amount"))
-            delta = after - before
-            history_day = _accounting_day(history.get("at"))
-            if delta > 0 and history_day:
-                _daily_event(events, day=history_day, category="Prestation", label="Encaissement facture",
-                             reference=invoice.get("number", ""), amount=delta, kind="receipt",
-                             detail=invoice.get("client_name", ""))
-                known_paid += delta
+        # Legacy paid_amount/history data without an itemized payment event is
+        # retained as unallocated evidence, never promoted to a dated cash receipt.
         unallocated_receipts += max(Decimal("0"), _accounting_decimal(invoice.get("paid_amount")) - known_paid)
 
     for purchase in supplier_purchases:
