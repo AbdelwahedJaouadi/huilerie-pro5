@@ -11,6 +11,7 @@ on:
       - feature/commercial-audit
       - feature/comptabilite
       - audit/erp-foundation
+      - ci/baseline-main-verification
   pull_request:
     branches:
       - main
