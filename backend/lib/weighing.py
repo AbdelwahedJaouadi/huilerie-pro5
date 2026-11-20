@@ -43,3 +43,28 @@ def derive_net_weight_kg(gross_weight: Any, tare_weight: Any) -> Decimal:
     if gross <= tare:
         raise ValueError("gross_must_exceed_tare")
     return (gross - tare).quantize(WEIGHT_QUANTUM)
+
+def weight_measurement_audit_snapshot(measurement: dict | None) -> dict | None:
+    """Return a BSON-safe, immutable audit snapshot of the original weigh-in."""
+    if not measurement:
+        return None
+
+    def decimal_text(key: str) -> str | None:
+        value = measurement.get(key)
+        if value is None:
+            return None
+        to_decimal = getattr(value, "to_decimal", None)
+        if callable(to_decimal):
+            value = to_decimal()
+        return str(value)
+
+    return {
+        "gross_kg": decimal_text("gross_kg"),
+        "tare_kg": decimal_text("tare_kg"),
+        "net_kg": decimal_text("net_kg"),
+        "measured_at": measurement.get("measured_at"),
+        "operator_user_id": measurement.get("operator_user_id"),
+        "operator_username": measurement.get("operator_username"),
+        "source": measurement.get("source"),
+        "correction_of": measurement.get("correction_of"),
+    }
