@@ -119,7 +119,7 @@ async def test_duplicate_invoice_for_same_load_is_rejected(fake_db):
 @pytest.mark.asyncio
 async def test_update_recalculates_balance_and_records_history(fake_db):
     created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
 
@@ -145,7 +145,7 @@ async def test_update_recalculates_balance_and_records_history(fake_db):
 @pytest.mark.asyncio
 async def test_incremental_payment_is_appended_to_payment_ledger(fake_db):
     created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
 
@@ -255,7 +255,7 @@ async def test_negative_payment_is_rejected(fake_db):
 @pytest.mark.asyncio
 async def test_unchanged_invoice_edit_does_not_add_history(fake_db):
     created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
 
@@ -289,7 +289,7 @@ async def test_update_with_no_editable_fields_is_rejected_without_history_change
 @pytest.mark.asyncio
 async def test_concurrent_invoice_edit_is_rejected_without_overwriting_history(fake_db, monkeypatch):
     created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
     original_update_one = fake_db.invoices.update_one
@@ -317,7 +317,7 @@ async def test_concurrent_invoice_edit_is_rejected_without_overwriting_history(f
 @pytest.mark.asyncio
 async def test_delete_invoice_records_full_snapshot_in_same_transaction(fake_db):
     created = await invoice_routes.create_invoice(
-        {"load_id": "load-test-1", "paid_amount": 0.5},
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
         {"username": "admin"},
     )
 
