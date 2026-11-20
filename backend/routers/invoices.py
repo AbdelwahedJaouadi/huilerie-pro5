@@ -10,6 +10,8 @@ from pymongo.errors import DuplicateKeyError
 from lib.auth import current_user, require_admin
 from lib.db import db, run_transaction
 from lib.money import money_db, money_decimal, to_decimal
+from lib.season import season_prefix
+from accounting_foundation.traditional_treasury import record_traditional_receipt_movement
 
 router = APIRouter(tags=["invoices"])
 
@@ -144,7 +146,7 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
         "variety": load.get("variety"),
         "olive_kg": float(load["olive_kg"]), "oil_kg": oil_kg, "price_per_kg": money_db(price),
         "total": money_db(total), "paid_amount": money_db(paid), "balance": money_db(total - paid),
-        "payments": ([{"at": now, "by": user.get("username", ""), "amount": money_db(paid)}] if paid > 0 else []),
+        "payments": ([{"id": str(uuid.uuid4()), "at": now, "by": user.get("username", ""), "amount": money_db(paid), "currency": "TND", "treasury_allocation_status": "UNALLOCATED"}] if paid > 0 else []),
         "day": load.get("day", now.strftime("%Y-%m-%d")),
         "created_at": now, "updated_at": now,
         "mill_name": settings.get("mill_name", ""), "mill_address": settings.get("mill_address", ""),
@@ -263,11 +265,50 @@ async def update_invoice(invoice_id: str, body: dict, user: dict = Depends(requi
         # The accounting daily-situation report reads individual payment events.
         # Keep the payment ledger in sync with the invoice balance in this transaction.
         if payment_amount > 0:
-            push_fields["payments"] = {
+            method = str(body.get("payment_method") or "").upper()
+            if method not in {"CASH", "BANK_TRANSFER", "CHEQUE"}:
+                raise HTTPException(422, "payment_method_required")
+            reference = str(body.get("payment_reference") or "").strip()
+            if method in {"BANK_TRANSFER", "CHEQUE"} and not reference:
+                raise HTTPException(422, "payment_reference_required")
+            account_id = str(body.get("treasury_account_id") or "").strip()
+            account_count = await db.accounting_treasury_accounts.count_documents({}, session=session)
+            account = None
+            allocation_status = "UNALLOCATED"
+            if account_count:
+                if not account_id:
+                    raise HTTPException(422, "treasury_account_required")
+                account = await db.accounting_treasury_accounts.find_one(
+                    {"id": account_id}, {"_id": 0}, session=session
+                )
+                expected_type = "CASH" if method == "CASH" else "BANK"
+                if not account or account.get("active") is not True or account.get("currency") != "TND" or account.get("account_type") != expected_type:
+                    raise HTTPException(422, "treasury_account_invalid")
+                allocation_status = "MAPPED"
+            payment_event = {
+                "id": str(uuid.uuid4()),
                 "at": now,
                 "by": user.get("username", ""),
                 "amount": money_db(payment_amount),
+                "method": method,
+                "currency": "TND",
+                "reference": reference or None,
+                "treasury_account_id": account_id or None,
+                "treasury_allocation_status": allocation_status,
             }
+            push_fields["payments"] = payment_event
+            if account:
+                source_load = await db.loads.find_one(
+                    {"id": doc.get("load_id")}, {"_id": 0, "season_id": 1}, session=session
+                )
+                if not source_load or source_load.get("season_id") is None:
+                    raise HTTPException(409, "invoice_season_unavailable")
+                await record_traditional_receipt_movement(
+                    db, invoice=doc, payment=payment_event, account=account,
+                    season_code=season_prefix(source_load["season_id"]),
+                    actor_user_id=str(user.get("id") or user.get("username") or "admin"),
+                    recorded_at=now, session=session,
+                )
         result = await db.invoices.update_one(
             {"id": invoice_id, "updated_at": doc.get("updated_at")},
             {"$set": update_fields, "$push": push_fields},
