@@ -3,6 +3,7 @@ import SituationJournaliere from "@/components/accounting/SituationJournaliere";
 import ReconciliationPreview from "@/components/accounting/ReconciliationPreview";
 import TreasuryAccounts from "@/components/accounting/TreasuryAccounts";
 import TreasuryMovementPreview from "@/components/accounting/TreasuryMovementPreview";
+import TreasuryMovementRegister from "@/components/accounting/TreasuryMovementRegister";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { fmtMoney, useI18n } from "@/lib/i18n";
@@ -391,6 +392,6 @@ export default function Comptabilite() {
     </>}
     {activeTab === "daily" && <SituationJournaliere />}
     {activeTab === "reconciliation" && <ReconciliationPreview />}
-    {activeTab === "treasury" && <><TreasuryAccounts /><TreasuryMovementPreview /></>}
+    {activeTab === "treasury" && <><TreasuryAccounts /><TreasuryMovementPreview /><TreasuryMovementRegister /></>}
   </div>;
 }
