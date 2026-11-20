@@ -21,6 +21,7 @@ from lib.auth import require_admin
 from lib.db import db, run_transaction
 from lib.season import active_season, season_prefix
 from accounting_foundation.preview import build_reconciliation_preview
+from accounting_foundation.treasury_preview import build_treasury_movement_preview
 
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 RECENT_LIMIT = 200
@@ -426,6 +427,57 @@ async def update_treasury_account_status(account_id: str, payload: TreasuryAccou
         account["active"], account["version"], account["updated_at"] = payload.active, payload.expected_version + 1, now
         return account
     return _safe(await run_transaction(operation))
+
+
+@router.get("/treasury/movement-preview")
+async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_admin)):
+    """Read-only proposals from mapped GS payment documents; never posts money movements."""
+    if isinstance(limit, bool) or limit < 1 or limit > 200:
+        raise HTTPException(status_code=422, detail="limit doit être compris entre 1 et 200.")
+    season = await active_season()
+    season_code = season_prefix(season)
+    sale_payments, supplier_payments, reversals, accounts = await asyncio.gather(
+        db.commercial_sale_payments.find({"season_code": season_code}, {"_id": 0})
+        .sort([("payment_date", -1), ("id", 1)]).to_list(limit + 1),
+        db.commercial_supplier_olive_purchase_payments.find({"season_code": season_code}, {"_id": 0})
+        .sort([("payment_date", -1), ("id", 1)]).to_list(limit + 1),
+        db.commercial_payment_reversals.find({"season_code": season_code}, {"_id": 0})
+        .sort([("reversal_date", -1), ("id", 1)]).to_list(limit + 1),
+        db.accounting_treasury_accounts.find(
+            {}, {"_id": 0, "id": 1, "name": 1, "account_type": 1, "currency": 1, "active": 1}
+        ).to_list(500),
+    )
+    has_more = {
+        "gs_sale_payments": len(sale_payments) > limit,
+        "gs_supplier_payments": len(supplier_payments) > limit,
+        "gs_sale_reversals": len(reversals) > limit,
+    }
+    sale_payment_rows, supplier_payment_rows = sale_payments[:limit], supplier_payments[:limit]
+    sale_invoice_ids = list(dict.fromkeys(str(row.get("invoice_id")) for row in sale_payment_rows if row.get("invoice_id")))
+    supplier_purchase_ids = list(dict.fromkeys(str(row.get("purchase_id")) for row in supplier_payment_rows if row.get("purchase_id")))
+    sale_invoices, supplier_purchases = await asyncio.gather(
+        db.commercial_sales_invoices.find(
+            {"id": {"$in": sale_invoice_ids}, "season_code": season_code},
+            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1},
+        ).to_list(limit),
+        db.commercial_olive_purchases.find(
+            {"id": {"$in": supplier_purchase_ids}, "season_code": season_code},
+            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1},
+        ).to_list(limit),
+    )
+    preview = build_treasury_movement_preview(
+        sale_payments=sale_payment_rows,
+        supplier_payments=supplier_payment_rows,
+        sale_reversals=reversals[:limit],
+        sale_invoices=sale_invoices,
+        supplier_purchases=supplier_purchases,
+        treasury_accounts=accounts,
+    )
+    return {
+        **preview, "active_season": season, "season_code": season_code,
+        "limit_per_source": limit, "has_more": has_more,
+    }
+
 
 class PassiveIncomeInput(BaseModel):
     income_type: Literal["RENT", "EQUIPMENT_RENTAL", "INTEREST", "INVESTMENT", "OTHER"]
