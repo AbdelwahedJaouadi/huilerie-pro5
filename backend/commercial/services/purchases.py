@@ -13,6 +13,7 @@ from typing import Any
 
 from bson.decimal128 import Decimal128
 
+from lib.weighing import weight_measurement_audit_snapshot
 from commercial.permissions import require_commercial_permission
 from commercial.schemas.purchases import OlivePurchaseDraft
 from commercial.services.numbering import reserve_document_number, reserve_batch_code
@@ -101,6 +102,19 @@ async def create_olive_purchase_draft(
         ),
         start=Decimal("0"),
     )
+    weight_measurement = None
+    if draft.gross_weight_kg is not None and draft.tare_weight_kg is not None:
+        weight_measurement = {
+            "gross_kg": Decimal128(draft.gross_weight_kg),
+            "tare_kg": Decimal128(draft.tare_weight_kg),
+            "net_kg": Decimal128(total_quantity),
+            "measured_at": created_at.astimezone(timezone.utc),
+            "operator_user_id": actor_user_id,
+            "operator_username": actor_user.get("username"),
+            "source": "manual",
+            "correction_of": None,
+        }
+
     record = {
         "id": purchase_id,
         "season_code": season_code,
@@ -114,6 +128,7 @@ async def create_olive_purchase_draft(
         "total_quantity_kg": Decimal128(total_quantity),
         "total_amount_dt": Decimal128(total_amount),
         "notes": draft.notes,
+        "weight_measurement": weight_measurement,
         "status": "DRAFT",
         "version": 1,
         "idempotency_scope": scope,
@@ -140,6 +155,7 @@ async def create_olive_purchase_draft(
                 "total_quantity_kg": Decimal128(total_quantity),
                 "total_amount_dt": Decimal128(total_amount),
                 "notes": draft.notes,
+                "weight_measurement": weight_measurement_audit_snapshot(weight_measurement),
                 "status": "DRAFT",
             },
         },
