@@ -209,7 +209,7 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
       {receptionType === "client" ? <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) m.mutate({ client_name: name, phone, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
+          if (valid) m.mutate({ client_name: name, phone, idempotency_key: loadRequestKey, ...(grossTareValid ? { gross_weight_kg: grossKg.trim().replace(",", "."), tare_weight_kg: tareKg.trim().replace(",", ".") } : { olive_kg: kgVal }), bags: bagsVal, variety: variety || null, notes: notes.trim() || null, initial_status: initStatus });
         }}
         className="space-y-3 rounded-xl border border-lime-200 bg-[#F2F8EE] p-3 shadow-sm"
         data-testid="intake-form"
