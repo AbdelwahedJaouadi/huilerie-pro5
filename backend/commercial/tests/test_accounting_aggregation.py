@@ -117,7 +117,7 @@ def test_traditional_invoice_legacy_paid_amount_without_itemized_payment_is_unal
 def test_traditional_invoice_partial_itemized_payments_leave_legacy_remainder_unallocated():
     from routers.accounting import _accounting_decimal, _append_traditional_invoice_receipts
 
-    invoice = {"paid_amount": "100.000", "payments": [{"amount": "60.000"}]}
+    invoice = {"paid_amount": "100.000", "payments": [{"amount": "60.000", "at": "2026-11-20T10:00:00+01:00"}]}
     events = []
     known_paid = _append_traditional_invoice_receipts(invoice, events)
     unallocated = max(Decimal("0"), _accounting_decimal(invoice["paid_amount"]) - known_paid)
