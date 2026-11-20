@@ -131,7 +131,7 @@ export default function ReconciliationPreview() {
           <thead><tr className="border-b text-left text-xs text-stone-500">
             <th className="px-3 py-2">{ar ? "التاريخ" : "Date"}</th><th className="px-3 py-2">{ar ? "المصدر" : "Source"}</th><th className="px-3 py-2">{ar ? "الوثيقة" : "Document"}</th><th className="px-3 py-2">{ar ? "العملية" : "Événement"}</th><th className="px-3 py-2">{ar ? "المبلغ" : "Montant"}</th><th className="px-3 py-2">{ar ? "الحالة" : "Éligibilité"}</th><th className="px-3 py-2">{ar ? "التنبيهات" : "Alertes"}</th>
           </tr></thead>
-          <tbody>{data.candidate_events.map((row) => <tr key={row.candidate_key} className="border-b last:border-0 align-top">
+          <tbody>{data.candidate_events.map((row, index) => <tr key={`${row.candidate_key}-${index}`} className="border-b last:border-0 align-top">
             <td className="px-3 py-3 whitespace-nowrap">{row.business_date || "—"}</td>
             <td className="px-3 py-3">{sourceName(row.source_type)}</td>
             <td className="px-3 py-3 font-mono text-xs">{row.source_document_number || row.source_id || "—"}</td>
