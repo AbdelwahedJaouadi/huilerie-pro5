@@ -30,7 +30,7 @@ def test_sale_receipt_proposes_inflow_without_creating_a_movement():
     assert candidate["direction"] == "IN"
     assert candidate["amount"] == "25.500"
     assert candidate["eligibility"] == "ELIGIBLE_FOR_REVIEW"
-    assert result["movement_creation_enabled"] is False
+    assert result["movement_creation_enabled"] is True
     assert result["database_writes"] is False
 
 
