@@ -91,19 +91,6 @@ INDEXES.update({
         IndexModel([("movement_id", ASCENDING), ("created_at", DESCENDING)],
                    name="movement_event_created_desc"),
     ],
-    "accounting_cash_counts": [
-        IndexModel([("id", ASCENDING)], name="id", unique=True),
-        IndexModel([("season_code", ASCENDING), ("request_id", ASCENDING)], name="season_request_unique", unique=True),
-        IndexModel([("season_code", ASCENDING), ("counted_at", DESCENDING), ("id", ASCENDING)],
-                   name="season_counted_at"),
-        IndexModel([("season_code", ASCENDING), ("account_id", ASCENDING), ("count_date", DESCENDING)],
-                   name="season_account_count_date"),
-    ],
-    "accounting_cash_count_events": [
-        IndexModel([("id", ASCENDING)], name="id", unique=True),
-        IndexModel([("cash_count_id", ASCENDING), ("created_at", DESCENDING)],
-                   name="cash_count_event_created_desc"),
-    ],
 })
 
 
