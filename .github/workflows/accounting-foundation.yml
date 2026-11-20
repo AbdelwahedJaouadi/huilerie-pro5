@@ -6,16 +6,20 @@ on:
       - "backend/accounting_foundation/**"
       - "backend/tests/test_accounting_foundation.py"
       - "backend/tests/test_traditional_accounting_adapter.py"
+      - "backend/tests/test_commercial_accounting_adapter.py"
       - ".github/workflows/accounting-foundation.yml"
   push:
     branches:
       - main
       - erp/foundation-phase-1
       - erp/traditional-financial-adapter-phase-2
+      - erp/gs-supplier-financial-adapter-phase-3
+      - erp/gs-supplier-financial-adapter-phase-3
     paths:
       - "backend/accounting_foundation/**"
       - "backend/tests/test_accounting_foundation.py"
       - "backend/tests/test_traditional_accounting_adapter.py"
+      - "backend/tests/test_commercial_accounting_adapter.py"
       - ".github/workflows/accounting-foundation.yml"
 
 jobs:
@@ -34,4 +38,9 @@ jobs:
       - name: Install focused test dependencies
         run: python -m pip install pytest pytest-xdist httpx pytest-asyncio
       - name: Run accounting foundation and source adapter tests
-        run: python -m pytest tests/test_accounting_foundation.py tests/test_traditional_accounting_adapter.py -q
+        run: >-
+          python -m pytest
+          tests/test_accounting_foundation.py
+          tests/test_traditional_accounting_adapter.py
+          tests/test_commercial_accounting_adapter.py
+          -q

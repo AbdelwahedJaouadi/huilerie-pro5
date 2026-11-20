@@ -12,8 +12,14 @@ from .traditional import (
     adapt_traditional_invoice,
     adapt_traditional_invoice_payments,
 )
+from .commercial import (
+    adapt_gs_olive_purchase,
+    adapt_gs_supplier_payments,
+)
 
 __all__ = [
+    "adapt_gs_olive_purchase",
+    "adapt_gs_supplier_payments",
     "adapt_traditional_invoice",
     "adapt_traditional_invoice_payments",
     "build_candidate_envelope",
