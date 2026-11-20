@@ -154,7 +154,7 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
             if existing:
                 if existing.get("idempotency_fingerprint") != fingerprint:
                     raise HTTPException(409, "idempotency_key_payload_conflict")
-                return existing
+                return {"replay": True, "doc": existing}
 
         client_doc = await db.clients.find_one({"phone": phone}, {"_id": 0, "active": 1}, session=session)
         if client_doc and client_doc.get("active") is False:
@@ -201,20 +201,18 @@ async def create_load(body: LoadCreate, user: dict = Depends(current_user)):
             "phone": doc.get("phone"), "initial_status": body.initial_status,
             "weight_measurement": weight_measurement_audit_snapshot(doc.get("weight_measurement")),
         }, session=session)
-        return doc
+        return {"replay": False, "doc": doc}
 
     try:
-        result = await run_transaction(operation)
+        outcome = await run_transaction(operation)
     except DuplicateKeyError:
         replay = await replay_if_present()
         if replay:
             return to_load(replay, user)
         raise
-    if request_key and result.get("idempotency_key") == request_key and result.get("idempotency_fingerprint") == fingerprint:
-        # Only the request that actually inserted the record sends the arrival SMS.
-        created_by_this_request = result.get("created_by") == user["username"] and result.get("id") is not None
-        if not created_by_this_request:
-            return to_load(result, user)
+    result = outcome["doc"]
+    if outcome["replay"]:
+        return to_load(result, user)
     result.pop("_id", None)
     await send_load_sms(result, "arrival")
     return to_load(result, user)
