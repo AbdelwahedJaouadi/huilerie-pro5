@@ -12,7 +12,6 @@ class OilPurchasePaymentDraft(BaseModel):
     payment_date: date
     amount_tnd: Decimal = Field(gt=Decimal("0"), max_digits=18, decimal_places=3)
     method: Literal["CASH", "BANK_TRANSFER", "CHEQUE"]
-    treasury_account_id: str | None = Field(default=None, min_length=1, max_length=80)
     reference: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=500)
     expected_purchase_version: int = Field(ge=1)
@@ -32,6 +31,7 @@ class SupplierPaymentDraft(BaseModel):
     payment_date: date
     amount_tnd: Decimal = Field(gt=Decimal("0"), max_digits=18, decimal_places=3)
     method: Literal["CASH", "BANK_TRANSFER", "CHEQUE"]
+    treasury_account_id: str | None = Field(default=None, min_length=1, max_length=80)
     reference: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=500)
     expected_purchase_version: int = Field(ge=1)
