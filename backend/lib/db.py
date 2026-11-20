@@ -40,6 +40,11 @@ INDEXES: dict[str, list[IndexModel]] = {
                    name="actor_key_unique", unique=True),
         IndexModel([("load_id", ASCENDING)], name="load_id"),
     ],
+    "commercial_olive_reception_idempotency": [
+        IndexModel([("actor_user_id", ASCENDING), ("idempotency_key", ASCENDING)],
+                   name="actor_key_unique", unique=True),
+        IndexModel([("purchase_id", ASCENDING)], name="purchase_id"),
+    ],
     "clients": [
         IndexModel([("phone", ASCENDING)], name="phone_unique", unique=True,
                    partialFilterExpression={"phone": {"$type": "string"}}),
