@@ -124,3 +124,21 @@ def test_bank_payment_requires_reference():
         sale_invoices=[{"id":"invoice-1","sale_id":"sale-1"}], treasury_accounts=[account(account_type="BANK")],
     )
     assert "BANK_OR_CHEQUE_REFERENCE_MISSING" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_sale_payment_requires_nonempty_matching_sale_identity():
+    result = build_treasury_movement_preview(
+        sale_payments=[sale_payment(sale_id=None)],
+        sale_invoices=[{"id":"invoice-1","sale_id":None}],
+        treasury_accounts=[account()],
+    )
+    assert "PAYMENT_SALE_LINK_MISMATCH" in result["candidates"][0]["blocking_reasons"]
+
+
+def test_supplier_payment_requires_nonempty_matching_supplier_identity():
+    result = build_treasury_movement_preview(
+        supplier_payments=[supplier_payment(supplier_id=None)],
+        supplier_purchases=[{**supplier_purchase(), "supplier_id": None}],
+        treasury_accounts=[account()],
+    )
+    assert "PAYMENT_SUPPLIER_LINK_MISMATCH" in result["candidates"][0]["blocking_reasons"]
