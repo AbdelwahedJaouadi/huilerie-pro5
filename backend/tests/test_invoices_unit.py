@@ -229,7 +229,7 @@ async def test_update_rejects_payment_above_recalculated_total(fake_db):
 
     assert exc.value.status_code == 422
     assert money_float(fake_db.invoices.docs[0]["price_per_kg"]) == 0.18
-    assert fake_db.invoices.docs[0]["paid_amount"] == 0
+    assert money_float(fake_db.invoices.docs[0]["paid_amount"]) == 0
     assert len(fake_db.invoices.docs[0]["history"]) == 1
 
 
