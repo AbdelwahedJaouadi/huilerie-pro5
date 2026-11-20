@@ -81,8 +81,16 @@ export default function TreasuryMovementPreview() {
         <td className="px-2 py-3"><span className={row.eligibility==="ELIGIBLE_FOR_REVIEW"?"font-semibold text-emerald-700":"font-semibold text-rose-700"}>{row.eligibility==="ELIGIBLE_FOR_REVIEW"?(ar?"صالحة للمراجعة":"À examiner"):(ar?"موقوفة":"Bloquée")}</span>
           {row.blocking_reasons.length>0&&<ul className="mt-1 list-disc ps-4 text-xs text-rose-700">{row.blocking_reasons.map(reason=><li key={reason}>{reasonLabels[reason]?.[ar?"ar":"fr"]||reason}</li>)}</ul>}
           {row.warnings.map(w=><p key={w} className="mt-1 text-xs text-amber-700">{w}</p>)}
+          {row.recorded_movement_id ? <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="size-4"/>{ar?"تم تسجيل الحركة":"Mouvement enregistré"} · {row.settlement_status}</p> :
+            row.eligibility==="ELIGIBLE_FOR_REVIEW" ? <button type="button" disabled={recordMovement.isPending} onClick={()=>{
+              const message=ar
+                ? `تأكيد تسجيل حركة ${row.direction==="IN"?"قبض":"صرف"} بقيمة ${money(row.amount)} TND في حساب ${row.account_name}؟ لن يتغير رصيد الحساب أو الفاتورة.`
+                : `Confirmer l’enregistrement du mouvement ${row.direction==="IN"?"entrant":"sortant"} de ${money(row.amount)} TND sur ${row.account_name} ? Aucun solde ni document source ne sera modifié.`;
+              if(window.confirm(message)) recordMovement.mutate(row);
+            }} className="mt-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900 disabled:opacity-50">{recordMovement.isPending?(ar?"جارٍ التسجيل…":"Enregistrement…"):(ar?"تسجيل الحركة":"Enregistrer le mouvement")}</button> : null}
         </td>
       </tr>)}</tbody></table></div>}
+      {recordMovement.isError&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar?"تعذّر تسجيل الحركة: ":"Échec de l’enregistrement : "}{recordMovement.error instanceof Error?recordMovement.error.message:"Erreur inconnue"}</p>}
       {data.unresolved_items.map(item=><div key={item.source_type+item.source_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{ar?"مراجعة مطلوبة":"À vérifier"} · {item.source_document_number||item.source_id}</strong><p className="text-amber-900">{ar?"إلغاء قبض لا يثبت رجوع الأموال فعلياً إلى الصندوق أو البنك.":"L’annulation d’un règlement ne prouve pas le retour effectif des fonds en caisse ou en banque."}</p></div>)}
       {Object.values(data.has_more).some(Boolean)&&<p className="text-xs text-amber-700">{ar?"تم بلوغ حد المعاينة؛ توجد سجلات إضافية غير معروضة.":"La limite d’aperçu est atteinte; d’autres documents ne sont pas affichés."}</p>}
       </CardContent>
