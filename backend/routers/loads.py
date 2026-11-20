@@ -15,7 +15,7 @@ from lib.dates import today_iso
 from lib.db import db, run_transaction
 from lib.season import active_season, next_load_code, season_filter, season_of
 from lib.money import money_db, money_float, to_decimal
-from lib.weighing import derive_net_weight_kg
+from lib.weighing import derive_net_weight_kg, weight_measurement_audit_snapshot
 from lib.sms import send_load_sms
 from routers.invoices import create_invoice as create_load_invoice, _create_invoice_in_session
 from models.schemas import CancelBody, DailyPoint, LabAnalysis, Load, LoadCreate, OilUpdate, Stats, StatusUpdate
@@ -482,6 +482,7 @@ async def _delete_load_in_transaction(load_id: str, session, user: dict):
     await _audit_load_event(doc, user, "LOAD_DELETED", {
         "olive_kg": doc.get("olive_kg"), "oil_kg": doc.get("oil_kg"),
         "created_at": doc.get("created_at"),
+        "weight_measurement": weight_measurement_audit_snapshot(doc.get("weight_measurement")),
     }, session=session)
     return {"ok": True}
 
