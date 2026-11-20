@@ -45,7 +45,7 @@ export default function ScaleSettings() {
     onError: (error) => toast.error(errMsg(error)),
   });
 
-  const update = <K extends keyof ScaleConfig>(key: K, value: ScaleConfig[K]) =>
+  const update = <K extends keyof ScaleConfig,>(key: K, value: ScaleConfig[K]) =>
     setConfig((current) => ({ ...current, [key]: value }));
 
   const valid = !config.enabled
