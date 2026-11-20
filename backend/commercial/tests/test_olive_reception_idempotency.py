@@ -1,5 +1,10 @@
 from datetime import date
+from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
+
+from commercial import routers
 from commercial.routers import (
     OliveReceptionPurchaseCommand,
     _olive_reception_command_fingerprint,
@@ -62,3 +67,71 @@ def test_reception_fingerprint_covers_new_supplier_contact_and_tax_metadata():
     assert changed_phone != baseline
     assert changed_tax != baseline
     assert changed_location != baseline
+
+
+class FakeIdempotencyCollection:
+    def __init__(self, record):
+        self.record = record
+
+    async def find_one(self, query, projection=None):
+        if self.record and all(self.record.get(key) == value for key, value in query.items()):
+            return self.record
+        return None
+
+
+@pytest.mark.asyncio
+async def test_reception_replays_same_key_and_payload_before_season_validation(monkeypatch):
+    command = _command()
+    fingerprint = _olive_reception_command_fingerprint(command)
+    record = {
+        "actor_user_id": "worker-1",
+        "idempotency_key": command.idempotency_key,
+        "request_fingerprint": fingerprint,
+        "purchase_id": "purchase-existing",
+        "supplier_id": "supplier-existing",
+    }
+    monkeypatch.setattr(
+        routers,
+        "db",
+        SimpleNamespace(commercial_olive_reception_idempotency=FakeIdempotencyCollection(record)),
+    )
+    monkeypatch.setattr(routers, "_authorize", lambda user, permission: None)
+
+    async def replay(existing_record):
+        return {"purchase": {"id": existing_record["purchase_id"]}, "supplier": {"id": existing_record["supplier_id"]}}
+
+    monkeypatch.setattr(routers, "_load_olive_reception_result", replay)
+
+    result = await routers.create_olive_reception_purchase(
+        command,
+        {"id": "worker-1", "role": "worker", "active": True},
+    )
+
+    assert result == {"purchase": {"id": "purchase-existing"}, "supplier": {"id": "supplier-existing"}}
+
+
+@pytest.mark.asyncio
+async def test_reception_same_key_with_changed_supplier_phone_returns_conflict(monkeypatch):
+    original = _command()
+    record = {
+        "actor_user_id": "worker-1",
+        "idempotency_key": original.idempotency_key,
+        "request_fingerprint": _olive_reception_command_fingerprint(original),
+        "purchase_id": "purchase-existing",
+        "supplier_id": "supplier-existing",
+    }
+    monkeypatch.setattr(
+        routers,
+        "db",
+        SimpleNamespace(commercial_olive_reception_idempotency=FakeIdempotencyCollection(record)),
+    )
+    monkeypatch.setattr(routers, "_authorize", lambda user, permission: None)
+
+    with pytest.raises(HTTPException) as exc:
+        await routers.create_olive_reception_purchase(
+            _command(new_supplier_phone="+216 21 000 000"),
+            {"id": "worker-1", "role": "worker", "active": True},
+        )
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "olive_reception_idempotency_payload_conflict"
