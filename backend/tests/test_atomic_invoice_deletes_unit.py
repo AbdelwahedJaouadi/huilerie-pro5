@@ -271,7 +271,7 @@ async def test_client_delete_deactivates_and_preserves_all_load_records(monkeypa
     assert result.deleted == 0
     assert result.deactivated is True
     assert result.loads_retained == 1
-    assert calls == ["client-deactivate", "audit-event"]
+    assert calls == ["linked-history-check", "client-deactivate", "audit-event"]
 
 
 @pytest.mark.asyncio
@@ -303,7 +303,7 @@ async def test_client_without_history_can_be_deleted_in_one_transaction(monkeypa
         return await operation(session)
 
     monkeypatch.setattr(extras, "db", FakeDB(
-        loads=Loads(), clients=Clients(), sms_log=Related(),
+        loads=Loads(), clients=Clients(), invoices=Related(), sms_log=Related(),
         commercial_suppliers=FakeCollection(calls=calls),
         commercial_buyers=Related(), commercial_custody_owners=Related(),
         commercial_customer_custody_receipts=Related(),
@@ -316,4 +316,4 @@ async def test_client_without_history_can_be_deleted_in_one_transaction(monkeypa
 
     assert result.deleted == 1
     assert result.deactivated is False
-    assert calls == ["client-delete"]
+    assert calls == ["linked-history-check", "client-delete"]
