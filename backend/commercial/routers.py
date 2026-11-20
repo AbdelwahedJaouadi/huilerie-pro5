@@ -6,6 +6,8 @@ or collection is modified here.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import uuid
@@ -125,6 +127,11 @@ class OliveReceptionPurchaseCommand(BaseModel):
     gross_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
     tare_weight_kg: Decimal | None = Field(default=None, gt=0, max_digits=12)
 
+    @field_validator("idempotency_key")
+    @classmethod
+    def normalize_idempotency_key(cls, value):
+        return value.strip()
+
     @field_validator("gross_weight_kg", "tare_weight_kg", mode="before")
     @classmethod
     def validate_raw_vehicle_reading(cls, value, info):
@@ -143,6 +150,62 @@ class OliveReceptionPurchaseCommand(BaseModel):
             if self.lines[0].quantity_kg != net:
                 raise ValueError("purchase_quantity_must_match_vehicle_net_weight")
         return self
+
+
+def _canonical_reception_decimal(value: Decimal | None) -> str | None:
+    return format(value.normalize(), "f") if value is not None else None
+
+
+def _normalize_reception_phone(value: str | None) -> str | None:
+    return re.sub(r"\s+", "", value).strip() if value and value.strip() else None
+
+
+def _olive_reception_command_fingerprint(command: OliveReceptionPurchaseCommand) -> str:
+    """Hash every normalized field that can change the supplier reception result."""
+    normalized_supplier_name = (
+        " ".join(command.new_supplier_name.casefold().split())
+        if command.new_supplier_name else None
+    )
+    payload = {
+        "supplier_id": command.supplier_id,
+        "new_supplier_name": normalized_supplier_name,
+        "new_supplier_phone": _normalize_reception_phone(command.new_supplier_phone),
+        "new_supplier_tax_identifier": command.new_supplier_tax_identifier.strip().upper()
+        if command.new_supplier_tax_identifier and command.new_supplier_tax_identifier.strip() else None,
+        "purchase_date": command.purchase_date.isoformat(),
+        "lines": [
+            {
+                "variety_id": line.variety_id,
+                "quantity_kg": _canonical_reception_decimal(line.quantity_kg),
+                "unit_price_millimes": _canonical_reception_decimal(line.unit_price_millimes),
+            }
+            for line in command.lines
+        ],
+        "receiving_location_id": command.receiving_location_id,
+        "notes": command.notes.strip() if command.notes and command.notes.strip() else None,
+        "gross_weight_kg": _canonical_reception_decimal(command.gross_weight_kg),
+        "tare_weight_kg": _canonical_reception_decimal(command.tare_weight_kg),
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _load_olive_reception_result(record: dict, session=None) -> dict:
+    options = {"session": session} if session is not None else {}
+    purchase = await db.commercial_olive_purchases.find_one(
+        {"id": record.get("purchase_id")}, {"_id": 0}, **options
+    )
+    supplier = await db.commercial_suppliers.find_one(
+        {"id": record.get("supplier_id")}, {"_id": 0}, **options
+    )
+    if not purchase or not supplier:
+        raise HTTPException(409, "olive_reception_idempotency_source_missing")
+    return {
+        "purchase": purchase,
+        "supplier": supplier,
+        "receipt_status": "RECEIVED",
+        "batch_code": purchase.get("batch_code"),
+    }
 
 
 class DirectOliveLoadPurchaseCommand(BaseModel):
@@ -1757,6 +1820,20 @@ async def create_olive_reception_purchase(
 ):
     """Create supplier (when requested), purchase, traceability lot and stock receipt in one transaction."""
     _authorize(user, "commercial.register_olive_purchase")
+    actor_id = str(user["id"])
+    request_fingerprint = _olive_reception_command_fingerprint(command)
+    idempotency_query = {
+        "actor_user_id": actor_id,
+        "idempotency_key": command.idempotency_key.strip(),
+    }
+    prior = await db.commercial_olive_reception_idempotency.find_one(
+        idempotency_query, {"_id": 0}
+    )
+    if prior:
+        if prior.get("request_fingerprint") != request_fingerprint:
+            raise HTTPException(409, "olive_reception_idempotency_payload_conflict")
+        return _safe(await _load_olive_reception_result(prior))
+
     season, season_code = await _require_commercial_ready()
     if season_of(command.purchase_date.isoformat()) != season:
         raise HTTPException(422, "purchase_date_outside_active_season")
@@ -1789,6 +1866,14 @@ async def create_olive_reception_purchase(
     )
 
     async def operation(session):
+        prior = await db.commercial_olive_reception_idempotency.find_one(
+            idempotency_query, {"_id": 0}, session=session
+        )
+        if prior:
+            if prior.get("request_fingerprint") != request_fingerprint:
+                raise ValueError("olive_reception_idempotency_payload_conflict")
+            return await _load_olive_reception_result(prior, session=session)
+
         supplier_id = command.supplier_id
         if command.new_supplier_name:
             normalized_name = " ".join(command.new_supplier_name.casefold().split())
@@ -1802,6 +1887,15 @@ async def create_olive_reception_purchase(
                 )
                 if existing_supplier.get("id") != supplier_id:
                     raise ValueError("commercial_supplier_name_exists")
+                if (
+                    _normalize_reception_phone(existing_supplier.get("phone"))
+                    != _normalize_reception_phone(command.new_supplier_phone)
+                    or (
+                        (existing_supplier.get("tax_identifier") or "").strip().upper()
+                        != (command.new_supplier_tax_identifier or "").strip().upper()
+                    )
+                ):
+                    raise ValueError("olive_reception_supplier_metadata_conflict")
             else:
                 supplier_doc = {
                     "id": supplier_id, "name": command.new_supplier_name.strip(),
@@ -1834,11 +1928,28 @@ async def create_olive_reception_purchase(
         supplier = await db.commercial_suppliers.find_one(
             {"id": supplier_id}, {"_id": 0}, session=session
         )
-        return {"purchase": approved, "supplier": supplier,
-                "receipt_status": "RECEIVED", "batch_code": approved.get("batch_code")}
+        result = {"purchase": approved, "supplier": supplier,
+                  "receipt_status": "RECEIVED", "batch_code": approved.get("batch_code")}
+        await db.commercial_olive_reception_idempotency.insert_one({
+            **idempotency_query,
+            "request_fingerprint": request_fingerprint,
+            "purchase_id": approved["id"],
+            "supplier_id": supplier_id,
+            "created_at": now,
+        }, session=session)
+        return result
 
     try:
         return _safe(await run_transaction(operation))
+    except DuplicateKeyError as exc:
+        prior = await db.commercial_olive_reception_idempotency.find_one(
+            idempotency_query, {"_id": 0}
+        )
+        if not prior:
+            _raise_domain_error(exc)
+        if prior.get("request_fingerprint") != request_fingerprint:
+            raise HTTPException(409, "olive_reception_idempotency_payload_conflict")
+        return _safe(await _load_olive_reception_result(prior))
     except Exception as exc:
         _raise_domain_error(exc)
 

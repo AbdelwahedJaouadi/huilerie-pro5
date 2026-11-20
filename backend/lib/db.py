@@ -40,6 +40,11 @@ INDEXES: dict[str, list[IndexModel]] = {
                    name="actor_key_unique", unique=True),
         IndexModel([("load_id", ASCENDING)], name="load_id"),
     ],
+    "commercial_olive_reception_idempotency": [
+        IndexModel([("actor_user_id", ASCENDING), ("idempotency_key", ASCENDING)],
+                   name="actor_key_unique", unique=True),
+        IndexModel([("purchase_id", ASCENDING)], name="purchase_id"),
+    ],
     "clients": [
         IndexModel([("phone", ASCENDING)], name="phone_unique", unique=True,
                    partialFilterExpression={"phone": {"$type": "string"}}),
@@ -62,10 +67,20 @@ INDEXES: dict[str, list[IndexModel]] = {
 }
 
 
+REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
+    "load_intake_idempotency",
+    "commercial_olive_reception_idempotency",
+})
+
+
 async def ensure_indexes() -> None:
     for collection, models in INDEXES.items():
         for model in models:  # one at a time so a bad spec skips only itself
             try:
                 await db[collection].create_indexes([model])
-            except Exception as exc:  # never block boot on an index; the log line names what to fix
+            except Exception as exc:  # non-critical indexes may be repaired without blocking boot
                 logger.error("ensure_indexes(%s.%s): %s", collection, model.document["name"], exc)
+                if collection in REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS:
+                    raise RuntimeError(
+                        f"Required idempotency index unavailable: {collection}.{model.document['name']}"
+                    ) from exc

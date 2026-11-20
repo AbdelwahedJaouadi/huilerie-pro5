@@ -25,7 +25,7 @@ from routers import auth as auth_router, loads as loads_router, lab as lab_route
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_runtime_security()
-    app.state.index_task = asyncio.create_task(ensure_indexes())
+    await ensure_indexes()
     await seed_defaults()
     await migrate_season_ids()
     app.state.reminder_task = asyncio.create_task(reminder_loop())
