@@ -27,6 +27,21 @@ class FakeCollection:
         self.docs.append(deepcopy(doc))
         return SimpleNamespace(inserted_id=len(self.docs))
 
+    async def update_one(self, query, update, **kwargs):
+        for doc in self.docs:
+            matches = True
+            for key, value in query.items():
+                if isinstance(value, dict) and "$ne" in value:
+                    if doc.get(key) == value["$ne"]:
+                        matches = False
+                elif doc.get(key) != value:
+                    matches = False
+            if matches:
+                for key, amount in update.get("$inc", {}).items():
+                    doc[key] = doc.get(key, 0) + amount
+                return SimpleNamespace(matched_count=1)
+        return SimpleNamespace(matched_count=0)
+
 
 @pytest.fixture
 def intake_env(monkeypatch):
