@@ -33,6 +33,12 @@ const reasonLabels: Record<string,{ar:string;fr:string}> = {
   PAYMENT_DATE_MISSING_OR_INVALID:{ar:"تاريخ الدفع غير صالح",fr:"Date de paiement invalide"},
   PAYMENT_METHOD_UNSUPPORTED:{ar:"طريقة الدفع غير مدعومة",fr:"Mode de paiement non pris en charge"},
   DUPLICATE_SOURCE_EVENT_IDENTITY:{ar:"تكرار معرّف الحركة المصدر",fr:"Identité de source dupliquée"},
+  TREASURY_ALLOCATION_STATUS_INVALID:{ar:"تخصيص الخزينة غير مؤكد",fr:"Affectation de trésorerie non confirmée"},
+  PAYMENT_CURRENCY_NOT_TND:{ar:"عملة الدفعة ليست TND",fr:"Devise du paiement différente de TND"},
+  PAYMENT_INVOICE_NOT_FOUND:{ar:"فاتورة البيع الأصلية غير موجودة",fr:"Facture de vente source introuvable"},
+  PAYMENT_SALE_LINK_MISMATCH:{ar:"الدفعة لا تطابق عملية البيع",fr:"Le paiement ne correspond pas à la vente"},
+  SUPPLIER_PURCHASE_LINK_INVALID:{ar:"شراء المزوّد غير موجود أو غير مصادق عليه",fr:"Achat fournisseur introuvable ou non approuvé"},
+  PAYMENT_SUPPLIER_LINK_MISMATCH:{ar:"المزوّد لا يطابق سند الشراء",fr:"Le fournisseur ne correspond pas à l’achat"},
 };
 const money = (value:string|null|undefined) => {
   if(!value) return "—";
@@ -61,7 +67,7 @@ export default function TreasuryMovementPreview() {
       {data.candidates.length===0?<p className="rounded-lg bg-stone-50 p-4 text-sm text-stone-500">{ar?"لا توجد دفعات GS ضمن نطاق المعاينة.":"Aucun paiement GS dans le périmètre de l’aperçu."}</p>:
       <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b text-left text-xs text-stone-500">
         <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"المصدر":"Source"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة":"Résultat"}</th>
-      </tr></thead><tbody>{data.candidates.map(row=><tr key={row.candidate_key} className="border-b align-top">
+      </tr></thead><tbody>{data.candidates.map((row,index)=><tr key={`${row.candidate_key}-${index}`} className="border-b align-top">
         <td className="px-2 py-3">{row.business_date||"—"}</td>
         <td className="px-2 py-3">{labels[row.source_type]?.[ar?"ar":"fr"]||row.source_type}</td>
         <td className="px-2 py-3">{row.source_document_number||row.source_id}</td>
