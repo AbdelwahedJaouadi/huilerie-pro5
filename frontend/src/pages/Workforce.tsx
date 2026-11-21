@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, UserX } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Worker = { id: string; full_name: string; username: string; active?: boolean };
+type Worker = { id: string; full_name: string; first_name?: string; last_name?: string; phone?: string; address?: string; salary_amount?: number | null; salary_type?: "monthly" | "daily" | "hourly"; active?: boolean; archived?: boolean };
 type Attendance = {
   id: string; worker_id: string; worker_name: string; day: string;
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
   marked_absent_at?: string | null;
 };
 type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
+type EmployeeDraft = { first_name: string; last_name: string; phone: string; address: string; salary_amount: string; salary_type: "monthly" | "daily" | "hourly" };
+type WorkersResponse = { workers: Worker[]; total: number };
 type Action = "check-in" | "check-out" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
@@ -78,6 +80,160 @@ function summarize(records: Attendance[], period: (record: Attendance) => string
   return [...grouped.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+
+function printEmployeeRegistry(workers: Worker[], ar: boolean) {
+  const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const labels = ar
+    ? ["سجل العمال", "الاسم واللقب", "الهاتف", "العنوان", "الأجر", "نوع الأجر", "الحالة", "نشط", "مؤرشف"]
+    : ["Registre des employés", "Nom et prénom", "Téléphone", "Adresse", "Salaire", "Type", "Statut", "Actif", "Archivé"];
+  const salaryType = (type?: string) => type === "hourly" ? (ar ? "بالساعة" : "Horaire") : type === "daily" ? (ar ? "باليوم" : "Journalier") : (ar ? "شهري" : "Mensuel");
+  const rows = workers.map((w) => `<tr><td>${escape(w.full_name)}</td><td>${escape(w.phone || "—")}</td><td>${escape(w.address || "—")}</td><td>${w.salary_amount == null ? "—" : w.salary_amount}</td><td>${salaryType(w.salary_type)}</td><td>${w.active === false ? labels[8] : labels[7]}</td></tr>`).join("");
+  const win = window.open("", "_blank");
+  if (!win) return false;
+  win.document.write(`<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></html>`);
+  win.document.close();
+  return true;
+}
+
+function escapeReportHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function printWorkforceReport({
+  records, workers, startDate, endDate, ar, locale,
+}: {
+  records: Attendance[];
+  workers: Worker[];
+  startDate: string;
+  endDate: string;
+  ar: boolean;
+  locale: string;
+}) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  const text = ar ? {
+    title: "تقرير الحضور والانصراف", subtitle: "Oro Verde — جدول العمال",
+    period: "الفترة", employee: "العامل", all: "جميع العمال",
+    summary: "ملخص ساعات العمل حسب العامل", details: "تفاصيل الحضور والانصراف",
+    name: "اسم العامل", shifts: "الورديات المكتملة", hours: "مجموع ساعات العمل",
+    open: "ورديات مفتوحة", absent: "غياب مؤكد", noRecords: "لا توجد سجلات",
+    date: "التاريخ", status: "الحالة", arrival: "الحضور", departure: "الانصراف",
+    duration: "المدة", complete: "مكتمل", openStatus: "وردية مفتوحة — غير محسوبة",
+    absentStatus: "غياب مؤكد", review: "تتطلب مراجعة", noData: "لا توجد سجلات في الفترة المختارة",
+    note: "لا يتم خصم الاستراحة. الورديات المفتوحة لا تدخل في مجموع الساعات. عدم وجود سجل لا يعني الغياب.",
+    total: "الإجمالي العام", generated: "تاريخ استخراج التقرير",
+  } : {
+    title: "Rapport du personnel et du pointage", subtitle: "Oro Verde — Tableau des employés",
+    period: "Période", employee: "Employé", all: "Tous les employés",
+    summary: "Synthèse des heures par employé", details: "Détail des arrivées et départs",
+    name: "Nom de l’employé", shifts: "Quarts terminés", hours: "Total des heures",
+    open: "Quarts ouverts", absent: "Absences confirmées", noRecords: "Aucun pointage",
+    date: "Date", status: "Statut", arrival: "Arrivée", departure: "Départ",
+    duration: "Durée", complete: "Terminé", openStatus: "Quart ouvert — exclu",
+    absentStatus: "Absent confirmé", review: "À vérifier", noData: "Aucun pointage sur la période sélectionnée",
+    note: "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. L’absence d’un pointage ne signifie pas une absence.",
+    total: "Total général", generated: "Rapport généré le",
+  };
+  const selectedName = workers.length === 1 ? workers[0].full_name : text.all;
+  const sortedRecords = [...records].sort((a, b) =>
+    a.day.localeCompare(b.day) || a.worker_name.localeCompare(b.worker_name, locale)
+  );
+  const stats = workers.map((worker) => {
+    const rows = records.filter((record) => record.worker_id === worker.id);
+    const minutes = rows.reduce((sum, record) => sum + workedMinutes(record), 0);
+    return {
+      name: worker.full_name, minutes,
+      complete: rows.filter((record) => workedMinutes(record) > 0).length,
+      open: rows.filter((record) => record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at).length,
+      absent: rows.filter((record) => record.status === "ABSENT").length,
+      count: rows.length,
+    };
+  });
+  const totalMinutes = records.reduce((sum, record) => sum + workedMinutes(record), 0);
+  const totalComplete = records.filter((record) => workedMinutes(record) > 0).length;
+  const totalOpen = records.filter((record) => record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at).length;
+  const totalAbsent = records.filter((record) => record.status === "ABSENT").length;
+  const dayLabel = (day: string) => new Date(day + "T12:00:00").toLocaleDateString(locale, {
+    timeZone: "Africa/Tunis", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const summaryRows = stats.map((item) => `
+    <tr><td class="employee">${escapeReportHtml(item.name)}</td>
+    <td class="num">${item.count ? item.complete : text.noRecords}</td>
+    <td class="num strong">${durationLabel(item.minutes)}</td>
+    <td class="num">${item.open}</td><td class="num">${item.absent}</td></tr>`
+  ).join("");
+  const detailRows = sortedRecords.map((record) => {
+    const minutes = workedMinutes(record);
+    const isOpen = record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at;
+    const isInvalid = record.status === "PRESENT" && !!record.check_in_at && !!record.check_out_at && minutes === 0;
+    const status = record.status === "ABSENT" ? text.absentStatus : isOpen ? text.openStatus : isInvalid ? text.review : text.complete;
+    const statusClass = record.status === "ABSENT" ? "absent" : isOpen ? "open" : isInvalid ? "review" : "complete";
+    return `<tr><td class="date">${dayLabel(record.day)}</td>
+      <td class="employee">${escapeReportHtml(record.worker_name)}</td>
+      <td><span class="status ${statusClass}">${status}</span></td>
+      <td class="time">${displayTime(record.check_in_at, locale)}</td>
+      <td class="time">${displayTime(record.check_out_at, locale)}</td>
+      <td class="num strong">${minutes ? durationLabel(minutes) : "—"}</td></tr>`;
+  }).join("");
+  const generatedAt = new Date().toLocaleString(locale, { timeZone: "Africa/Tunis", dateStyle: "medium", timeStyle: "short" });
+  const direction = ar ? "rtl" : "ltr";
+  const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${direction}"><head><meta charset="utf-8">
+    <title>${text.title} — ${startDate} — ${endDate}</title>
+    <style>
+      @page { size: A4 landscape; margin: 13mm 12mm 15mm; }
+      * { box-sizing: border-box; }
+      body { margin: 0; color: #1f2937; font-family: Tahoma, Arial, sans-serif; font-size: 10px; direction: ${direction}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .top { display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #647a3b; padding:0 0 12px; margin-bottom:13px; }
+      .brand { color:#34451f; font-size:19px; font-weight:800; letter-spacing:.4px; }
+      .eyebrow { color:#75805f; font-size:9px; margin-top:3px; }
+      h1 { margin:0; color:#18251b; font-size:19px; font-weight:800; }
+      .subtitle { color:#64748b; margin-top:4px; font-size:10px; }
+      .meta { display:flex; gap:24px; margin:12px 0; padding:10px 13px; background:#f3f5ef; border:1px solid #e1e7d7; border-radius:7px; }
+      .meta-label { color:#64748b; font-size:8px; margin-bottom:4px; }
+      .meta-value { color:#25351d; font-size:11px; font-weight:700; }
+      h2 { font-size:12px; color:#34451f; margin:15px 0 7px; }
+      table { width:100%; border-collapse:collapse; table-layout:fixed; }
+      thead { display:table-header-group; }
+      tr { break-inside:avoid; page-break-inside:avoid; }
+      th { background:#34451f; color:white; padding:8px 7px; text-align:start; font-size:9px; font-weight:700; }
+      td { border-bottom:1px solid #e5e7eb; padding:7px; vertical-align:middle; }
+      tbody tr:nth-child(even) { background:#f8faf7; }
+      .employee { font-weight:700; }
+      .num { text-align:center; font-variant-numeric:tabular-nums; }
+      .strong { color:#34451f; font-weight:800; }
+      .date,.time { direction:ltr; unicode-bidi:embed; text-align:start; font-variant-numeric:tabular-nums; }
+      .status { display:inline-block; border-radius:12px; padding:3px 7px; font-size:8px; font-weight:700; white-space:nowrap; }
+      .complete { background:#e5f3e9; color:#24623b; }
+      .open { background:#fff1d6; color:#8a5700; }
+      .absent { background:#fde8e8; color:#a12b2b; }
+      .review { background:#ffedd5; color:#9a3412; }
+      .totals { margin-top:8px; display:flex; justify-content:flex-end; gap:20px; padding:9px 12px; background:#f3f5ef; border:1px solid #e1e7d7; font-size:9px; }
+      .note { margin-top:13px; padding:8px 10px; background:#fff9e9; border-inline-start:3px solid #c49a3a; color:#6b5728; font-size:8px; line-height:1.6; }
+      .footer { display:flex; justify-content:space-between; margin-top:12px; padding-top:7px; border-top:1px solid #d9ded2; color:#7b8490; font-size:8px; }
+      @media screen { body { padding:18px; max-width:1100px; margin:auto; } }
+    </style></head><body>
+      <header class="top"><div><div class="brand">ORO VERDE</div><div class="eyebrow">HUILERIE • GESTION DU PERSONNEL</div></div>
+      <div style="text-align:${ar ? "left" : "right"}"><h1>${text.title}</h1><div class="subtitle">${text.subtitle}</div></div></header>
+      <section class="meta"><div><div class="meta-label">${text.period}</div><div class="meta-value" dir="ltr">${startDate} — ${endDate}</div></div>
+      <div><div class="meta-label">${text.employee}</div><div class="meta-value">${escapeReportHtml(selectedName)}</div></div></section>
+      <h2>${text.summary}</h2>
+      <table><thead><tr><th style="width:34%">${text.name}</th><th>${text.shifts}</th><th>${text.hours}</th><th>${text.open}</th><th>${text.absent}</th></tr></thead>
+      <tbody>${summaryRows || `<tr><td colspan="5" style="text-align:center;padding:15px">${text.noData}</td></tr>`}</tbody></table>
+      <div class="totals"><span>${text.total}</span><strong>${durationLabel(totalMinutes)}</strong><span>${text.shifts}: ${totalComplete}</span><span>${text.open}: ${totalOpen}</span><span>${text.absent}: ${totalAbsent}</span></div>
+      <h2>${text.details}</h2>
+      <table><thead><tr><th style="width:14%">${text.date}</th><th style="width:22%">${text.name}</th><th style="width:22%">${text.status}</th><th style="width:14%">${text.arrival}</th><th style="width:14%">${text.departure}</th><th style="width:14%">${text.duration}</th></tr></thead>
+      <tbody>${detailRows || `<tr><td colspan="6" style="text-align:center;padding:18px">${text.noData}</td></tr>`}</tbody></table>
+      <div class="note">${text.note}</div>
+      <footer class="footer"><span>ORO VERDE</span><span>${text.generated}: ${generatedAt}</span></footer>
+      <script>window.addEventListener("load", function(){ setTimeout(function(){ window.focus(); window.print(); }, 350); });</script>
+    </body></html>`;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  return true;
+}
+
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
   const ar = lang === "ar";
@@ -92,6 +248,48 @@ export default function Workforce() {
   const [editOut, setEditOut] = useState("");
   const [reason, setReason] = useState("");
   const [editStatus, setEditStatus] = useState<"PRESENT" | "ABSENT">("PRESENT");
+  const emptyEmployee: EmployeeDraft = { first_name: "", last_name: "", phone: "", address: "", salary_amount: "", salary_type: "monthly" };
+  const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>(emptyEmployee);
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const employeesQuery = useQuery({
+    queryKey: ["workforce", "employees"],
+    queryFn: () => apiGet<WorkersResponse>("/workforce/workers"),
+  });
+  const saveEmployee = useMutation({
+    mutationFn: () => {
+      const payload = { ...employeeDraft, salary_amount: employeeDraft.salary_amount.trim() ? Number(employeeDraft.salary_amount) : null };
+      return editingEmployee
+        ? apiPatch<Worker>(`/workforce/workers/${editingEmployee}`, payload)
+        : apiPost<Worker>("/workforce/workers", payload);
+    },
+    onSuccess: async () => {
+      toast.success(ar ? "تم حفظ بيانات العامل" : "Employé enregistré");
+      setEmployeeDraft(emptyEmployee); setEditingEmployee(null);
+      await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
+  });
+  const removeEmployee = useMutation({
+    mutationFn: (id: string) => apiDelete<{ ok: boolean; archived: boolean; deleted: boolean }>(`/workforce/workers/${id}`),
+    onSuccess: async (result) => {
+      toast.success(result.archived
+        ? (ar ? "تمت أرشفة العامل للحفاظ على سجلات حضوره" : "Employé archivé pour préserver son historique")
+        : (ar ? "تم حذف العامل" : "Employé supprimé"));
+      await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
+  });
+  const restoreEmployee = useMutation({
+    mutationFn: (id: string) => apiPatch<Worker>(`/workforce/workers/${id}`, { active: true }),
+    onSuccess: async () => {
+      toast.success(ar ? "تمت إعادة تنشيط العامل" : "Employé réactivé");
+      await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
+  });
   const validRange = !!startDate && !!endDate && startDate <= endDate;
   const queryKey = ["workforce", "attendance", startDate, endDate];
   const data = useQuery({
@@ -155,6 +353,14 @@ export default function Workforce() {
     return { minutes, closed, open, absent };
   }, [records]);
 
+
+  const handlePrintReport = () => {
+    const opened = printWorkforceReport({
+      records, workers: visibleWorkers, startDate, endDate, ar, locale,
+    });
+    if (!opened) toast.error(ar ? "يرجى السماح بفتح النافذة المنبثقة لطباعة التقرير." : "Autorisez les fenêtres contextuelles pour imprimer le rapport.");
+  };
+
   const beginEdit = (record: Attendance) => {
     setEditing(record);
     setEditIn(localDateTime(record.check_in_at));
@@ -182,6 +388,7 @@ export default function Workforce() {
           <div className="space-y-1"><Label htmlFor="workforce-end">{ar ? "إلى تاريخ" : "Au"}</Label><Input id="workforce-end" data-testid="workforce-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-auto" /></div>
           <div className="space-y-1"><Label htmlFor="workforce-worker">{ar ? "العامل" : "Employé"}</Label><select id="workforce-worker" data-testid="workforce-worker-filter" value={selectedWorkerId} onChange={(event) => setSelectedWorkerId(event.target.value)} className="h-10 min-w-48 rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="all">{ar ? "الكل" : "Tous les employés"}</option>{workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.full_name}</option>)}</select></div>
           {!validRange && <p className="text-sm text-red-700">{ar ? "تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه." : "La date de début doit précéder ou égaler la date de fin."}</p>}
+          <Button type="button" variant="outline" disabled={!validRange || data.isLoading || data.isError} onClick={handlePrintReport} className="gap-2"><Printer className="size-4" />{ar ? "استخراج PDF / طباعة" : "Exporter PDF / Imprimer"}</Button>
           <div className="ms-auto text-sm text-stone-500">{ar ? "كل الأوقات بتوقيت تونس. لا يتم خصم الاستراحة." : "Heure de Tunisie. Aucune pause n’est déduite."}</div>
         </div>
       </section>
@@ -228,7 +435,7 @@ export default function Workforce() {
               const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
               const checkedOut = !!record?.check_out_at;
-              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.username}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
+              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.salary_amount == null ? (ar ? "الأجر غير محدد" : "Salaire non renseigné") : `${worker.salary_amount} — ${worker.salary_type === "hourly" ? (ar ? "بالساعة" : "par heure") : worker.salary_type === "daily" ? (ar ? "باليوم" : "par jour") : (ar ? "شهري" : "mensuel")}`}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
                 <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
                 <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
                 <td className="px-3 py-3"><div className="flex justify-end gap-2">
@@ -241,6 +448,24 @@ export default function Workforce() {
           </table></div>
         </section>}
       </>}
+      <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm space-y-4" data-testid="employee-registry">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-semibold text-stone-900">{ar ? "السجل المستقل للعمال" : "Registre indépendant des employés"}</h3><p className="text-sm text-stone-500">{ar ? "لا يرتبط بحسابات الدخول إلى التطبيق" : "Indépendant des comptes de connexion à l’application"}</p></div>
+          <Button type="button" variant="outline" onClick={() => { if (!printEmployeeRegistry(employeesQuery.data?.workers ?? [], ar)) toast.error(ar ? "اسمح بفتح النوافذ المنبثقة للطباعة" : "Autorisez les fenêtres contextuelles pour imprimer"); }}><Printer className="me-2 size-4" />{ar ? "طباعة سجل العمال" : "Imprimer le registre"}</Button>
+        </div>
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={(event) => { event.preventDefault(); if (!employeeDraft.first_name.trim()) return; saveEmployee.mutate(); }}>
+          <div className="space-y-1"><Label>{ar ? "الاسم" : "Prénom"}</Label><Input required value={employeeDraft.first_name} onChange={e=>setEmployeeDraft(v=>({...v,first_name:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "اللقب" : "Nom"}</Label><Input value={employeeDraft.last_name} onChange={e=>setEmployeeDraft(v=>({...v,last_name:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "الهاتف" : "Téléphone"}</Label><Input value={employeeDraft.phone} onChange={e=>setEmployeeDraft(v=>({...v,phone:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "العنوان" : "Adresse"}</Label><Input value={employeeDraft.address} onChange={e=>setEmployeeDraft(v=>({...v,address:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "مبلغ الأجر" : "Montant du salaire"}</Label><Input type="number" min="0" step="0.001" value={employeeDraft.salary_amount} onChange={e=>setEmployeeDraft(v=>({...v,salary_amount:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "نوع الأجر" : "Type de salaire"}</Label><select value={employeeDraft.salary_type} onChange={e=>setEmployeeDraft(v=>({...v,salary_type:e.target.value as EmployeeDraft["salary_type"]}))} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="monthly">{ar ? "شهري" : "Mensuel"}</option><option value="daily">{ar ? "يومي" : "Journalier"}</option><option value="hourly">{ar ? "بالساعة" : "Horaire"}</option></select></div>
+          <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><Button type="submit" disabled={saveEmployee.isPending}>{editingEmployee ? (ar ? "حفظ التعديل" : "Enregistrer") : (ar ? "إضافة عامل" : "Ajouter un employé")}</Button>{editingEmployee && <Button type="button" variant="outline" onClick={()=>{setEditingEmployee(null);setEmployeeDraft(emptyEmployee);}}>{ar ? "إلغاء التعديل" : "Annuler"}</Button>}</div>
+        </form>
+        {employeesQuery.isLoading ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل سجل العمال..." : "Chargement du registre…"}</p> : employeesQuery.isError ? <p className="text-sm text-red-700">{ar ? "تعذر تحميل سجل العمال" : "Impossible de charger le registre"}</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b bg-stone-50 text-stone-600"><th className="p-2 text-start">{ar ? "العامل" : "Employé"}</th><th className="p-2 text-start">{ar ? "الهاتف" : "Téléphone"}</th><th className="p-2 text-start">{ar ? "العنوان" : "Adresse"}</th><th className="p-2 text-end">{ar ? "الأجر" : "Salaire"}</th><th className="p-2 text-start">{ar ? "نوع الأجر" : "Type"}</th><th className="p-2 text-start">{ar ? "الحالة" : "Statut"}</th><th className="p-2 text-end">{ar ? "إجراءات" : "Actions"}</th></tr></thead><tbody>{(employeesQuery.data?.workers ?? []).map(worker=><tr key={worker.id} className="border-b"><td className="p-2 font-semibold">{worker.full_name}</td><td className="p-2">{worker.phone || "—"}</td><td className="p-2">{worker.address || "—"}</td><td className="p-2 text-end tabular-nums">{worker.salary_amount ?? "—"}</td><td className="p-2">{worker.salary_type === "hourly" ? (ar ? "بالساعة" : "Horaire") : worker.salary_type === "daily" ? (ar ? "يومي" : "Journalier") : (ar ? "شهري" : "Mensuel")}</td><td className="p-2">{worker.active === false ? (ar ? "مؤرشف" : "Archivé") : (ar ? "نشط" : "Actif")}</td><td className="p-2"><div className="flex justify-end gap-2">{worker.active === false && <Button type="button" size="sm" variant="outline" disabled={restoreEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "إعادة تنشيط هذا العامل؟" : "Réactiver cet employé ?")) restoreEmployee.mutate(worker.id);}} className="text-emerald-700">{ar ? "إعادة تنشيط" : "Réactiver"}</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>{setEditingEmployee(worker.id);setEmployeeDraft({first_name:worker.first_name || worker.full_name,last_name:worker.last_name || "",phone:worker.phone || "",address:worker.address || "",salary_amount:worker.salary_amount == null ? "" : String(worker.salary_amount),salary_type:worker.salary_type || "monthly"});}}><Pencil className="me-1 size-3" />{ar ? "تعديل" : "Modifier"}</Button><Button type="button" size="sm" variant="outline" disabled={removeEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "تأكيد حذف أو أرشفة هذا العامل؟" : "Confirmer la suppression ou l’archivage ?")) removeEmployee.mutate(worker.id);}} className="text-rose-700">{ar ? "حذف" : "Supprimer"}</Button></div></td></tr>)}</tbody></table></div>}
+        <p className="text-xs text-stone-500">{ar ? "الراتب ونوعه بيانات تعريفية فقط؛ لا يتم حساب المستحقات تلقائياً. العامل الذي لديه سجلات حضور يُؤرشف بدلاً من حذفه نهائياً." : "Le salaire et sa périodicité sont informatifs; aucun montant dû n’est calculé automatiquement. Un employé ayant un historique de pointage est archivé plutôt que supprimé."}</p>
+      </section>
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent data-testid="workforce-correction-dialog">

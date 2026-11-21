@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 
@@ -94,3 +95,29 @@ def test_absence_cannot_be_marked_while_worker_has_an_open_shift():
     route_source = ast.get_source_segment(source, route)
     assert '"worker_has_open_shift"' in route_source
     assert 'raise HTTPException(409, "worker_has_open_shift")' in route_source
+
+
+def test_workforce_has_independent_employee_registry_and_safe_archive():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert '@router.get("/workers")' in source
+    assert '@router.post("/workers")' in source
+    assert '@router.patch("/workers/{worker_id}")' in source
+    assert '@router.delete("/workers/{worker_id}")' in source
+    assert 'db.employees.find_one' in source
+    assert '"salary_type"' in source and '"salary_amount"' in source
+    assert 'if attendance_count:' in source
+    assert not re.search(r'^\s*"(?:user_id|username)"\s*:', source, re.MULTILINE)
+    assert 'migration_key = "workforce_employees_registry_v1"' in source
+    assert 'db.users.find(' in source
+    assert '$setOnInsert' in source
+
+
+def test_employee_registry_import_is_one_time_and_has_no_account_link_fields():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert 'migration_key = "workforce_employees_registry_v1"' in source
+    assert 'db.settings.find_one({"key": migration_key}' in source
+    assert 'db.settings.update_one(' in source
+    assert not re.search(r'^\s*"(?:user_id|username)"\s*:', source, re.MULTILINE)
+    indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
+    employee_indexes = indexes[indexes.index('"employees"'):indexes.index('"workforce_attendance"')]
+    assert "user_id" not in employee_indexes
