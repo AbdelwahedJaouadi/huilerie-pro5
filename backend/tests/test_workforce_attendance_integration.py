@@ -10,7 +10,7 @@ import lib.db as db_module
 import routers.workforce as workforce
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
     test_db = db_module.client[
         f"{os.environ['DB_NAME'][:20]}_wf_{uuid.uuid4().hex[:12]}"
@@ -33,6 +33,9 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
             "role": "worker",
             "active": True,
         })
+    # Simulate the one-time import of existing login-based workers into the
+    # independent employee registry before the attendance flow is exercised.
+    await workforce._ensure_legacy_employee_records()
 
     today = workforce._today_tunis()
     try:
@@ -135,7 +138,7 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
         await db_module.client.drop_database(test_db.name)
 
 
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_employee_without_app_login_can_be_managed_and_pointed(monkeypatch):
     test_db = db_module.client[
         f"{os.environ['DB_NAME'][:20]}_emp_{uuid.uuid4().hex[:12]}"
