@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Worker = { id: string; full_name: string; username: string; active?: boolean };
+type Worker = { id: string; full_name: string; first_name?: string; last_name?: string; phone?: string; address?: string; salary_amount?: number | null; salary_type?: "monthly" | "daily" | "hourly"; active?: boolean; archived?: boolean };
 type Attendance = {
   id: string; worker_id: string; worker_name: string; day: string;
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
@@ -377,7 +377,7 @@ export default function Workforce() {
               const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
               const checkedOut = !!record?.check_out_at;
-              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.username}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
+              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.salary_amount == null ? (ar ? "الأجر غير محدد" : "Salaire non renseigné") : `${worker.salary_amount} — ${worker.salary_type === "hourly" ? (ar ? "بالساعة" : "par heure") : worker.salary_type === "daily" ? (ar ? "باليوم" : "par jour") : (ar ? "شهري" : "mensuel")}`}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
                 <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
                 <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
                 <td className="px-3 py-3"><div className="flex justify-end gap-2">
