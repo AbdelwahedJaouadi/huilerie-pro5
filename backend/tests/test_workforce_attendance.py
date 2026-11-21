@@ -75,3 +75,22 @@ def test_workforce_ui_has_date_range_and_daily_weekly_monthly_summaries():
     assert "elapsed > 24 * 60 * 60 * 1000" in page
     assert "Aucune pause n’est déduite." in page
     assert "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." in page
+
+
+
+def test_open_overnight_shifts_remain_visible_outside_selected_history_range():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    assert '"open_shifts": open_shifts' in source
+    assert '"check_out_at": None' in source
+    assert "openShiftsByWorker" in page
+    assert "recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id)" in page
+
+
+def test_absence_cannot_be_marked_while_worker_has_an_open_shift():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    route = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "mark_absent")
+    route_source = ast.get_source_segment(source, route)
+    assert '"worker_has_open_shift"' in route_source
+    assert 'raise HTTPException(409, "worker_has_open_shift")' in route_source
