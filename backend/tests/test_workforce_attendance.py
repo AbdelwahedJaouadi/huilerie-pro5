@@ -17,7 +17,7 @@ def test_workforce_mutations_are_admin_only_and_audited_transactionally():
     assert expected <= routes.keys()
     for name in expected:
         route_source = ast.get_source_segment(source, routes[name])
-        assert "Depends(require_admin)" in route_source
+        assert "Depends(require_workforce_admin)" in route_source
         assert "run_transaction(" in route_source
         assert "_audit(" in route_source
 
