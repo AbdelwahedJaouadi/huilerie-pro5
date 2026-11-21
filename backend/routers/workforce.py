@@ -67,13 +67,15 @@ async def _ensure_legacy_employee_records():
         if not worker_id:
             continue
         full_name = str(user.get("full_name") or "Worker").strip() or "Worker"
+        # Legacy accounts without an explicit active flag remain active.
+        is_active = user.get("active") is not False
         await db.employees.update_one(
             {"id": worker_id},
             {"$setOnInsert": {
                 "id": worker_id, "first_name": full_name, "last_name": "",
                 "full_name": full_name, "phone": "", "address": "",
                 "salary_amount": None, "salary_type": "monthly",
-                "active": bool(user.get("active")), "archived": not bool(user.get("active")),
+                "active": is_active, "archived": not is_active,
                 "created_at": datetime.now(timezone.utc),
             }},
             upsert=True,
