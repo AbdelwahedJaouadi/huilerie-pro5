@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { PageHeader } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ type Attendance = {
   marked_absent_at?: string | null;
 };
 type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
+type EmployeeDraft = { first_name: string; last_name: string; phone: string; address: string; salary_amount: string; salary_type: "monthly" | "daily" | "hourly" };
+type WorkersResponse = { workers: Worker[]; total: number };
 type Action = "check-in" | "check-out" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
@@ -78,6 +80,20 @@ function summarize(records: Attendance[], period: (record: Attendance) => string
   return [...grouped.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+
+function printEmployeeRegistry(workers: Worker[], ar: boolean) {
+  const escape = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const labels = ar
+    ? ["سجل العمال", "الاسم واللقب", "الهاتف", "العنوان", "الأجر", "نوع الأجر", "الحالة", "نشط", "مؤرشف"]
+    : ["Registre des employés", "Nom et prénom", "Téléphone", "Adresse", "Salaire", "Type", "Statut", "Actif", "Archivé"];
+  const salaryType = (type?: string) => type === "hourly" ? (ar ? "بالساعة" : "Horaire") : type === "daily" ? (ar ? "باليوم" : "Journalier") : (ar ? "شهري" : "Mensuel");
+  const rows = workers.map((w) => `<tr><td>${escape(w.full_name)}</td><td>${escape(w.phone || "—")}</td><td>${escape(w.address || "—")}</td><td>${w.salary_amount == null ? "—" : w.salary_amount}</td><td>${salaryType(w.salary_type)}</td><td>${w.active === false ? labels[8] : labels[7]}</td></tr>`).join("");
+  const win = window.open("", "_blank");
+  if (!win) return false;
+  win.document.write(`<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></html>`);
+  win.document.close();
+  return true;
+}
 
 function escapeReportHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
@@ -232,6 +248,39 @@ export default function Workforce() {
   const [editOut, setEditOut] = useState("");
   const [reason, setReason] = useState("");
   const [editStatus, setEditStatus] = useState<"PRESENT" | "ABSENT">("PRESENT");
+  const emptyEmployee: EmployeeDraft = { first_name: "", last_name: "", phone: "", address: "", salary_amount: "", salary_type: "monthly" };
+  const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>(emptyEmployee);
+  const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const employeesQuery = useQuery({
+    queryKey: ["workforce", "employees"],
+    queryFn: () => apiGet<WorkersResponse>("/workforce/workers"),
+  });
+  const saveEmployee = useMutation({
+    mutationFn: () => {
+      const payload = { ...employeeDraft, salary_amount: employeeDraft.salary_amount.trim() ? Number(employeeDraft.salary_amount) : null };
+      return editingEmployee
+        ? apiPatch<Worker>(`/workforce/workers/${editingEmployee}`, payload)
+        : apiPost<Worker>("/workforce/workers", payload);
+    },
+    onSuccess: async () => {
+      toast.success(ar ? "تم حفظ بيانات العامل" : "Employé enregistré");
+      setEmployeeDraft(emptyEmployee); setEditingEmployee(null);
+      await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
+  });
+  const removeEmployee = useMutation({
+    mutationFn: (id: string) => apiDelete<{ ok: boolean; archived: boolean; deleted: boolean }>(`/workforce/workers/${id}`),
+    onSuccess: async (result) => {
+      toast.success(result.archived
+        ? (ar ? "تمت أرشفة العامل للحفاظ على سجلات حضوره" : "Employé archivé pour préserver son historique")
+        : (ar ? "تم حذف العامل" : "Employé supprimé"));
+      await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
+  });
   const validRange = !!startDate && !!endDate && startDate <= endDate;
   const queryKey = ["workforce", "attendance", startDate, endDate];
   const data = useQuery({
@@ -390,6 +439,24 @@ export default function Workforce() {
           </table></div>
         </section>}
       </>}
+      <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm space-y-4" data-testid="employee-registry">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-semibold text-stone-900">{ar ? "السجل المستقل للعمال" : "Registre indépendant des employés"}</h3><p className="text-sm text-stone-500">{ar ? "لا يرتبط بحسابات الدخول إلى التطبيق" : "Indépendant des comptes de connexion à l’application"}</p></div>
+          <Button type="button" variant="outline" onClick={() => { if (!printEmployeeRegistry(employeesQuery.data?.workers ?? [], ar)) toast.error(ar ? "اسمح بفتح النوافذ المنبثقة للطباعة" : "Autorisez les fenêtres contextuelles pour imprimer"); }}><Printer className="me-2 size-4" />{ar ? "طباعة سجل العمال" : "Imprimer le registre"}</Button>
+        </div>
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" onSubmit={(event) => { event.preventDefault(); if (!employeeDraft.first_name.trim()) return; saveEmployee.mutate(); }}>
+          <div className="space-y-1"><Label>{ar ? "الاسم" : "Prénom"}</Label><Input required value={employeeDraft.first_name} onChange={e=>setEmployeeDraft(v=>({...v,first_name:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "اللقب" : "Nom"}</Label><Input value={employeeDraft.last_name} onChange={e=>setEmployeeDraft(v=>({...v,last_name:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "الهاتف" : "Téléphone"}</Label><Input value={employeeDraft.phone} onChange={e=>setEmployeeDraft(v=>({...v,phone:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "العنوان" : "Adresse"}</Label><Input value={employeeDraft.address} onChange={e=>setEmployeeDraft(v=>({...v,address:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "مبلغ الأجر" : "Montant du salaire"}</Label><Input type="number" min="0" step="0.001" value={employeeDraft.salary_amount} onChange={e=>setEmployeeDraft(v=>({...v,salary_amount:e.target.value}))} /></div>
+          <div className="space-y-1"><Label>{ar ? "نوع الأجر" : "Type de salaire"}</Label><select value={employeeDraft.salary_type} onChange={e=>setEmployeeDraft(v=>({...v,salary_type:e.target.value as EmployeeDraft["salary_type"]}))} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="monthly">{ar ? "شهري" : "Mensuel"}</option><option value="daily">{ar ? "يومي" : "Journalier"}</option><option value="hourly">{ar ? "بالساعة" : "Horaire"}</option></select></div>
+          <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><Button type="submit" disabled={saveEmployee.isPending}>{editingEmployee ? (ar ? "حفظ التعديل" : "Enregistrer") : (ar ? "إضافة عامل" : "Ajouter un employé")}</Button>{editingEmployee && <Button type="button" variant="outline" onClick={()=>{setEditingEmployee(null);setEmployeeDraft(emptyEmployee);}}>{ar ? "إلغاء التعديل" : "Annuler"}</Button>}</div>
+        </form>
+        {employeesQuery.isLoading ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل سجل العمال..." : "Chargement du registre…"}</p> : employeesQuery.isError ? <p className="text-sm text-red-700">{ar ? "تعذر تحميل سجل العمال" : "Impossible de charger le registre"}</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b bg-stone-50 text-stone-600"><th className="p-2 text-start">{ar ? "العامل" : "Employé"}</th><th className="p-2 text-start">{ar ? "الهاتف" : "Téléphone"}</th><th className="p-2 text-start">{ar ? "العنوان" : "Adresse"}</th><th className="p-2 text-end">{ar ? "الأجر" : "Salaire"}</th><th className="p-2 text-start">{ar ? "نوع الأجر" : "Type"}</th><th className="p-2 text-start">{ar ? "الحالة" : "Statut"}</th><th className="p-2 text-end">{ar ? "إجراءات" : "Actions"}</th></tr></thead><tbody>{(employeesQuery.data?.workers ?? []).map(worker=><tr key={worker.id} className="border-b"><td className="p-2 font-semibold">{worker.full_name}</td><td className="p-2">{worker.phone || "—"}</td><td className="p-2">{worker.address || "—"}</td><td className="p-2 text-end tabular-nums">{worker.salary_amount ?? "—"}</td><td className="p-2">{worker.salary_type === "hourly" ? (ar ? "بالساعة" : "Horaire") : worker.salary_type === "daily" ? (ar ? "يومي" : "Journalier") : (ar ? "شهري" : "Mensuel")}</td><td className="p-2">{worker.active === false ? (ar ? "مؤرشف" : "Archivé") : (ar ? "نشط" : "Actif")}</td><td className="p-2"><div className="flex justify-end gap-2"><Button type="button" size="sm" variant="outline" onClick={()=>{setEditingEmployee(worker.id);setEmployeeDraft({first_name:worker.first_name || worker.full_name,last_name:worker.last_name || "",phone:worker.phone || "",address:worker.address || "",salary_amount:worker.salary_amount == null ? "" : String(worker.salary_amount),salary_type:worker.salary_type || "monthly"});}}><Pencil className="me-1 size-3" />{ar ? "تعديل" : "Modifier"}</Button><Button type="button" size="sm" variant="outline" disabled={removeEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "تأكيد حذف أو أرشفة هذا العامل؟" : "Confirmer la suppression ou l’archivage ?")) removeEmployee.mutate(worker.id);}} className="text-rose-700">{ar ? "حذف" : "Supprimer"}</Button></div></td></tr>)}</tbody></table></div>}
+        <p className="text-xs text-stone-500">{ar ? "الراتب ونوعه بيانات تعريفية فقط؛ لا يتم حساب المستحقات تلقائياً. العامل الذي لديه سجلات حضور يُؤرشف بدلاً من حذفه نهائياً." : "Le salaire et sa périodicité sont informatifs; aucun montant dû n’est calculé automatiquement. Un employé ayant un historique de pointage est archivé plutôt que supprimé."}</p>
+      </section>
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent data-testid="workforce-correction-dialog">
