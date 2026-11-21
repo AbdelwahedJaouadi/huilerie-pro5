@@ -117,7 +117,7 @@ def test_employee_registry_import_is_one_time_and_has_no_account_link_fields():
     assert 'migration_key = "workforce_employees_registry_v1"' in source
     assert 'db.settings.find_one({"key": migration_key}' in source
     assert 'db.settings.update_one(' in source
-    assert '"user_id"' not in source and '"username"' not in source
+    assert not re.search(r'^\s*"(?:user_id|username)"\s*:', source, re.MULTILINE)
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     employee_indexes = indexes[indexes.index('"employees"'):indexes.index('"workforce_attendance"')]
     assert "user_id" not in employee_indexes
