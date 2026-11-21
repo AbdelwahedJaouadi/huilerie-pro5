@@ -79,7 +79,19 @@ async def list_attendance(
         {"day": {"$gte": selected_start.isoformat(), "$lte": selected_end.isoformat()}},
         {"_id": 0},
     ).sort([("day", 1), ("worker_name", 1)]).to_list(10000)
-    recorded_worker_ids = list({record["worker_id"] for record in records})
+    # Open shifts are operationally actionable even when their check-in date
+    # falls before the selected history range (for example, an overnight shift).
+    open_shifts = await db["workforce_attendance"].find(
+        {
+            "status": "PRESENT",
+            "check_in_at": {"$ne": None},
+            "check_out_at": None,
+        },
+        {"_id": 0},
+    ).sort([("day", -1), ("worker_name", 1)]).to_list(10000)
+    recorded_worker_ids = list({
+        record["worker_id"] for record in [*records, *open_shifts]
+    })
     workers = await db.users.find(
         {
             "role": "worker",
@@ -96,6 +108,7 @@ async def list_attendance(
         "end_date": selected_end.isoformat(),
         "workers": workers,
         "records": records,
+        "open_shifts": open_shifts,
     }
 
 
@@ -191,6 +204,17 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_workfo
 async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
+    open_shift = await db["workforce_attendance"].find_one(
+        {
+            "worker_id": worker["id"],
+            "status": "PRESENT",
+            "check_in_at": {"$ne": None},
+            "check_out_at": None,
+        },
+        {"_id": 0, "id": 1},
+    )
+    if open_shift:
+        raise HTTPException(409, "worker_has_open_shift")
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
     record = {
