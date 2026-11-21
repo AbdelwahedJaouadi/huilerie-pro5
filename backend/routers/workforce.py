@@ -18,6 +18,25 @@ class AttendanceAction(BaseModel):
     day: Date
 
 
+class EmployeeCreate(BaseModel):
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(default="", max_length=100)
+    phone: str = Field(default="", max_length=40)
+    address: str = Field(default="", max_length=300)
+    salary_amount: float | None = Field(default=None, ge=0)
+    salary_type: Literal["monthly", "daily", "hourly"] = "monthly"
+
+
+class EmployeeUpdate(BaseModel):
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=40)
+    address: str | None = Field(default=None, max_length=300)
+    salary_amount: float | None = Field(default=None, ge=0)
+    salary_type: Literal["monthly", "daily", "hourly"] | None = None
+    active: bool | None = None
+
+
 class AttendanceCorrection(BaseModel):
     check_in_at: Optional[datetime] = None
     check_out_at: Optional[datetime] = None
@@ -34,14 +53,110 @@ def _ensure_today(day: Date):
         raise HTTPException(400, "attendance_actions_today_only")
 
 
+async def _ensure_legacy_employee_records():
+    """Preserve existing worker IDs so historical attendance remains attached."""
+    async for user in db.users.find({"role": "worker"}, {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1}):
+        full_name = str(user.get("full_name") or user.get("username") or "Worker").strip()
+        await db.employees.update_one(
+            {"id": user["id"]},
+            {"$setOnInsert": {
+                "id": user["id"], "first_name": full_name, "last_name": "",
+                "full_name": full_name, "phone": "", "address": "",
+                "salary_amount": None, "salary_type": "monthly",
+                "user_id": user["id"], "username": user.get("username"),
+                "active": bool(user.get("active")), "archived": not bool(user.get("active")),
+                "created_at": datetime.now(timezone.utc),
+            }},
+            upsert=True,
+        )
+
+
 async def _active_worker(worker_id: str):
-    worker = await db.users.find_one(
-        {"id": worker_id, "role": "worker", "active": True},
+    worker = await db.employees.find_one(
+        {"id": worker_id, "active": True, "archived": {"$ne": True}},
         {"_id": 0, "id": 1, "full_name": 1, "username": 1},
     )
     if not worker:
         raise HTTPException(404, "active_worker_not_found")
     return worker
+
+
+def _employee_name(first_name: str, last_name: str) -> str:
+    return " ".join(part.strip() for part in (first_name, last_name) if part and part.strip())
+
+
+@router.get("/workers")
+async def list_workers(_: dict = Depends(require_workforce_admin)):
+    await _ensure_legacy_employee_records()
+    workers = await db.employees.find({}, {"_id": 0}).sort([("active", -1), ("full_name", 1)]).to_list(2000)
+    return {"workers": workers, "total": len(workers)}
+
+
+@router.post("/workers")
+async def create_worker(body: EmployeeCreate, admin: dict = Depends(require_workforce_admin)):
+    await _ensure_legacy_employee_records()
+    first_name = body.first_name.strip()
+    if not first_name:
+        raise HTTPException(400, "worker_first_name_required")
+    now = datetime.now(timezone.utc)
+    employee = {
+        "id": str(uuid.uuid4()), "first_name": first_name,
+        "last_name": body.last_name.strip(), "full_name": _employee_name(first_name, body.last_name),
+        "phone": body.phone.strip(), "address": body.address.strip(),
+        "salary_amount": body.salary_amount, "salary_type": body.salary_type,
+        "user_id": None, "username": None, "active": True, "archived": False,
+        "created_at": now, "updated_at": now, "created_by": admin.get("id"),
+    }
+    await db.employees.insert_one(employee)
+    return {key: value for key, value in employee.items() if key != "_id"}
+
+
+@router.patch("/workers/{worker_id}")
+async def update_worker(worker_id: str, body: EmployeeUpdate, admin: dict = Depends(require_workforce_admin)):
+    await _ensure_legacy_employee_records()
+    worker = await db.employees.find_one({"id": worker_id}, {"_id": 0})
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
+    changes = {key: value for key, value in body.model_dump(exclude_unset=True).items()}
+    if not changes:
+        raise HTTPException(400, "no_worker_changes")
+    if "first_name" in changes:
+        changes["first_name"] = (changes["first_name"] or "").strip()
+        if not changes["first_name"]:
+            raise HTTPException(400, "worker_first_name_required")
+    if "last_name" in changes:
+        changes["last_name"] = (changes["last_name"] or "").strip()
+    for key in ("phone", "address"):
+        if key in changes and changes[key] is not None:
+            changes[key] = changes[key].strip()
+    first_name = changes.get("first_name", worker.get("first_name", worker.get("full_name", "")))
+    last_name = changes.get("last_name", worker.get("last_name", ""))
+    if "first_name" in changes or "last_name" in changes:
+        changes["full_name"] = _employee_name(first_name, last_name)
+    if "active" in changes:
+        changes["archived"] = not changes["active"]
+    changes["updated_at"] = datetime.now(timezone.utc)
+    changes["updated_by"] = admin.get("id")
+    await db.employees.update_one({"id": worker_id}, {"$set": changes})
+    return await db.employees.find_one({"id": worker_id}, {"_id": 0})
+
+
+@router.delete("/workers/{worker_id}")
+async def delete_worker(worker_id: str, admin: dict = Depends(require_workforce_admin)):
+    await _ensure_legacy_employee_records()
+    worker = await db.employees.find_one({"id": worker_id}, {"_id": 0})
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
+    attendance_count = await db["workforce_attendance"].count_documents({"worker_id": worker_id})
+    # Keep an archived employee whenever attendance or an application account refers to it.
+    if attendance_count or worker.get("user_id"):
+        await db.employees.update_one(
+            {"id": worker_id},
+            {"$set": {"active": False, "archived": True, "updated_at": datetime.now(timezone.utc), "archived_by": admin.get("id")}},
+        )
+        return {"ok": True, "archived": True, "deleted": False}
+    await db.employees.delete_one({"id": worker_id})
+    return {"ok": True, "archived": False, "deleted": True}
 
 
 async def _audit(record: dict, action: str, admin: dict, details: dict | None = None, session=None):
@@ -66,6 +181,7 @@ async def list_attendance(
     end_date: Date | None = None,
     _: dict = Depends(require_workforce_admin),
 ):
+    await _ensure_legacy_employee_records()
     # Keep the legacy single-day contract while allowing inclusive date ranges.
     if day is not None and (start_date is not None or end_date is not None):
         raise HTTPException(400, "use_day_or_date_range")
@@ -92,16 +208,15 @@ async def list_attendance(
     recorded_worker_ids = list({
         record["worker_id"] for record in [*records, *open_shifts]
     })
-    workers = await db.users.find(
+    workers = await db.employees.find(
         {
-            "role": "worker",
             "$or": [
-                {"active": True},
+                {"active": True, "archived": {"$ne": True}},
                 {"id": {"$in": recorded_worker_ids}},
             ],
         },
-        {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1},
-    ).sort("full_name", 1).to_list(500)
+        {"_id": 0, "id": 1, "full_name": 1, "first_name": 1, "last_name": 1, "username": 1, "active": 1, "salary_type": 1, "salary_amount": 1},
+    ).sort("full_name", 1).to_list(2000)
     return {
         "day": selected_start.isoformat() if selected_start == selected_end else None,
         "start_date": selected_start.isoformat(),
@@ -169,7 +284,7 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
 @router.post("/attendance/check-out")
 async def check_out(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
-    worker = await db.users.find_one({"id": body.worker_id, "role": "worker"}, {"_id": 0, "id": 1})
+    worker = await db.employees.find_one({"id": body.worker_id}, {"_id": 0, "id": 1})
     if not worker:
         raise HTTPException(404, "worker_not_found")
     now = datetime.now(timezone.utc)
