@@ -86,6 +86,7 @@ export default function Workforce() {
   const today = localDay();
   const [startDate, setStartDate] = useState(firstDayOfMonth(today));
   const [endDate, setEndDate] = useState(today);
+  const [selectedWorkerId, setSelectedWorkerId] = useState("all");
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [editIn, setEditIn] = useState("");
   const [editOut, setEditOut] = useState("");
@@ -124,8 +125,16 @@ export default function Workforce() {
     },
     onError: (error) => toast.error(errMsg(error)),
   });
-  const records = data.data?.records ?? [];
+  const allRecords = data.data?.records ?? [];
   const workers = data.data?.workers ?? [];
+  const records = useMemo(
+    () => selectedWorkerId === "all" ? allRecords : allRecords.filter((record) => record.worker_id === selectedWorkerId),
+    [allRecords, selectedWorkerId],
+  );
+  const visibleWorkers = useMemo(
+    () => selectedWorkerId === "all" ? workers : workers.filter((worker) => worker.id === selectedWorkerId),
+    [workers, selectedWorkerId],
+  );
   const recordsToday = useMemo(() => new Map(records.filter((record) => record.day === today).map((record) => [record.worker_id, record])), [records, today]);
   const openShiftsByWorker = useMemo(
     () => new Map((data.data?.open_shifts ?? []).map((record) => [record.worker_id, record])),
@@ -171,6 +180,7 @@ export default function Workforce() {
         <div className="mb-4 flex flex-wrap items-end gap-4">
           <div className="space-y-1"><Label htmlFor="workforce-start">{ar ? "من تاريخ" : "Du"}</Label><div className="flex items-center gap-2"><CalendarDays className="size-4 text-stone-500" /><Input id="workforce-start" data-testid="workforce-start-date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-auto" /></div></div>
           <div className="space-y-1"><Label htmlFor="workforce-end">{ar ? "إلى تاريخ" : "Au"}</Label><Input id="workforce-end" data-testid="workforce-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-auto" /></div>
+          <div className="space-y-1"><Label htmlFor="workforce-worker">{ar ? "العامل" : "Employé"}</Label><select id="workforce-worker" data-testid="workforce-worker-filter" value={selectedWorkerId} onChange={(event) => setSelectedWorkerId(event.target.value)} className="h-10 min-w-48 rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="all">{ar ? "الكل" : "Tous les employés"}</option>{workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.full_name}</option>)}</select></div>
           {!validRange && <p className="text-sm text-red-700">{ar ? "تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه." : "La date de début doit précéder ou égaler la date de fin."}</p>}
           <div className="ms-auto text-sm text-stone-500">{ar ? "كل الأوقات بتوقيت تونس. لا يتم خصم الاستراحة." : "Heure de Tunisie. Aucune pause n’est déduite."}</div>
         </div>
@@ -213,7 +223,7 @@ export default function Workforce() {
           <h3 className="mb-3 font-semibold text-stone-900">{ar ? "تسجيل حضور اليوم" : "Pointage du jour"} <span className="text-sm font-normal text-stone-500" dir="ltr">{today}</span></h3>
           <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
             <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "الإجراءات" : "Actions"}</th></tr></thead>
-            <tbody>{workers.map((worker) => {
+            <tbody>{visibleWorkers.map((worker) => {
               // Include an overnight shift whose check-in date is outside the selected range.
               const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
