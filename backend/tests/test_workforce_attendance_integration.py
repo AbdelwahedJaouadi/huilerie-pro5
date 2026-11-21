@@ -157,9 +157,10 @@ async def test_employee_without_app_login_can_be_managed_and_pointed(monkeypatch
             ),
             admin,
         )
-        assert employee["user_id"] is None
+        assert "user_id" not in employee and "username" not in employee
         assert employee["salary_type"] == "daily"
         assert employee["salary_amount"] == 45
+        assert await test_db.users.count_documents({"id": employee["id"]}) == 0
 
         updated = await workforce.update_worker(
             employee["id"],
