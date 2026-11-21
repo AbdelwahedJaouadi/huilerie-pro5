@@ -1,0 +1,35 @@
+name: Workforce attendance regression checks
+
+on:
+  pull_request:
+    paths:
+      - "backend/routers/workforce.py"
+      - "backend/tests/test_workforce_attendance.py"
+      - "frontend/src/pages/Workforce.tsx"
+      - ".github/workflows/workforce-attendance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/routers/workforce.py"
+      - "backend/tests/test_workforce_attendance.py"
+      - "frontend/src/pages/Workforce.tsx"
+      - ".github/workflows/workforce-attendance.yml"
+
+jobs:
+  workforce-attendance-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Run workforce attendance regression checks
+        run: python -m pytest -o addopts= tests/test_workforce_attendance.py -q
