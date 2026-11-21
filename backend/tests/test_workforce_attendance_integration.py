@@ -133,3 +133,51 @@ async def test_manager_attendance_lifecycle_is_unique_and_audited(monkeypatch):
         assert past_day.value.status_code == 400
     finally:
         await db_module.client.drop_database(test_db.name)
+
+
+@pytest.mark.asyncio
+async def test_employee_without_app_login_can_be_managed_and_pointed(monkeypatch):
+    test_db = db_module.client[
+        f"{os.environ['DB_NAME'][:20]}_emp_{uuid.uuid4().hex[:12]}"
+    ]
+    monkeypatch.setattr(workforce, "db", test_db)
+    await test_db["employees"].create_index("id", unique=True)
+    await test_db["workforce_attendance"].create_index(
+        [("worker_id", 1), ("day", 1)], unique=True
+    )
+    await test_db["workforce_attendance_events"].create_index("id", unique=True)
+    admin = {"id": "admin-employee-test", "username": "admin"}
+    today = workforce._today_tunis()
+    try:
+        employee = await workforce.create_worker(
+            workforce.EmployeeCreate(
+                first_name="Samir", last_name="Test",
+                phone="+21600000000", address="Test address",
+                salary_amount=45, salary_type="daily",
+            ),
+            admin,
+        )
+        assert employee["user_id"] is None
+        assert employee["salary_type"] == "daily"
+        assert employee["salary_amount"] == 45
+
+        updated = await workforce.update_worker(
+            employee["id"],
+            workforce.EmployeeUpdate(address="Updated address", salary_type="hourly", salary_amount=8),
+            admin,
+        )
+        assert updated["address"] == "Updated address"
+        assert updated["salary_type"] == "hourly"
+
+        attendance = await workforce.check_in(
+            workforce.AttendanceAction(worker_id=employee["id"], day=today), admin
+        )
+        assert attendance["worker_id"] == employee["id"]
+
+        deleted = await workforce.delete_worker(employee["id"], admin)
+        assert deleted == {"ok": True, "archived": True, "deleted": False}
+        archived = await test_db.employees.find_one({"id": employee["id"]}, {"_id": 0})
+        assert archived["active"] is False
+        assert await test_db["workforce_attendance"].count_documents({"worker_id": employee["id"]}) == 1
+    finally:
+        await db_module.client.drop_database(test_db.name)
