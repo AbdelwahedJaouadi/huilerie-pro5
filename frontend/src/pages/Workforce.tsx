@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, UserCheck, UserX } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -16,8 +16,9 @@ type Attendance = {
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
   marked_absent_at?: string | null;
 };
-type AttendanceResponse = { day: string; workers: Worker[]; records: Attendance[] };
+type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
 type Action = "check-in" | "check-out" | "mark-absent";
+type Summary = { key: string; minutes: number; shifts: number };
 
 function tunisParts(value: Date) {
   return Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
@@ -29,6 +30,7 @@ function localDay() {
   const parts = tunisParts(new Date());
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+function firstDayOfMonth(day: string) { return `${day.slice(0, 7)}-01`; }
 function localDateTime(value: string | null | undefined) {
   if (!value) return "";
   const parts = tunisParts(new Date(value));
@@ -46,30 +48,62 @@ function tunisInputToIso(value: string) {
 function displayTime(value: string | null | undefined, locale: string) {
   return value ? new Date(value).toLocaleTimeString(locale, { timeZone: "Africa/Tunis", hour: "2-digit", minute: "2-digit" }) : "—";
 }
+function workedMinutes(record: Attendance): number {
+  if (record.status !== "PRESENT" || !record.check_in_at || !record.check_out_at) return 0;
+  const elapsed = new Date(record.check_out_at).getTime() - new Date(record.check_in_at).getTime();
+  // Invalid, reversed, or over-24-hour shifts are excluded pending manager review.
+  if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 24 * 60 * 60 * 1000) return 0;
+  return Math.floor(elapsed / 60000);
+}
+function weekStart(day: string) {
+  const date = new Date(`${day}T00:00:00Z`);
+  const offset = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - offset);
+  return date.toISOString().slice(0, 10);
+}
+function durationLabel(minutes: number) {
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}`;
+}
+function summarize(records: Attendance[], period: (record: Attendance) => string): Summary[] {
+  const grouped = new Map<string, Summary>();
+  for (const record of records) {
+    const minutes = workedMinutes(record);
+    if (!minutes) continue;
+    const key = period(record);
+    const item = grouped.get(key) ?? { key, minutes: 0, shifts: 0 };
+    item.minutes += minutes;
+    item.shifts += 1;
+    grouped.set(key, item);
+  }
+  return [...grouped.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
 
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
   const ar = lang === "ar";
   const locale = ar ? "ar-TN" : "fr-FR";
   const qc = useQueryClient();
-  const [day, setDay] = useState(localDay);
+  const today = localDay();
+  const [startDate, setStartDate] = useState(firstDayOfMonth(today));
+  const [endDate, setEndDate] = useState(today);
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [editIn, setEditIn] = useState("");
   const [editOut, setEditOut] = useState("");
   const [reason, setReason] = useState("");
   const [editStatus, setEditStatus] = useState<"PRESENT" | "ABSENT">("PRESENT");
-  const isToday = day === localDay();
-  const queryKey = ["workforce", "attendance", day];
+  const validRange = !!startDate && !!endDate && startDate <= endDate;
+  const queryKey = ["workforce", "attendance", startDate, endDate];
   const data = useQuery({
     queryKey,
-    queryFn: () => apiGet<AttendanceResponse>(`/workforce/attendance?day=${encodeURIComponent(day)}`),
+    enabled: validRange,
+    queryFn: () => apiGet<AttendanceResponse>(`/workforce/attendance?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`),
   });
   const action = useMutation({
     mutationFn: ({ type, worker_id }: { type: Action; worker_id: string }) =>
-      apiPost<Attendance>(`/workforce/attendance/${type}`, { worker_id, day }),
+      apiPost<Attendance>(`/workforce/attendance/${type}`, { worker_id, day: today }),
     onSuccess: async () => {
       toast.success(ar ? "تم تحديث سجل العامل" : "Pointage mis à jour");
-      await qc.invalidateQueries({ queryKey });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
     },
     onError: (error) => toast.error(errMsg(error)),
   });
@@ -86,20 +120,31 @@ export default function Workforce() {
     onSuccess: async () => {
       toast.success(ar ? "تم تصحيح السجل وحفظ أثر التعديل" : "Pointage corrigé; la modification est journalisée");
       setEditing(null); setReason("");
-      await qc.invalidateQueries({ queryKey });
+      await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
     },
     onError: (error) => toast.error(errMsg(error)),
   });
-  const records = useMemo(() => new Map((data.data?.records ?? []).map((record) => [record.worker_id, record])), [data.data]);
+  const records = data.data?.records ?? [];
   const workers = data.data?.workers ?? [];
-  const counts = useMemo(() => {
-    let present = 0, absent = 0, checkedOut = 0;
-    for (const record of records.values()) {
+  const recordsToday = useMemo(() => new Map(records.filter((record) => record.day === today).map((record) => [record.worker_id, record])), [records, today]);
+  const openShiftsByWorker = useMemo(
+    () => new Map((data.data?.open_shifts ?? []).map((record) => [record.worker_id, record])),
+    [data.data?.open_shifts],
+  );
+  const daily = useMemo(() => summarize(records, (record) => record.day), [records]);
+  const weekly = useMemo(() => summarize(records, (record) => weekStart(record.day)), [records]);
+  const monthly = useMemo(() => summarize(records, (record) => record.day.slice(0, 7)), [records]);
+  const totals = useMemo(() => {
+    let minutes = 0, closed = 0, open = 0, absent = 0;
+    for (const record of records) {
+      const value = workedMinutes(record);
+      minutes += value;
       if (record.status === "ABSENT") absent++;
-      else { present++; if (record.check_out_at) checkedOut++; }
+      else if (record.check_in_at && !record.check_out_at) open++;
+      else if (value > 0) closed++;
     }
-    return { present, absent, checkedOut, pending: Math.max(0, workers.length - present - absent) };
-  }, [records, workers.length]);
+    return { minutes, closed, open, absent };
+  }, [records]);
 
   const beginEdit = (record: Attendance) => {
     setEditing(record);
@@ -108,84 +153,85 @@ export default function Workforce() {
     setReason("");
     setEditStatus(record.status);
   };
+  const renderSummary = (title: string, rows: Summary[]) => (
+    <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-3 font-semibold text-stone-900">{title}</h3>
+      {rows.length === 0 ? <p className="text-sm text-stone-500">{ar ? "لا توجد ورديات مكتملة ضمن هذه الفترة." : "Aucun quart terminé sur cette période."}</p> :
+        <div className="overflow-x-auto"><table className="w-full text-sm">
+          <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-2 text-start">{ar ? "الفترة" : "Période"}</th><th className="px-3 py-2 text-end">{ar ? "الورديات المكتملة" : "Quarts terminés"}</th><th className="px-3 py-2 text-end">{ar ? "مجموع الساعات" : "Total travaillé"}</th></tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.key} className="border-b last:border-0"><td className="px-3 py-2 font-medium" dir="ltr">{row.key}{title === (ar ? "المجموع الأسبوعي (الاثنين إلى الأحد)" : "Totaux hebdomadaires (lundi au dimanche)") ? ` → ${new Date(new Date(row.key + "T00:00:00Z").getTime() + 6 * 86400000).toISOString().slice(0, 10)}` : ""}</td><td className="px-3 py-2 text-end tabular-nums">{row.shifts}</td><td className="px-3 py-2 text-end font-semibold tabular-nums">{durationLabel(row.minutes)}</td></tr>)}</tbody>
+        </table></div>}
+    </section>
+  );
 
   return (
     <div className="space-y-5" dir={ar ? "rtl" : "ltr"} data-testid="workforce-page">
-      <PageHeader
-        title={ar ? "جدول العمال والحضور" : "Personnel et pointage"}
-        sub={ar ? "تسجيل حضور العمال وانصرافهم اليومي بواسطة المدير" : "Enregistrement quotidien des arrivées et départs par l’administrateur"}
-        accent="bg-indigo-600"
-      />
-      <section className="grid gap-3 sm:grid-cols-4">
-        {[
-          { label: ar ? "العمال النشطون" : "Employés actifs", value: workers.filter((worker) => worker.active !== false).length, icon: UserCheck, tone: "bg-sky-50 text-sky-800" },
-          { label: ar ? "حاضرون" : "Présents", value: counts.present, icon: UserCheck, tone: "bg-emerald-50 text-emerald-800" },
-          { label: ar ? "انصرفوا" : "Départs enregistrés", value: counts.checkedOut, icon: LogOut, tone: "bg-violet-50 text-violet-800" },
-          { label: ar ? "غياب مسجل" : "Absences", value: counts.absent, icon: UserX, tone: "bg-rose-50 text-rose-800" },
-        ].map((item) => (
-          <div key={item.label} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-2"><span className="text-sm text-stone-600">{item.label}</span><span className={`grid size-9 place-items-center rounded-lg ${item.tone}`}><item.icon className="size-4" /></span></div>
-            <div className="mt-2 text-2xl font-bold tabular-nums text-stone-900">{item.value}</div>
-          </div>
-        ))}
-      </section>
+      <PageHeader title={ar ? "جدول العمال والحضور" : "Personnel et pointage"} sub={ar ? "السجلات التاريخية وحساب ساعات العمل" : "Historique du pointage et calcul des heures travaillées"} accent="bg-indigo-600" />
       <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="workforce-day">{ar ? "تاريخ الحضور" : "Date du pointage"}</Label>
-            <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-stone-500" />
-              <Input id="workforce-day" data-testid="workforce-date" type="date" value={day} onChange={(event) => setDay(event.target.value)} className="w-auto" />
-            </div>
-          </div>
-          <div className="text-sm text-stone-500">{ar ? "الأوقات بتوقيت تونس، وتُحفظ داخلياً بتوقيت UTC." : "Les heures sont affichées à l’heure de Tunisie et conservées en UTC."}</div>
+        <div className="mb-4 flex flex-wrap items-end gap-4">
+          <div className="space-y-1"><Label htmlFor="workforce-start">{ar ? "من تاريخ" : "Du"}</Label><div className="flex items-center gap-2"><CalendarDays className="size-4 text-stone-500" /><Input id="workforce-start" data-testid="workforce-start-date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="w-auto" /></div></div>
+          <div className="space-y-1"><Label htmlFor="workforce-end">{ar ? "إلى تاريخ" : "Au"}</Label><Input id="workforce-end" data-testid="workforce-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="w-auto" /></div>
+          {!validRange && <p className="text-sm text-red-700">{ar ? "تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه." : "La date de début doit précéder ou égaler la date de fin."}</p>}
+          <div className="ms-auto text-sm text-stone-500">{ar ? "كل الأوقات بتوقيت تونس. لا يتم خصم الاستراحة." : "Heure de Tunisie. Aucune pause n’est déduite."}</div>
         </div>
-        {!isToday && <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{ar ? "يمكن مراجعة الأيام السابقة وتصحيح سجلاتها، أما تسجيل الحضور والانصراف والغياب فيتم لليوم الحالي فقط." : "Les journées passées restent consultables et corrigibles; les arrivées, départs et absences ne peuvent être enregistrés que pour aujourd’hui."}</p>}
-        {data.isLoading ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "جارٍ تحميل جدول العمال..." : "Chargement du pointage…"}</p> :
-          data.isError ? <p className="py-8 text-center text-sm text-red-700">{ar ? "تعذر تحميل جدول العمال." : "Impossible de charger le pointage."}</p> :
-          workers.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا توجد حسابات عمال نشطة." : "Aucun employé actif."}</p> :
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead><tr className="border-b border-stone-200 bg-stone-50 text-start text-stone-600">
-                <th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th>
-                <th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th>
-                <th className="px-3 py-3 text-start">{ar ? "وقت الحضور" : "Arrivée"}</th>
-                <th className="px-3 py-3 text-start">{ar ? "وقت الانصراف" : "Départ"}</th>
-                <th className="px-3 py-3 text-end">{ar ? "الإجراءات" : "Actions"}</th>
-              </tr></thead>
-              <tbody>
-                {workers.map((worker) => {
-                  const record = records.get(worker.id);
-                  const absent = record?.status === "ABSENT";
-                  const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
-                  const checkedOut = !!record?.check_out_at;
-                  return <tr key={worker.id} data-testid={`workforce-row-${worker.id}`} className="border-b border-stone-100 last:border-0">
-                    <td className="px-3 py-4"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-stone-900">{record?.worker_name || worker.full_name}</span>{worker.active === false && <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600">{ar ? "حساب معطّل" : "Compte désactivé"}</span>}</div><div dir="ltr" className="text-xs text-stone-500">{worker.username}</div></td>
-                    <td className="px-3 py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${absent ? "bg-rose-100 text-rose-800" : checkedOut ? "bg-violet-100 text-violet-800" : checkedIn ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                        {absent ? (ar ? "غائب" : "Absent") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل" : "Non pointé")}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4 font-mono tabular-nums">{displayTime(record?.check_in_at, locale)}</td>
-                    <td className="px-3 py-4 font-mono tabular-nums">{displayTime(record?.check_out_at, locale)}</td>
-                    <td className="px-3 py-4">
-                      <div className="flex justify-end gap-2">
-                        {worker.active !== false && !checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkin-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
-                        {checkedIn && !checkedOut && <Button size="sm" data-testid={`workforce-checkout-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
-                        {worker.active !== false && !record && <Button size="sm" variant="outline" data-testid={`workforce-absent-${worker.id}`} disabled={action.isPending || !isToday} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
-                        {record && <Button size="sm" variant="outline" data-testid={`workforce-edit-${worker.id}`} onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
-                      </div>
-                    </td>
-                  </tr>;
-                })}
-              </tbody>
-            </table>
-          </div>}
       </section>
-      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-        <Clock3 className="mt-0.5 size-4 shrink-0" />
-        <p>{ar ? "هذا السجل يحفظ أوقات الحضور والانصراف والغياب فقط. لا يحسب التأخير أو الساعات الإضافية قبل تحديد أوقات الدوام الرسمية." : "Ce registre conserve les arrivées, départs et absences. Les retards et heures supplémentaires ne seront calculés qu’après définition des horaires officiels."}</p>
-      </div>
+      {data.isLoading ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "جارٍ تحميل السجلات..." : "Chargement des pointages…"}</p> :
+       data.isError ? <p className="py-8 text-center text-sm text-red-700">{ar ? "تعذر تحميل سجلات العمال." : "Impossible de charger les pointages."}</p> : <>
+        <section className="grid gap-3 sm:grid-cols-4">
+          {[
+            { label: ar ? "إجمالي ساعات العمل" : "Total des heures", value: durationLabel(totals.minutes), tone: "bg-indigo-50 text-indigo-800" },
+            { label: ar ? "ورديات مكتملة" : "Quarts terminés", value: totals.closed, tone: "bg-emerald-50 text-emerald-800" },
+            { label: ar ? "ورديات مفتوحة (غير محسوبة)" : "Quarts ouverts (exclus)", value: totals.open, tone: "bg-amber-50 text-amber-800" },
+            { label: ar ? "غياب مسجل يدوياً" : "Absences confirmées", value: totals.absent, tone: "bg-rose-50 text-rose-800" },
+          ].map((item) => <div key={item.label} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><div className="text-sm text-stone-600">{item.label}</div><div className={`mt-2 inline-flex rounded-lg px-3 py-1 text-2xl font-bold tabular-nums ${item.tone}`}>{item.value}</div></div>)}
+        </section>
+        <div className="grid gap-4 xl:grid-cols-3">
+          {renderSummary(ar ? "المجموع اليومي" : "Totaux journaliers", daily)}
+          {renderSummary(ar ? "المجموع الأسبوعي (الاثنين إلى الأحد)" : "Totaux hebdomadaires (lundi au dimanche)", weekly)}
+          {renderSummary(ar ? "المجموع الشهري" : "Totaux mensuels", monthly)}
+        </div>
+        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 font-semibold text-stone-900">{ar ? "سجلات الحضور والانصراف للفترة" : "Historique des arrivées et départs"}</h3>
+          {records.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Aucun pointage sur la période. L’absence d’un enregistrement ne signifie pas une absence confirmée."}</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
+            <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "التاريخ" : "Date"}</th><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "المدة" : "Durée"}</th><th className="px-3 py-3 text-end">{ar ? "إجراء" : "Action"}</th></tr></thead>
+            <tbody>{records.map((record) => {
+              const minutes = workedMinutes(record);
+              const open = record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at;
+              const invalid = record.status === "PRESENT" && !!record.check_in_at && !!record.check_out_at && minutes === 0;
+              return <tr key={record.id} className="border-b last:border-0">
+                <td className="px-3 py-3 font-mono" dir="ltr">{record.day}</td><td className="px-3 py-3 font-semibold">{record.worker_name}</td>
+                <td className="px-3 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${record.status === "ABSENT" ? "bg-rose-100 text-rose-800" : open ? "bg-amber-100 text-amber-800" : invalid ? "bg-orange-100 text-orange-800" : "bg-emerald-100 text-emerald-800"}`}>{record.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : open ? (ar ? "وردية مفتوحة" : "Quart ouvert") : invalid ? (ar ? "تتطلب مراجعة" : "À vérifier") : (ar ? "مكتمل" : "Terminé")}</span></td>
+                <td className="px-3 py-3 font-mono">{displayTime(record.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record.check_out_at, locale)}</td>
+                <td className="px-3 py-3 text-end font-semibold tabular-nums">{minutes ? durationLabel(minutes) : "—"}</td>
+                <td className="px-3 py-3 text-end"><Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button></td>
+              </tr>;
+            })}</tbody>
+          </table></div>}
+        </section>
+        {startDate <= today && endDate >= today && <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-3 font-semibold text-stone-900">{ar ? "تسجيل حضور اليوم" : "Pointage du jour"} <span className="text-sm font-normal text-stone-500" dir="ltr">{today}</span></h3>
+          <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
+            <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "الإجراءات" : "Actions"}</th></tr></thead>
+            <tbody>{workers.map((worker) => {
+              // Include an overnight shift whose check-in date is outside the selected range.
+              const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
+              const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
+              const checkedOut = !!record?.check_out_at;
+              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.username}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
+                <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
+                <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
+                <td className="px-3 py-3"><div className="flex justify-end gap-2">
+                  {worker.active !== false && !checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
+                  {checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
+                  {worker.active !== false && !record && <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
+                  {record && <Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
+                </div></td></tr>;
+            })}</tbody>
+          </table></div>
+        </section>}
+      </>}
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent data-testid="workforce-correction-dialog">
           <DialogHeader><DialogTitle>{ar ? "تصحيح سجل الحضور" : "Corriger le pointage"} — {editing?.worker_name}</DialogTitle></DialogHeader>
@@ -195,10 +241,7 @@ export default function Workforce() {
             <div className="space-y-1"><Label>{ar ? "وقت الانصراف" : "Heure de départ"}</Label><Input type="datetime-local" disabled={editStatus === "ABSENT"} value={editOut} onChange={(event) => setEditOut(event.target.value)} /></div>
             <div className="space-y-1"><Label>{ar ? "سبب التصحيح (إجباري)" : "Motif de correction (obligatoire)"}</Label><Input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder={ar ? "مثال: تم إدخال وقت خاطئ" : "Ex. : heure saisie incorrectement"} /></div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>{ar ? "إلغاء" : "Annuler"}</Button>
-            <Button type="button" disabled={reason.trim().length < 5 || correction.isPending} onClick={() => correction.mutate()} className="bg-indigo-700 hover:bg-indigo-800">{ar ? "حفظ التصحيح" : "Enregistrer la correction"}</Button>
-          </DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)}>{ar ? "إلغاء" : "Annuler"}</Button><Button type="button" disabled={reason.trim().length < 5 || correction.isPending} onClick={() => correction.mutate()} className="bg-indigo-700 hover:bg-indigo-800">{ar ? "حفظ التصحيح" : "Enregistrer la correction"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

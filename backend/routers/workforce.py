@@ -60,12 +60,38 @@ async def _audit(record: dict, action: str, admin: dict, details: dict | None = 
 
 
 @router.get("/attendance")
-async def list_attendance(day: Date | None = None, _: dict = Depends(require_workforce_admin)):
-    selected_day = day or _today_tunis()
+async def list_attendance(
+    day: Date | None = None,
+    start_date: Date | None = None,
+    end_date: Date | None = None,
+    _: dict = Depends(require_workforce_admin),
+):
+    # Keep the legacy single-day contract while allowing inclusive date ranges.
+    if day is not None and (start_date is not None or end_date is not None):
+        raise HTTPException(400, "use_day_or_date_range")
+    if (start_date is None) != (end_date is None):
+        raise HTTPException(400, "both_range_dates_required")
+    selected_start = start_date or day or _today_tunis()
+    selected_end = end_date or day or selected_start
+    if selected_start > selected_end:
+        raise HTTPException(400, "start_date_after_end_date")
     records = await db["workforce_attendance"].find(
-        {"day": selected_day.isoformat()}, {"_id": 0}
-    ).sort("worker_name", 1).to_list(1000)
-    recorded_worker_ids = [record["worker_id"] for record in records]
+        {"day": {"$gte": selected_start.isoformat(), "$lte": selected_end.isoformat()}},
+        {"_id": 0},
+    ).sort([("day", 1), ("worker_name", 1)]).to_list(10000)
+    # Open shifts are operationally actionable even when their check-in date
+    # falls before the selected history range (for example, an overnight shift).
+    open_shifts = await db["workforce_attendance"].find(
+        {
+            "status": "PRESENT",
+            "check_in_at": {"$ne": None},
+            "check_out_at": None,
+        },
+        {"_id": 0},
+    ).sort([("day", -1), ("worker_name", 1)]).to_list(10000)
+    recorded_worker_ids = list({
+        record["worker_id"] for record in [*records, *open_shifts]
+    })
     workers = await db.users.find(
         {
             "role": "worker",
@@ -76,7 +102,14 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_wor
         },
         {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1},
     ).sort("full_name", 1).to_list(500)
-    return {"day": selected_day.isoformat(), "workers": workers, "records": records}
+    return {
+        "day": selected_start.isoformat() if selected_start == selected_end else None,
+        "start_date": selected_start.isoformat(),
+        "end_date": selected_end.isoformat(),
+        "workers": workers,
+        "records": records,
+        "open_shifts": open_shifts,
+    }
 
 
 @router.post("/attendance/check-in")
@@ -85,6 +118,12 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
+    open_shift = await db["workforce_attendance"].find_one(
+        {"worker_id": worker["id"], "status": "PRESENT", "check_in_at": {"$ne": None}, "check_out_at": None},
+        {"_id": 0},
+    )
+    if open_shift:
+        raise HTTPException(409, "worker_has_open_shift")
     existing = await db["workforce_attendance"].find_one(
         {"worker_id": worker["id"], "day": day}, {"_id": 0}
     )
@@ -133,12 +172,14 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_workfo
     worker = await db.users.find_one({"id": body.worker_id, "role": "worker"}, {"_id": 0, "id": 1})
     if not worker:
         raise HTTPException(404, "worker_not_found")
-    day = body.day.isoformat()
     now = datetime.now(timezone.utc)
+    # A shift belongs to its check-in date and may be closed after midnight.
     record = await db["workforce_attendance"].find_one(
-        {"worker_id": worker["id"], "day": day}, {"_id": 0}
+        {"worker_id": worker["id"], "status": "PRESENT", "check_in_at": {"$ne": None}, "check_out_at": None},
+        {"_id": 0},
+        sort=[("day", -1)],
     )
-    if not record or record.get("status") != "PRESENT" or not record.get("check_in_at"):
+    if not record:
         raise HTTPException(409, "worker_not_checked_in")
     if record.get("check_out_at"):
         raise HTTPException(409, "worker_already_checked_out")
@@ -163,6 +204,17 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_workfo
 async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
+    open_shift = await db["workforce_attendance"].find_one(
+        {
+            "worker_id": worker["id"],
+            "status": "PRESENT",
+            "check_in_at": {"$ne": None},
+            "check_out_at": None,
+        },
+        {"_id": 0, "id": 1},
+    )
+    if open_shift:
+        raise HTTPException(409, "worker_has_open_shift")
     day = body.day.isoformat()
     now = datetime.now(timezone.utc)
     record = {
@@ -216,12 +268,18 @@ async def correct_attendance(
     if check_out is not None and (check_in is None or check_out < check_in):
         raise HTTPException(400, "checkout_must_follow_checkin")
     now = datetime.now(timezone.utc)
-    for attendance_time in (check_in, check_out):
-        if attendance_time is not None:
-            if attendance_time.astimezone(ZoneInfo("Africa/Tunis")).date().isoformat() != record["day"]:
-                raise HTTPException(400, "attendance_time_must_match_day")
-            if attendance_time > now + timedelta(minutes=1):
-                raise HTTPException(400, "attendance_time_cannot_be_future")
+    if check_in is not None:
+        if check_in.astimezone(ZoneInfo("Africa/Tunis")).date().isoformat() != record["day"]:
+            raise HTTPException(400, "checkin_time_must_match_day")
+        if check_in > now + timedelta(minutes=1):
+            raise HTTPException(400, "attendance_time_cannot_be_future")
+    if check_out is not None:
+        checkout_day = check_out.astimezone(ZoneInfo("Africa/Tunis")).date()
+        record_day = Date.fromisoformat(record["day"])
+        if checkout_day not in (record_day, record_day + timedelta(days=1)):
+            raise HTTPException(400, "checkout_must_be_on_shift_day_or_next_day")
+        if check_out > now + timedelta(minutes=1):
+            raise HTTPException(400, "attendance_time_cannot_be_future")
     if status == "ABSENT" and (check_in is not None or check_out is not None):
         raise HTTPException(400, "absent_cannot_have_times")
     if not changes:

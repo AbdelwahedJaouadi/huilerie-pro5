@@ -47,3 +47,50 @@ def test_workforce_page_uses_tunisian_clock_and_admin_navigation():
     assert 'timeZone: "Africa/Tunis"' in page
     assert '"/workforce"' in shell
     assert 'admin: true' in shell
+
+
+def test_workforce_range_endpoint_supports_inclusive_history_without_changing_legacy_day():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert "start_date: Date | None = None" in source
+    assert "end_date: Date | None = None" in source
+    assert '"$gte": selected_start.isoformat()' in source
+    assert '"$lte": selected_end.isoformat()' in source
+    assert '"use_day_or_date_range"' in source
+    assert 'return {' in source and '"start_date": selected_start.isoformat()' in source
+
+
+def test_workforce_prevents_second_checkin_until_open_shift_is_closed():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert '"worker_has_open_shift"' in source
+    assert '"check_out_at": None' in source
+    assert "checkout_must_be_on_shift_day_or_next_day" in source
+
+
+def test_workforce_ui_has_date_range_and_daily_weekly_monthly_summaries():
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    assert "start_date=" in page and "end_date=" in page
+    assert "summarize(records, (record) => record.day)" in page
+    assert "weekStart(record.day)" in page
+    assert 'record.day.slice(0, 7)' in page
+    assert "elapsed > 24 * 60 * 60 * 1000" in page
+    assert "Aucune pause n’est déduite." in page
+    assert "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." in page
+
+
+
+def test_open_overnight_shifts_remain_visible_outside_selected_history_range():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    assert '"open_shifts": open_shifts' in source
+    assert '"check_out_at": None' in source
+    assert "openShiftsByWorker" in page
+    assert "recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id)" in page
+
+
+def test_absence_cannot_be_marked_while_worker_has_an_open_shift():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    route = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "mark_absent")
+    route_source = ast.get_source_segment(source, route)
+    assert '"worker_has_open_shift"' in route_source
+    assert 'raise HTTPException(409, "worker_has_open_shift")' in route_source
