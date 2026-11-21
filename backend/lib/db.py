@@ -31,8 +31,6 @@ INDEXES: dict[str, list[IndexModel]] = {
     "employees": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("active", ASCENDING), ("full_name", ASCENDING)], name="active_full_name"),
-        IndexModel([("user_id", ASCENDING)], name="user_id", unique=True,
-                   partialFilterExpression={"user_id": {"$type": "string"}}),
     ],
     "workforce_attendance": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
@@ -118,6 +116,11 @@ REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
 
 
 async def ensure_indexes() -> None:
+    # Remove the obsolete account-link index from earlier employee-registry drafts.
+    try:
+        await db.employees.drop_index("user_id")
+    except Exception:
+        pass
     for collection, models in INDEXES.items():
         for model in models:  # one at a time so a bad spec skips only itself
             try:
