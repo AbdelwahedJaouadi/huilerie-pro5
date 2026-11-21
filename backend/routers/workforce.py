@@ -54,27 +54,41 @@ def _ensure_today(day: Date):
 
 
 async def _ensure_legacy_employee_records():
-    """Preserve existing worker IDs so historical attendance remains attached."""
-    async for user in db.users.find({"role": "worker"}, {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1}):
-        full_name = str(user.get("full_name") or user.get("username") or "Worker").strip()
+    """Import legacy workers once, preserving IDs used by historical attendance."""
+    migration_key = "workforce_employees_registry_v1"
+    if await db.settings.find_one({"key": migration_key}, {"_id": 1}):
+        return
+    # Upserts are idempotent: if a request is interrupted, the next request safely resumes.
+    async for user in db.users.find(
+        {"role": "worker"},
+        {"_id": 0, "id": 1, "full_name": 1, "active": 1},
+    ):
+        worker_id = user.get("id")
+        if not worker_id:
+            continue
+        full_name = str(user.get("full_name") or "Worker").strip() or "Worker"
         await db.employees.update_one(
-            {"id": user["id"]},
+            {"id": worker_id},
             {"$setOnInsert": {
-                "id": user["id"], "first_name": full_name, "last_name": "",
+                "id": worker_id, "first_name": full_name, "last_name": "",
                 "full_name": full_name, "phone": "", "address": "",
                 "salary_amount": None, "salary_type": "monthly",
-                "user_id": user["id"], "username": user.get("username"),
                 "active": bool(user.get("active")), "archived": not bool(user.get("active")),
                 "created_at": datetime.now(timezone.utc),
             }},
             upsert=True,
         )
+    await db.settings.update_one(
+        {"key": migration_key},
+        {"$set": {"key": migration_key, "value": True, "completed_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
 
 
 async def _active_worker(worker_id: str):
     worker = await db.employees.find_one(
         {"id": worker_id, "active": True, "archived": {"$ne": True}},
-        {"_id": 0, "id": 1, "full_name": 1, "username": 1},
+        {"_id": 0, "id": 1, "full_name": 1},
     )
     if not worker:
         raise HTTPException(404, "active_worker_not_found")
@@ -104,7 +118,7 @@ async def create_worker(body: EmployeeCreate, admin: dict = Depends(require_work
         "last_name": body.last_name.strip(), "full_name": _employee_name(first_name, body.last_name),
         "phone": body.phone.strip(), "address": body.address.strip(),
         "salary_amount": body.salary_amount, "salary_type": body.salary_type,
-        "user_id": None, "username": None, "active": True, "archived": False,
+        "active": True, "archived": False,
         "created_at": now, "updated_at": now, "created_by": admin.get("id"),
     }
     await db.employees.insert_one(employee)
@@ -148,8 +162,8 @@ async def delete_worker(worker_id: str, admin: dict = Depends(require_workforce_
     if not worker:
         raise HTTPException(404, "worker_not_found")
     attendance_count = await db["workforce_attendance"].count_documents({"worker_id": worker_id})
-    # Keep an archived employee whenever attendance or an application account refers to it.
-    if attendance_count or worker.get("user_id"):
+    # Preserve historical references; otherwise remove the unused employee record.
+    if attendance_count:
         await db.employees.update_one(
             {"id": worker_id},
             {"$set": {"active": False, "archived": True, "updated_at": datetime.now(timezone.utc), "archived_by": admin.get("id")}},
@@ -215,7 +229,7 @@ async def list_attendance(
                 {"id": {"$in": recorded_worker_ids}},
             ],
         },
-        {"_id": 0, "id": 1, "full_name": 1, "first_name": 1, "last_name": 1, "username": 1, "active": 1, "salary_type": 1, "salary_amount": 1},
+        {"_id": 0, "id": 1, "full_name": 1, "first_name": 1, "last_name": 1, "active": 1, "salary_type": 1, "salary_amount": 1},
     ).sort("full_name", 1).to_list(2000)
     return {
         "day": selected_start.isoformat() if selected_start == selected_end else None,
