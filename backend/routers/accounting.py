@@ -861,6 +861,22 @@ def _daily_event(events: list[dict], *, day: str | None, category: str,
     })
 
 
+def _append_traditional_invoice_receipts(invoice: dict, events: list[dict]) -> Decimal:
+    """Append only itemized receipt evidence; history is audit metadata, not cash."""
+    known_paid = Decimal("0.000")
+    for payment in invoice.get("payments") or []:
+        amount = _accounting_decimal(payment.get("amount"))
+        payment_day = _accounting_day(payment.get("at") or payment.get("date"))
+        if amount > 0 and payment_day:
+            _daily_event(
+                events, day=payment_day, category="Prestation", label="Encaissement facture",
+                reference=invoice.get("number", ""), amount=amount, kind="receipt",
+                detail=invoice.get("client_name", ""),
+            )
+            known_paid += amount
+    return known_paid
+
+
 @router.get("/daily-situation")
 async def accounting_daily_situation(
     report_date: str | None = None,
@@ -909,27 +925,9 @@ async def accounting_daily_situation(
                      reference=invoice.get("number", ""), amount=invoice.get("total"), kind="revenue",
                      detail=invoice.get("client_name", ""))
         current_receivables += max(Decimal("0"), _accounting_decimal(invoice.get("balance")))
-        known_paid = Decimal("0.000")
-        for payment in invoice.get("payments") or []:
-            amount = _accounting_decimal(payment.get("amount"))
-            payment_day = _accounting_day(payment.get("at") or payment.get("date"))
-            if amount > 0 and payment_day:
-                _daily_event(events, day=payment_day, category="Prestation", label="Encaissement facture",
-                             reference=invoice.get("number", ""), amount=amount, kind="receipt",
-                             detail=invoice.get("client_name", ""))
-                known_paid += amount
-        for history in invoice.get("history") or []:
-            if history.get("action") != "updated":
-                continue
-            before = _accounting_decimal((history.get("before") or {}).get("paid_amount"))
-            after = _accounting_decimal((history.get("after") or {}).get("paid_amount"))
-            delta = after - before
-            history_day = _accounting_day(history.get("at"))
-            if delta > 0 and history_day:
-                _daily_event(events, day=history_day, category="Prestation", label="Encaissement facture",
-                             reference=invoice.get("number", ""), amount=delta, kind="receipt",
-                             detail=invoice.get("client_name", ""))
-                known_paid += delta
+        # Payment children are canonical; history remains audit evidence only.
+        known_paid = _append_traditional_invoice_receipts(invoice, events)
+        # Legacy paid_amount without itemized receipt evidence stays unallocated.
         unallocated_receipts += max(Decimal("0"), _accounting_decimal(invoice.get("paid_amount")) - known_paid)
 
     for purchase in supplier_purchases:
