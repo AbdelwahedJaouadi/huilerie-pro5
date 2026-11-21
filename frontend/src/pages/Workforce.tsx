@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, UserCheck, UserX } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
