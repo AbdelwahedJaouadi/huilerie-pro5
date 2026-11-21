@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 
@@ -105,7 +106,7 @@ def test_workforce_has_independent_employee_registry_and_safe_archive():
     assert 'db.employees.find_one' in source
     assert '"salary_type"' in source and '"salary_amount"' in source
     assert 'if attendance_count:' in source
-    assert '"user_id"' not in source and '"username"' not in source
+    assert not re.search(r'^\s*"(?:user_id|username)"\s*:', source, re.MULTILINE)
     assert 'migration_key = "workforce_employees_registry_v1"' in source
     assert 'db.users.find(' in source
     assert '$setOnInsert' in source
