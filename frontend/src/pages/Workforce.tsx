@@ -16,7 +16,7 @@ type Attendance = {
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
   marked_absent_at?: string | null;
 };
-type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[] };
+type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
 type Action = "check-in" | "check-out" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
@@ -127,6 +127,10 @@ export default function Workforce() {
   const records = data.data?.records ?? [];
   const workers = data.data?.workers ?? [];
   const recordsToday = useMemo(() => new Map(records.filter((record) => record.day === today).map((record) => [record.worker_id, record])), [records, today]);
+  const openShiftsByWorker = useMemo(
+    () => new Map((data.data?.open_shifts ?? []).map((record) => [record.worker_id, record])),
+    [data.data?.open_shifts],
+  );
   const daily = useMemo(() => summarize(records, (record) => record.day), [records]);
   const weekly = useMemo(() => summarize(records, (record) => weekStart(record.day)), [records]);
   const monthly = useMemo(() => summarize(records, (record) => record.day.slice(0, 7)), [records]);
@@ -210,10 +214,11 @@ export default function Workforce() {
           <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
             <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "الإجراءات" : "Actions"}</th></tr></thead>
             <tbody>{workers.map((worker) => {
-              const record = recordsToday.get(worker.id);
+              // Include an overnight shift whose check-in date is outside the selected range.
+              const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
               const checkedOut = !!record?.check_out_at;
-              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.username}</div></td>
+              return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.username}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
                 <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
                 <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
                 <td className="px-3 py-3"><div className="flex justify-end gap-2">
