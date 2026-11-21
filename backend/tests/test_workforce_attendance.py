@@ -104,6 +104,19 @@ def test_workforce_has_independent_employee_registry_and_safe_archive():
     assert '@router.delete("/workers/{worker_id}")' in source
     assert 'db.employees.find_one' in source
     assert '"salary_type"' in source and '"salary_amount"' in source
-    assert 'attendance_count or worker.get("user_id")' in source
-    assert 'await _ensure_legacy_employee_records()' in source
-    assert 'full_name = str(user.get("full_name")' in source
+    assert 'if attendance_count:' in source
+    assert '"user_id"' not in source and '"username"' not in source
+    assert 'migration_key = "workforce_employees_registry_v1"' in source
+    assert 'db.users.find(' in source
+    assert '$setOnInsert' in source
+
+
+def test_employee_registry_import_is_one_time_and_has_no_account_link_fields():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert 'migration_key = "workforce_employees_registry_v1"' in source
+    assert 'db.settings.find_one({"key": migration_key}' in source
+    assert 'db.settings.update_one(' in source
+    assert '"user_id"' not in source and '"username"' not in source
+    indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
+    employee_indexes = indexes[indexes.index('"employees"'):indexes.index('"workforce_attendance"')]
+    assert "user_id" not in employee_indexes
