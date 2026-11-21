@@ -23,6 +23,7 @@ import Comptabilite from "@/pages/Comptabilite";
 import Login from "@/pages/Login";
 import Help from "@/pages/Help";
 import Workforce from "@/pages/Workforce";
+import ManagerDashboard from "@/pages/ManagerDashboard";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="/loads" element={<Loads />} />
           <Route path="/lab" element={<Lab />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/workforce" element={<Workforce />} />
           <Route path="/clients" element={<Clients />} />
           <Route path="/reports" element={<Reports />} />
