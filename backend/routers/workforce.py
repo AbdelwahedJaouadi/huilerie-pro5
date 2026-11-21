@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from lib.auth import require_admin
+from lib.workforce_auth import require_workforce_admin
 from lib.db import db, run_transaction
 
 router = APIRouter(prefix="/workforce", tags=["workforce"])
@@ -60,7 +60,7 @@ async def _audit(record: dict, action: str, admin: dict, details: dict | None = 
 
 
 @router.get("/attendance")
-async def list_attendance(day: Date | None = None, _: dict = Depends(require_admin)):
+async def list_attendance(day: Date | None = None, _: dict = Depends(require_workforce_admin)):
     selected_day = day or _today_tunis()
     records = await db["workforce_attendance"].find(
         {"day": selected_day.isoformat()}, {"_id": 0}
@@ -80,7 +80,7 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_adm
 
 
 @router.post("/attendance/check-in")
-async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin)):
+async def check_in(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
@@ -128,7 +128,7 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_admin))
 
 
 @router.post("/attendance/check-out")
-async def check_out(body: AttendanceAction, admin: dict = Depends(require_admin)):
+async def check_out(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
     worker = await db.users.find_one({"id": body.worker_id, "role": "worker"}, {"_id": 0, "id": 1})
     if not worker:
@@ -160,7 +160,7 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_admin)
 
 
 @router.post("/attendance/mark-absent")
-async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_admin)):
+async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
     _ensure_today(body.day)
     worker = await _active_worker(body.worker_id)
     day = body.day.isoformat()
@@ -186,7 +186,7 @@ async def mark_absent(body: AttendanceAction, admin: dict = Depends(require_admi
 async def correct_attendance(
     attendance_id: str,
     body: AttendanceCorrection,
-    admin: dict = Depends(require_admin),
+    admin: dict = Depends(require_workforce_admin),
 ):
     record = await db["workforce_attendance"].find_one(
         {"id": attendance_id}, {"_id": 0}
