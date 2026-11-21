@@ -60,12 +60,28 @@ async def _audit(record: dict, action: str, admin: dict, details: dict | None = 
 
 
 @router.get("/attendance")
-async def list_attendance(day: Date | None = None, _: dict = Depends(require_workforce_admin)):
-    selected_day = day or _today_tunis()
+async def list_attendance(
+    day: Date | None = None,
+    start_date: Date | None = None,
+    end_date: Date | None = None,
+    _: dict = Depends(require_workforce_admin),
+):
+    # Keep the legacy single-day contract while allowing inclusive date ranges.
+    if day is not None and (start_date is not None or end_date is not None):
+        raise HTTPException(400, "use_day_or_date_range")
+    if (start_date is None) != (end_date is None):
+        raise HTTPException(400, "both_range_dates_required")
+    selected_start = start_date or day or _today_tunis()
+    selected_end = end_date or day or selected_start
+    if selected_start > selected_end:
+        raise HTTPException(400, "start_date_after_end_date")
+    if (selected_end - selected_start).days > 730:
+        raise HTTPException(400, "date_range_too_large")
     records = await db["workforce_attendance"].find(
-        {"day": selected_day.isoformat()}, {"_id": 0}
-    ).sort("worker_name", 1).to_list(1000)
-    recorded_worker_ids = [record["worker_id"] for record in records]
+        {"day": {"$gte": selected_start.isoformat(), "$lte": selected_end.isoformat()}},
+        {"_id": 0},
+    ).sort([("day", 1), ("worker_name", 1)]).to_list(10000)
+    recorded_worker_ids = list({record["worker_id"] for record in records})
     workers = await db.users.find(
         {
             "role": "worker",
@@ -76,7 +92,13 @@ async def list_attendance(day: Date | None = None, _: dict = Depends(require_wor
         },
         {"_id": 0, "id": 1, "full_name": 1, "username": 1, "active": 1},
     ).sort("full_name", 1).to_list(500)
-    return {"day": selected_day.isoformat(), "workers": workers, "records": records}
+    return {
+        "day": selected_start.isoformat() if selected_start == selected_end else None,
+        "start_date": selected_start.isoformat(),
+        "end_date": selected_end.isoformat(),
+        "workers": workers,
+        "records": records,
+    }
 
 
 @router.post("/attendance/check-in")
