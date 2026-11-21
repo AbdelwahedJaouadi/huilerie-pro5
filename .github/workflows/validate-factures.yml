@@ -62,6 +62,7 @@ jobs:
         run: >-
           python -m pytest -o addopts=
           tests/test_workforce_attendance.py
+          tests/test_workforce_auth_guard.py
           tests/test_invoices_unit.py
           tests/test_client_accounts_unit.py
           tests/test_tunisie_sms_phone_unit.py
