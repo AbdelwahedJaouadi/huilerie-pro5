@@ -94,3 +94,16 @@ def test_absence_cannot_be_marked_while_worker_has_an_open_shift():
     route_source = ast.get_source_segment(source, route)
     assert '"worker_has_open_shift"' in route_source
     assert 'raise HTTPException(409, "worker_has_open_shift")' in route_source
+
+
+def test_workforce_has_independent_employee_registry_and_safe_archive():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert '@router.get("/workers")' in source
+    assert '@router.post("/workers")' in source
+    assert '@router.patch("/workers/{worker_id}")' in source
+    assert '@router.delete("/workers/{worker_id}")' in source
+    assert 'db.employees.find_one' in source
+    assert '"salary_type"' in source and '"salary_amount"' in source
+    assert 'attendance_count or worker.get("user_id")' in source
+    assert 'await _ensure_legacy_employee_records()' in source
+    assert 'full_name = str(user.get("full_name")' in source
