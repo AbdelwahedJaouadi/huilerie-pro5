@@ -160,7 +160,9 @@ def test_traditional_receipt_with_stable_id_is_proposed_as_inflow():
     assert candidate["source_id"] == "traditional-payment-1"
     assert candidate["direction"] == "IN"
     assert candidate["amount"] == "12.500"
+    assert candidate["business_date"] == "2026-11-20"
     assert candidate["eligibility"] == "ELIGIBLE_FOR_REVIEW"
+    assert candidate["blocking_reasons"] == []
 
 
 def test_traditional_legacy_receipt_without_id_is_unresolved_not_synthesized():
