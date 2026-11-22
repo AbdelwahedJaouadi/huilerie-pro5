@@ -379,20 +379,23 @@ async def create_supplier_oil_purchase(
         if prior.get("request_fingerprint") != fingerprint:
             raise ValueError("Idempotency key was used for a different supplier oil purchase")
         return prior
-    from commercial.services.numbering import reserve_document_number
+    from commercial.services.numbering import reserve_batch_code
     from decimal import ROUND_HALF_UP
     total = (draft.quantity_l * draft.unit_price_tnd_per_l).quantize(
         Decimal("0.001"), rounding=ROUND_HALF_UP
     )
-    number = await reserve_document_number(
-        db["commercial_counters"], season_code, "AH", session=session
+    # Share the exact same A-code sequence as olive purchases.
+    batch_code = await reserve_batch_code(
+        db["commercial_counters"], season_code, session=session
     )
     now = created_at.astimezone(timezone.utc)
     record = {
         "id": purchase_id,
         "season_code": season_code,
-        "document_type": "AH",
-        "document_number": number,
+        "document_type": "ACH",
+        "document_number": batch_code,
+        "batch_code": batch_code,
+        "batch_codes": [batch_code],
         "purchase_kind": "OIL",
         "product_kind": "OIL",
         "supplier_id": draft.supplier_id,
@@ -428,7 +431,8 @@ async def create_supplier_oil_purchase(
         "actor_user_id": actor_user_id,
         "created_at": now,
         "details": {
-            "document_number": number,
+            "document_number": batch_code,
+            "batch_code": batch_code,
             "supplier_id": draft.supplier_id,
             "purchase_date": draft.purchase_date.isoformat(),
             "oil_type": draft.oil_type.strip(),
