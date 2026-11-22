@@ -33,6 +33,7 @@ function localDay() {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 function firstDayOfMonth(day: string) { return `${day.slice(0, 7)}-01`; }
+function lastDayOfMonth(day: string) { const [year, month] = day.slice(0, 7).split("-").map(Number); return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10); }
 function localDateTime(value: string | null | undefined) {
   if (!value) return "";
   const parts = tunisParts(new Date(value));
@@ -115,7 +116,7 @@ function printWorkforceReport({ records, workers, startDate, endDate, ar, locale
     return "<tr><th class=\"worker\">" + escapeReportHtml(worker.full_name) + "</th>" + cells + "<td class=\"total\"><b>" + workedDays + "</b> " + labels.days + "<br><b>" + durationLabel(minutes) + "</b> " + labels.hours + "</td></tr>";
   }).join("");
   const html = "<!doctype html><html lang=\"" + (ar ? "ar" : "fr") + "\" dir=\"" + (ar ? "rtl" : "ltr") + "\"><meta charset=\"utf-8\"><title>" + labels.title + "</title>" +
-    "<style>@page{size:A3 landscape;margin:10mm}body{font-family:Tahoma,Arial,sans-serif;font-size:8px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #ddd;padding:4px 2px;text-align:center;overflow-wrap:anywhere;font-size:" + (days.length > 24 ? "6px" : "8px") + "}thead th{background:#34451f;color:white}.worker{text-align:start;background:#f3f5ef}.present{background:#e9f4eb;color:#245c37}.absent{background:#fde8e8;color:#a12b2b}.empty{color:#999}.total{background:#f3f5ef;color:#34451f}</style>" +
+    "<style>@page{size:A3 landscape;margin:8mm}html,body{width:100%;margin:0}body{font-family:Tahoma,Arial,sans-serif;font-size:8px;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1{color:#34451f}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #ddd;padding:4px 2px;text-align:center;overflow-wrap:anywhere;font-size:" + (days.length > 24 ? "6px" : "8px") + "}thead th{background:#34451f;color:white}.worker{text-align:start;background:#f3f5ef}.present{background:#e9f4eb;color:#245c37}.absent{background:#fde8e8;color:#a12b2b}.empty{color:#999}.total{background:#f3f5ef;color:#34451f}</style>" +
     "<h1>ORO VERDE — " + labels.title + "</h1><p>" + labels.period + ": " + startDate + " — " + endDate + "</p>" +
     "<table><thead><tr><th class=\"worker\">" + labels.employee + "</th>" + head + "<th class=\"total\">" + labels.total + "</th></tr></thead><tbody>" + body + "</tbody></table><p>" + labels.note + "</p>" +
     "<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></html>";
@@ -128,7 +129,7 @@ export default function Workforce() {
   const qc = useQueryClient();
   const today = localDay();
   const [startDate, setStartDate] = useState(firstDayOfMonth(today));
-  const [endDate, setEndDate] = useState(today);
+  const [endDate, setEndDate] = useState(lastDayOfMonth(today));
   const [selectedWorkerId, setSelectedWorkerId] = useState("all");
   const [editing, setEditing] = useState<Attendance | null>(null);
   const [editIn, setEditIn] = useState("");
