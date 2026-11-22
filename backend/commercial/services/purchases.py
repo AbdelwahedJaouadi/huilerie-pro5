@@ -351,3 +351,91 @@ async def cancel_olive_purchase_draft(
         },
     }, session=session)
     return await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)
+
+
+async def create_supplier_oil_purchase(
+    db: Any, draft: Any, *, season_code: str, actor_user: dict[str, Any],
+    actor_user_id: str, purchase_id: str, audit_event_id: str,
+    created_at: datetime, session: Any,
+) -> dict[str, Any]:
+    """Record purchased ready oil without creating a lot or stock movement."""
+    require_commercial_permission(actor_user, "commercial.manage_purchases")
+    if not actor_user_id or not purchase_id or not audit_event_id or created_at.tzinfo is None:
+        raise ValueError("Stable actor, document identifiers, and timezone-aware timestamp are required")
+    supplier = await db["commercial_suppliers"].find_one(
+        {"id": draft.supplier_id, "active": True}, {"_id": 0, "id": 1, "name": 1, "phone": 1},
+        session=session,
+    )
+    if not supplier:
+        raise ValueError("Unknown or inactive commercial supplier")
+    collection = db["commercial_olive_purchases"]
+    scope = f"{season_code}:{actor_user_id}"
+    fingerprint = _fingerprint(draft)
+    prior = await collection.find_one(
+        {"idempotency_scope": scope, "idempotency_key": draft.idempotency_key},
+        {"_id": 0}, session=session,
+    )
+    if prior:
+        if prior.get("request_fingerprint") != fingerprint:
+            raise ValueError("Idempotency key was used for a different supplier oil purchase")
+        return prior
+    from commercial.services.numbering import reserve_document_number
+    from decimal import ROUND_HALF_UP
+    total = (draft.quantity_l * draft.unit_price_tnd_per_l).quantize(
+        Decimal("0.001"), rounding=ROUND_HALF_UP
+    )
+    number = await reserve_document_number(
+        db["commercial_counters"], season_code, "AH", session=session
+    )
+    now = created_at.astimezone(timezone.utc)
+    record = {
+        "id": purchase_id,
+        "season_code": season_code,
+        "document_type": "AH",
+        "document_number": number,
+        "purchase_kind": "OIL",
+        "product_kind": "OIL",
+        "supplier_id": draft.supplier_id,
+        "supplier_name": supplier.get("name"),
+        "supplier_phone": supplier.get("phone"),
+        "purchase_date": draft.purchase_date.isoformat(),
+        "oil_type": draft.oil_type.strip(),
+        "quantity_l": Decimal128(draft.quantity_l),
+        "unit_price_tnd_per_l": Decimal128(draft.unit_price_tnd_per_l),
+        "total_quantity_l": Decimal128(draft.quantity_l),
+        "total_amount_dt": Decimal128(total),
+        "paid_amount_dt": Decimal128(Decimal("0.000")),
+        "outstanding_amount_dt": Decimal128(total),
+        "payment_status": "UNPAID",
+        "currency": "TND",
+        "notes": draft.notes,
+        "status": "APPROVED",
+        "inventory_status": "NOT_RECEIVED",
+        "version": 1,
+        "idempotency_scope": scope,
+        "idempotency_key": draft.idempotency_key,
+        "request_fingerprint": fingerprint,
+        "created_by": actor_user_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await collection.insert_one(record, session=session)
+    await db["commercial_audit_events"].insert_one({
+        "id": audit_event_id,
+        "entity_type": "commercial_supplier_oil_purchase",
+        "entity_id": purchase_id,
+        "action": "SUPPLIER_OIL_PURCHASE_RECORDED",
+        "actor_user_id": actor_user_id,
+        "created_at": now,
+        "details": {
+            "document_number": number,
+            "supplier_id": draft.supplier_id,
+            "purchase_date": draft.purchase_date.isoformat(),
+            "oil_type": draft.oil_type.strip(),
+            "quantity_l": Decimal128(draft.quantity_l),
+            "unit_price_tnd_per_l": Decimal128(draft.unit_price_tnd_per_l),
+            "total_amount_tnd": Decimal128(total),
+            "inventory_status": "NOT_RECEIVED",
+        },
+    }, session=session)
+    return record
