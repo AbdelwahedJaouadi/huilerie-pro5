@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -89,6 +89,11 @@ export default function SearchPage() {
   });
   const results = list.isError ? [] : (list.data?.loads ?? []);
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
+  useEffect(() => {
+    if (!selectedCode && term && list.isSuccess && results.length === 1) {
+      setSelectedCode(results[0].code);
+    }
+  }, [selectedCode, term, list.isSuccess, results]);
   const notFound = (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0);
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
@@ -141,7 +146,7 @@ export default function SearchPage() {
 
       </div>
 
-      {!!term && (results.length > 0 || commercialResults.length > 0) && (
+      {!!term && !selectedCode && (results.length > 0 || commercialResults.length > 0) && (
         <div className="min-w-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm" data-testid="search-results">
           <div className="border-b border-stone-100 bg-stone-50 px-4 py-2 text-sm font-semibold text-stone-600">{t("results")} ({results.length + commercialResults.length}) — Oroverde + GS</div>
           <ul className="divide-y divide-stone-100">
