@@ -549,7 +549,7 @@ export default function Lab() {
                 <TableCell className="text-end">{fmtNum(r.oil_content_pct, 1)}</TableCell>
                 <TableCell><GradeBadge grade={r.classification} /></TableCell>
                 <TableCell className="text-sm font-medium text-stone-800">{loadsList.data?.find((load) => load.id === r.load_id)?.variety || "—"}</TableCell>
-                <TableCell className="text-xs text-stone-500" dir="ltr">{fmtDate(loadsList.data?.find((load) => load.id === r.load_id)?.day)}</TableCell>
+                <TableCell className="text-xs text-stone-500" dir="ltr">{(() => { const loadDate = loadsList.data?.find((load) => load.id === r.load_id)?.day; return loadDate ? fmtDate(loadDate) : "—"; })()}</TableCell>
                 <TableCell className="text-end">
                   <Link to={`/certificate/${r.id}`} data-testid={`lab-certificate-${r.code}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                     <Award className="size-4 text-emerald-600" /> Certificat
