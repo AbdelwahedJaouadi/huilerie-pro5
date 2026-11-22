@@ -2107,7 +2107,9 @@ async def test_supplier_ready_oil_purchase_is_separate_from_later_partial_tank_r
                     db, purchase_id, first_draft, actor_user=actor,
                     actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
                     lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
-                    audit_event_id=str(uuid.uuid4()), received_at=now, session=active,
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
                 )
             )
         assert first["purchase"]["inventory_status"] == "PARTIALLY_RECEIVED"
@@ -2121,7 +2123,9 @@ async def test_supplier_ready_oil_purchase_is_separate_from_later_partial_tank_r
                     db, purchase_id, first_draft, actor_user=actor,
                     actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
                     lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
-                    audit_event_id=str(uuid.uuid4()), received_at=now, session=active,
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
                 )
             )
         assert replay["receipt"]["id"] == first["receipt"]["id"]
@@ -2138,7 +2142,9 @@ async def test_supplier_ready_oil_purchase_is_separate_from_later_partial_tank_r
                     db, purchase_id, second_draft, actor_user=actor,
                     actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
                     lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
-                    audit_event_id=str(uuid.uuid4()), received_at=now, session=active,
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
                 )
             )
         assert second["purchase"]["inventory_status"] == "RECEIVED"
