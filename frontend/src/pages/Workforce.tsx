@@ -251,6 +251,7 @@ export default function Workforce() {
   const emptyEmployee: EmployeeDraft = { first_name: "", last_name: "", phone: "", address: "", salary_amount: "", salary_type: "monthly" };
   const [employeeDraft, setEmployeeDraft] = useState<EmployeeDraft>(emptyEmployee);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState<Worker | null>(null);
   const employeesQuery = useQuery({
     queryKey: ["workforce", "employees"],
     queryFn: () => apiGet<WorkersResponse>("/workforce/workers"),
@@ -271,11 +272,10 @@ export default function Workforce() {
     onError: (error) => toast.error(errMsg(error)),
   });
   const removeEmployee = useMutation({
-    mutationFn: (id: string) => apiDelete<{ ok: boolean; archived: boolean; deleted: boolean }>(`/workforce/workers/${id}`),
-    onSuccess: async (result) => {
-      toast.success(result.archived
-        ? (ar ? "تمت أرشفة العامل للحفاظ على سجلات حضوره" : "Employé archivé pour préserver son historique")
-        : (ar ? "تم حذف العامل" : "Employé supprimé"));
+    mutationFn: (id: string) => apiDelete<{ ok: boolean; deleted: boolean; attendance_deleted: number; events_deleted: number }>(`/workforce/workers/${id}`),
+    onSuccess: async () => {
+      setDeletingEmployee(null);
+      toast.success(ar ? "تم حذف العامل وجميع سجلاته نهائياً" : "Employé et historique supprimés définitivement");
       await qc.invalidateQueries({ queryKey: ["workforce", "employees"] });
       await qc.invalidateQueries({ queryKey: ["workforce", "attendance"] });
     },
@@ -463,10 +463,23 @@ export default function Workforce() {
           <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><Button type="submit" disabled={saveEmployee.isPending}>{editingEmployee ? (ar ? "حفظ التعديل" : "Enregistrer") : (ar ? "إضافة عامل" : "Ajouter un employé")}</Button>{editingEmployee && <Button type="button" variant="outline" onClick={()=>{setEditingEmployee(null);setEmployeeDraft(emptyEmployee);}}>{ar ? "إلغاء التعديل" : "Annuler"}</Button>}</div>
         </form>
         {employeesQuery.isLoading ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل سجل العمال..." : "Chargement du registre…"}</p> : employeesQuery.isError ? <p className="text-sm text-red-700">{ar ? "تعذر تحميل سجل العمال" : "Impossible de charger le registre"}</p> :
-          <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b bg-stone-50 text-stone-600"><th className="p-2 text-start">{ar ? "العامل" : "Employé"}</th><th className="p-2 text-start">{ar ? "الهاتف" : "Téléphone"}</th><th className="p-2 text-start">{ar ? "العنوان" : "Adresse"}</th><th className="p-2 text-end">{ar ? "الأجر" : "Salaire"}</th><th className="p-2 text-start">{ar ? "نوع الأجر" : "Type"}</th><th className="p-2 text-start">{ar ? "الحالة" : "Statut"}</th><th className="p-2 text-end">{ar ? "إجراءات" : "Actions"}</th></tr></thead><tbody>{(employeesQuery.data?.workers ?? []).map(worker=><tr key={worker.id} className="border-b"><td className="p-2 font-semibold">{worker.full_name}</td><td className="p-2">{worker.phone || "—"}</td><td className="p-2">{worker.address || "—"}</td><td className="p-2 text-end tabular-nums">{worker.salary_amount ?? "—"}</td><td className="p-2">{worker.salary_type === "hourly" ? (ar ? "بالساعة" : "Horaire") : worker.salary_type === "daily" ? (ar ? "يومي" : "Journalier") : (ar ? "شهري" : "Mensuel")}</td><td className="p-2">{worker.active === false ? (ar ? "مؤرشف" : "Archivé") : (ar ? "نشط" : "Actif")}</td><td className="p-2"><div className="flex justify-end gap-2">{worker.active === false && <Button type="button" size="sm" variant="outline" disabled={restoreEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "إعادة تنشيط هذا العامل؟" : "Réactiver cet employé ?")) restoreEmployee.mutate(worker.id);}} className="text-emerald-700">{ar ? "إعادة تنشيط" : "Réactiver"}</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>{setEditingEmployee(worker.id);setEmployeeDraft({first_name:worker.first_name || worker.full_name,last_name:worker.last_name || "",phone:worker.phone || "",address:worker.address || "",salary_amount:worker.salary_amount == null ? "" : String(worker.salary_amount),salary_type:worker.salary_type || "monthly"});}}><Pencil className="me-1 size-3" />{ar ? "تعديل" : "Modifier"}</Button><Button type="button" size="sm" variant="outline" disabled={removeEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "تأكيد حذف أو أرشفة هذا العامل؟" : "Confirmer la suppression ou l’archivage ?")) removeEmployee.mutate(worker.id);}} className="text-rose-700">{ar ? "حذف" : "Supprimer"}</Button></div></td></tr>)}</tbody></table></div>}
-        <p className="text-xs text-stone-500">{ar ? "الراتب ونوعه بيانات تعريفية فقط؛ لا يتم حساب المستحقات تلقائياً. العامل الذي لديه سجلات حضور يُؤرشف بدلاً من حذفه نهائياً." : "Le salaire et sa périodicité sont informatifs; aucun montant dû n’est calculé automatiquement. Un employé ayant un historique de pointage est archivé plutôt que supprimé."}</p>
+          <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b bg-stone-50 text-stone-600"><th className="p-2 text-start">{ar ? "العامل" : "Employé"}</th><th className="p-2 text-start">{ar ? "الهاتف" : "Téléphone"}</th><th className="p-2 text-start">{ar ? "العنوان" : "Adresse"}</th><th className="p-2 text-end">{ar ? "الأجر" : "Salaire"}</th><th className="p-2 text-start">{ar ? "نوع الأجر" : "Type"}</th><th className="p-2 text-start">{ar ? "الحالة" : "Statut"}</th><th className="p-2 text-end">{ar ? "إجراءات" : "Actions"}</th></tr></thead><tbody>{(employeesQuery.data?.workers ?? []).map(worker=><tr key={worker.id} className="border-b"><td className="p-2 font-semibold">{worker.full_name}</td><td className="p-2">{worker.phone || "—"}</td><td className="p-2">{worker.address || "—"}</td><td className="p-2 text-end tabular-nums">{worker.salary_amount ?? "—"}</td><td className="p-2">{worker.salary_type === "hourly" ? (ar ? "بالساعة" : "Horaire") : worker.salary_type === "daily" ? (ar ? "يومي" : "Journalier") : (ar ? "شهري" : "Mensuel")}</td><td className="p-2">{worker.active === false ? (ar ? "مؤرشف" : "Archivé") : (ar ? "نشط" : "Actif")}</td><td className="p-2"><div className="flex justify-end gap-2">{worker.active === false && <Button type="button" size="sm" variant="outline" disabled={restoreEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "إعادة تنشيط هذا العامل؟" : "Réactiver cet employé ?")) restoreEmployee.mutate(worker.id);}} className="text-emerald-700">{ar ? "إعادة تنشيط" : "Réactiver"}</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>{setEditingEmployee(worker.id);setEmployeeDraft({first_name:worker.first_name || worker.full_name,last_name:worker.last_name || "",phone:worker.phone || "",address:worker.address || "",salary_amount:worker.salary_amount == null ? "" : String(worker.salary_amount),salary_type:worker.salary_type || "monthly"});}}><Pencil className="me-1 size-3" />{ar ? "تعديل" : "Modifier"}</Button><Button type="button" size="sm" variant="outline" disabled={removeEmployee.isPending} onClick={()=>setDeletingEmployee(worker)} className="text-rose-700">{ar ? "حذف" : "Supprimer"}</Button></div></td></tr>)}</tbody></table></div>}
+        <p className="text-xs text-stone-500">{ar ? "الراتب ونوعه بيانات تعريفية فقط؛ لا يتم حساب المستحقات تلقائياً. الحذف النهائي يمسح أيضاً سجلات الحضور والانصراف وسجل تصحيحاتها." : "Le salaire et sa périodicité sont informatifs. La suppression définitive efface aussi les pointages et leur historique de corrections."}</p>
       </section>
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
+      <Dialog open={!!deletingEmployee} onOpenChange={(open) => !open && !removeEmployee.isPending && setDeletingEmployee(null)}>
+        <DialogContent data-testid="delete-employee-confirmation">
+          <DialogHeader><DialogTitle>{ar ? "تأكيد الحذف النهائي" : "Confirmer la suppression définitive"}</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>{ar ? `هل تريد حذف العامل «${deletingEmployee?.full_name ?? ""}» نهائياً؟` : `Voulez-vous supprimer définitivement «${deletingEmployee?.full_name ?? ""}» ?`}</p>
+            <p className="font-semibold text-rose-700">{ar ? "سيتم حذف بيانات العامل وجميع سجلات حضوره وانصرافه وتصحيحاتها. لا يمكن التراجع عن هذه العملية." : "Les données de l’employé, tous ses pointages et leur historique de corrections seront effacés. Cette action est irréversible."}</p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={removeEmployee.isPending} onClick={() => setDeletingEmployee(null)}>{ar ? "إلغاء" : "Annuler"}</Button>
+            <Button type="button" variant="destructive" disabled={removeEmployee.isPending || !deletingEmployee} onClick={() => deletingEmployee && removeEmployee.mutate(deletingEmployee.id)}>{ar ? "Supprimer" : "Supprimer"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent data-testid="workforce-correction-dialog">
           <DialogHeader><DialogTitle>{ar ? "تصحيح سجل الحضور" : "Corriger le pointage"} — {editing?.worker_name}</DialogTitle></DialogHeader>
