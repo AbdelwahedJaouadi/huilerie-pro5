@@ -333,6 +333,18 @@ export default function Workforce() {
     () => selectedWorkerId === "all" ? workers : workers.filter((worker) => worker.id === selectedWorkerId),
     [workers, selectedWorkerId],
   );
+  const historyDays = useMemo(() => {
+    const days: string[] = []; if (!validRange) return days;
+    const cursor = new Date(startDate + "T00:00:00Z"), last = new Date(endDate + "T00:00:00Z");
+    while (cursor <= last) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); }
+    return days;
+  }, [startDate, endDate, validRange]);
+  const historyByWorker = useMemo(() => {
+    const grouped = new Map<string, Map<string, Attendance>>();
+    records.forEach((record) => { const row = grouped.get(record.worker_id) || new Map<string, Attendance>(); row.set(record.day, record); grouped.set(record.worker_id, row); });
+    return grouped;
+  }, [records]);
+
   const recordsToday = useMemo(() => new Map(records.filter((record) => record.day === today).map((record) => [record.worker_id, record])), [records, today]);
   const openShiftsByWorker = useMemo(
     () => new Map((data.data?.open_shifts ?? []).map((record) => [record.worker_id, record])),
@@ -407,24 +419,41 @@ export default function Workforce() {
           {renderSummary(ar ? "المجموع الأسبوعي (الاثنين إلى الأحد)" : "Totaux hebdomadaires (lundi au dimanche)", weekly)}
           {renderSummary(ar ? "المجموع الشهري" : "Totaux mensuels", monthly)}
         </div>
-        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 font-semibold text-stone-900">{ar ? "سجلات الحضور والانصراف للفترة" : "Historique des arrivées et départs"}</h3>
-          {records.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Aucun pointage sur la période. L’absence d’un enregistrement ne signifie pas une absence confirmée."}</p> :
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
-            <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "التاريخ" : "Date"}</th><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "المدة" : "Durée"}</th><th className="px-3 py-3 text-end">{ar ? "إجراء" : "Action"}</th></tr></thead>
-            <tbody>{records.map((record) => {
-              const minutes = workedMinutes(record);
-              const open = record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at;
-              const invalid = record.status === "PRESENT" && !!record.check_in_at && !!record.check_out_at && minutes === 0;
-              return <tr key={record.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-mono" dir="ltr">{record.day}</td><td className="px-3 py-3 font-semibold">{record.worker_name}</td>
-                <td className="px-3 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${record.status === "ABSENT" ? "bg-rose-100 text-rose-800" : open ? "bg-amber-100 text-amber-800" : invalid ? "bg-orange-100 text-orange-800" : "bg-emerald-100 text-emerald-800"}`}>{record.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : open ? (ar ? "وردية مفتوحة" : "Quart ouvert") : invalid ? (ar ? "تتطلب مراجعة" : "À vérifier") : (ar ? "مكتمل" : "Terminé")}</span></td>
-                <td className="px-3 py-3 font-mono">{displayTime(record.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record.check_out_at, locale)}</td>
-                <td className="px-3 py-3 text-end font-semibold tabular-nums">{minutes ? durationLabel(minutes) : "—"}</td>
-                <td className="px-3 py-3 text-end"><Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button></td>
+        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm" data-testid="workforce-monthly-history">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold text-stone-900">{ar ? "سجل الحضور والانصراف حسب الأيام" : "Historique des arrivées et départs — vue par jour"}</h3>
+            <span className="text-xs text-stone-500" dir="ltr">{startDate} — {endDate}</span>
+          </div>
+          {visibleWorkers.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا يوجد عمال لعرضهم." : "Aucun employé à afficher."}</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-max border-collapse text-xs">
+            <thead><tr className="bg-stone-50 text-stone-600">
+              <th className="sticky start-0 z-10 min-w-44 border-b px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th>
+              {historyDays.map((day) => <th key={day} title={day} className="min-w-[92px] border-b px-2 py-3 text-center"><span dir="ltr">{Number(day.slice(8, 10))}</span></th>)}
+              <th className="min-w-40 border-b bg-emerald-50 px-3 py-3 text-center">{ar ? "الإجمالي" : "Total"}</th>
+            </tr></thead>
+            <tbody>{visibleWorkers.map((worker) => {
+              const entries = historyByWorker.get(worker.id);
+              const values = entries ? Array.from(entries.values()) : [];
+              const workedDays = values.filter((record) => record.status === "PRESENT").length;
+              const minutes = values.reduce((sum, record) => sum + workedMinutes(record), 0);
+              return <tr key={worker.id} className="border-b last:border-0 hover:bg-stone-50/70">
+                <th className="sticky start-0 z-[1] bg-white px-3 py-3 text-start font-semibold">{worker.full_name}</th>
+                {historyDays.map((day) => {
+                  const record = entries?.get(day);
+                  if (!record) return <td key={day} className="px-2 py-3 text-center text-stone-300">—</td>;
+                  if (record.status === "ABSENT") return <td key={day} className="px-2 py-2 text-center"><span className="inline-flex rounded-md bg-rose-100 px-2 py-1 font-semibold text-rose-800">{ar ? "غياب" : "Absent"}</span><div><Button size="sm" variant="ghost" className="h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button></div></td>;
+                  const open = !!record.check_in_at && !record.check_out_at;
+                  const invalid = !!record.check_in_at && !!record.check_out_at && workedMinutes(record) === 0;
+                  return <td key={day} className="px-2 py-2 text-center">
+                    <div className={"rounded-md px-1 py-1 font-mono font-semibold " + (open ? "bg-amber-50 text-amber-800" : invalid ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800")} dir="ltr">{displayTime(record.check_in_at, locale)} – {displayTime(record.check_out_at, locale)}</div>
+                    <Button size="sm" variant="ghost" className="mt-1 h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button>
+                  </td>;
+                })}
+                <td className="bg-emerald-50/60 px-3 py-2 text-center font-semibold text-emerald-900"><div>{workedDays} {ar ? "أيام" : "jours"}</div><div className="mt-1 font-mono" dir="ltr">{durationLabel(minutes)}</div></td>
               </tr>;
             })}</tbody>
           </table></div>}
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب يوم العمل عند وجود تسجيل حضور، حتى إن كانت الوردية مفتوحة. تُحتسب الساعات للورديات المكتملة فقط دون خصم الاستراحة. «—» تعني عدم وجود سجل، ولا تعني الغياب." : "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. « — » signifie aucun pointage, pas une absence."}</p>
         </section>
         {startDate <= today && endDate >= today && <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 font-semibold text-stone-900">{ar ? "تسجيل حضور اليوم" : "Pointage du jour"} <span className="text-sm font-normal text-stone-500" dir="ltr">{today}</span></h3>
