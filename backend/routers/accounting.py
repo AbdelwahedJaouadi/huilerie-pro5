@@ -168,7 +168,7 @@ async def accounting_overview(
                 payment_day = _accounting_day(payment.get("at") or payment.get("payment_date") or payment.get("paid_at"))
                 if payment_day and (not period_selected or (not start_day or payment_day >= start_day) and (not end_day or payment_day <= end_day)):
                     traditional_invoice_payments.append({
-                        "id": f"{invoice.get('id', '')}:{payment.get('at', '')}:{payment.get('amount', '')}",
+                        "id": payment.get("id"),
                         "invoice_id": invoice.get("id"),
                         "invoice_number": invoice.get("number"),
                         "client_name": invoice.get("client_name"),
@@ -621,11 +621,11 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
     sale_invoices, supplier_purchases = await asyncio.gather(
         db.commercial_sales_invoices.find(
             {"id": {"$in": sale_invoice_ids}, "season_code": season_code},
-            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1},
+            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1, "buyer_name": 1},
         ).to_list(limit),
         db.commercial_olive_purchases.find(
             {"id": {"$in": supplier_purchase_ids}, "season_code": season_code},
-            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1},
+            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1, "supplier_name": 1},
         ).to_list(limit),
     )
     seasonal_load_ids = await db.loads.distinct("id", {"season_id": season})
@@ -646,6 +646,7 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         sale_invoices=sale_invoices,
         supplier_purchases=supplier_purchases,
         treasury_accounts=accounts,
+        traditional_receipts=traditional_receipts,
     )
     source_ids = [row["source_id"] for row in preview["candidates"]]
     recorded_rows = await db.accounting_treasury_movements.find(
