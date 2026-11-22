@@ -67,6 +67,45 @@ function weekStart(day: string) {
 function durationLabel(minutes: number) {
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}`;
 }
+function printHtmlInHiddenFrame(html: string) {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.title = "print";
+  frame.style.position = "fixed";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    frame.remove();
+  };
+  frame.onload = () => {
+    const printWindow = frame.contentWindow;
+    if (!printWindow) { cleanup(); return; }
+    printWindow.onafterprint = cleanup;
+    window.setTimeout(() => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+        window.setTimeout(cleanup, 60000);
+      } catch {
+        cleanup();
+      }
+    }, 250);
+  };
+  document.body.appendChild(frame);
+  const printDocument = frame.contentDocument;
+  if (!printDocument) { cleanup(); return false; }
+  printDocument.open();
+  printDocument.write(html);
+  printDocument.close();
+  return true;
+}
+
 function summarize(records: Attendance[], period: (record: Attendance) => string): Summary[] {
   const grouped = new Map<string, Summary>();
   for (const record of records) {
@@ -89,11 +128,8 @@ function printEmployeeRegistry(workers: Worker[], ar: boolean) {
     : ["Registre des employés", "Nom et prénom", "Téléphone", "Adresse", "Salaire", "Type", "Statut", "Actif", "Archivé"];
   const salaryType = (type?: string) => type === "hourly" ? (ar ? "بالساعة" : "Horaire") : type === "daily" ? (ar ? "باليوم" : "Journalier") : (ar ? "شهري" : "Mensuel");
   const rows = workers.map((w) => `<tr><td>${escape(w.full_name)}</td><td>${escape(w.phone || "—")}</td><td>${escape(w.address || "—")}</td><td>${w.salary_amount == null ? "—" : w.salary_amount}</td><td>${salaryType(w.salary_type)}</td><td>${w.active === false ? labels[8] : labels[7]}</td></tr>`).join("");
-  const win = window.open("", "_blank");
-  if (!win) return false;
-  win.document.write(`<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></html>`);
-  win.document.close();
-  return true;
+  const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></html>`;
+  return printHtmlInHiddenFrame(html);
 }
 
 function escapeReportHtml(value: string) {
@@ -101,7 +137,6 @@ function escapeReportHtml(value: string) {
 }
 
 function printWorkforceReport({ records, workers, startDate, endDate, ar, locale }: { records: Attendance[]; workers: Worker[]; startDate: string; endDate: string; ar: boolean; locale: string }) {
-  const printWindow = window.open("", "_blank"); if (!printWindow) return false;
   const days: string[] = []; const cursor = new Date(startDate + "T00:00:00Z"); const last = new Date(endDate + "T00:00:00Z");
   while (cursor <= last) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); }
   const labels = ar ? { title: "تقرير الحضور والانصراف", employee: "العامل", total: "الإجمالي", days: "أيام العمل", hours: "ساعات العمل", absent: "غياب", period: "الفترة", note: "يُحتسب يوم الحضور حتى إن كانت الوردية مفتوحة. تُحتسب ساعات الورديات المكتملة فقط دون خصم الاستراحة. عدم وجود سجل لا يعني الغياب." } : { title: "Rapport des arrivées et départs", employee: "Employé", total: "Total", days: "Jours travaillés", hours: "Heures travaillées", absent: "Absent", period: "Période", note: "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. Aucun pointage ne signifie pas une absence." };
@@ -120,7 +155,7 @@ function printWorkforceReport({ records, workers, startDate, endDate, ar, locale
     "<h1>ORO VERDE — " + labels.title + "</h1><p>" + labels.period + ": " + startDate + " — " + endDate + "</p>" +
     "<table><thead><tr><th class=\"worker\">" + labels.employee + "</th>" + head + "<th class=\"total\">" + labels.total + "</th></tr></thead><tbody>" + body + "</tbody></table><p>" + labels.note + "</p>" +
     "<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></html>";
-  printWindow.document.open(); printWindow.document.write(html); printWindow.document.close(); return true;
+  return printHtmlInHiddenFrame(html);
 }
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
