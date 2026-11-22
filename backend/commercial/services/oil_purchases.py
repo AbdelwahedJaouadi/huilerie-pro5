@@ -404,7 +404,11 @@ async def record_supplier_olive_purchase_payment(
     if not purchase:
         raise ValueError("Supplier olive purchase does not exist")
     if purchase.get("status") != "APPROVED":
-        raise ValueError("Only approved and received supplier purchases can be paid")
+        raise ValueError("Only approved supplier purchases can be paid")
+    # A ready-oil purchase is financially approved at purchase time, while its
+    # physical tank receipt is deliberately a separate later operation.
+    if purchase.get("purchase_kind") != "OIL" and purchase.get("inventory_status") == "NOT_RECEIVED":
+        raise ValueError("Olive purchases must be received before supplier payments are recorded")
     supplier = await db["commercial_suppliers"].find_one(
         {"id": purchase.get("supplier_id")}, {"_id": 0, "id": 1, "name": 1, "phone": 1},
         session=session,
