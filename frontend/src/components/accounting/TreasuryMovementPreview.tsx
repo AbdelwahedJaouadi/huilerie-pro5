@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 type Candidate = {
   candidate_key: string; source_type: string; source_id: string;
   source_document_number?: string | null; business_date?: string | null;
+  party_name?: string | null; description?: string | null; external_reference?: string | null;
+  reference?: string | null;
   direction: "IN" | "OUT"; account_id?: string | null; account_name?: string | null;
   payment_method?: string | null; amount?: string | null; currency?: string | null;
   eligibility: "ELIGIBLE_FOR_REVIEW" | "BLOCKED";
@@ -23,6 +25,7 @@ type Preview = {
 const labels: Record<string,{ar:string;fr:string}> = {
   GS_SALE_PAYMENT:{ar:"قبض من بيع زيت GS",fr:"Encaissement vente GS"},
   GS_SUPPLIER_PAYMENT:{ar:"دفع لمزوّد",fr:"Paiement fournisseur"},
+  TRADITIONAL_RECEIPT:{ar:"قبض فاتورة العصر",fr:"Encaissement facture de pressage"},
 };
 const reasonLabels: Record<string,{ar:string;fr:string}> = {
   TREASURY_ACCOUNT_NOT_ASSIGNED:{ar:"لم يُعيّن حساب خزينة",fr:"Compte de trésorerie non affecté"},
@@ -64,13 +67,15 @@ export default function TreasuryMovementPreview() {
     </div>
     <Card><CardHeader><CardTitle className="text-base">{ar?"مقترحات حركة الصندوق والبنك":"Propositions de mouvements de caisse et banque"}</CardTitle><CardDescription>{ar?"الموسم النشط":"Saison active"}: {data.active_season}</CardDescription></CardHeader>
       <CardContent className="space-y-3">
-      {data.candidates.length===0?<p className="rounded-lg bg-stone-50 p-4 text-sm text-stone-500">{ar?"لا توجد دفعات GS ضمن نطاق المعاينة.":"Aucun paiement GS dans le périmètre de l’aperçu."}</p>:
-      <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b text-left text-xs text-stone-500">
-        <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"المصدر":"Source"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة / الإجراء":"Résultat / action"}</th>
+      {data.candidates.length===0?<p className="rounded-lg bg-stone-50 p-4 text-sm text-stone-500">{ar?"لا توجد دفعات GS أو قبض فواتير العصر ضمن نطاق المعاينة.":"Aucun paiement GS ou règlement de facture de pressage dans le périmètre de l’aperçu."}</p>:
+      <div className="overflow-x-auto"><table className="w-full min-w-[1150px] text-sm"><thead><tr className="border-b text-left text-xs text-stone-500">
+        <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"الاسم / الطرف":"Nom / tiers"}</th><th className="px-2 py-2">{ar?"المصدر":"Origine"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"طريقة الدفع":"Mode de paiement"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة / الإجراء":"Résultat / action"}</th>
       </tr></thead><tbody>{data.candidates.map((row,index)=><tr key={`${row.candidate_key}-${index}`} className="border-b align-top">
         <td className="px-2 py-3">{row.business_date||"—"}</td>
+        <td className="px-2 py-3 font-medium">{row.party_name||"—"}{row.description&&<p className="mt-1 text-xs text-stone-500">{row.description}</p>}</td>
         <td className="px-2 py-3">{labels[row.source_type]?.[ar?"ar":"fr"]||row.source_type}</td>
-        <td className="px-2 py-3">{row.source_document_number||row.source_id}</td>
+        <td className="px-2 py-3">{row.source_document_number||row.source_id}{row.external_reference&&<p className="mt-1 text-xs text-stone-500">{row.external_reference}</p>}</td>
+        <td className="px-2 py-3">{row.payment_method||"—"}{row.reference&&<p className="mt-1 text-xs text-stone-500">{row.reference}</p>}</td>
         <td className="px-2 py-3">{row.account_name||"—"}</td>
         <td className="px-2 py-3"><span className="inline-flex items-center gap-1">{row.direction==="IN"?<ArrowDownLeft className="size-4 text-emerald-700"/>:<ArrowUpRight className="size-4 text-rose-700"/>}{row.direction==="IN"?(ar?"داخل":"Entrée"):(ar?"خارج":"Sortie")}</span></td>
         <td className="px-2 py-3 text-right font-semibold tabular-nums">{money(row.amount)} TND</td>
