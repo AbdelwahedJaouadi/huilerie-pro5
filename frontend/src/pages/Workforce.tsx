@@ -67,40 +67,34 @@ function weekStart(day: string) {
 function durationLabel(minutes: number) {
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}`;
 }
-function printHtmlInHiddenFrame(html: string) {
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  frame.title = "print";
-  frame.style.position = "fixed";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  let cleaned = false;
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    frame.remove();
-  };
-  document.body.appendChild(frame);
-  const printDocument = frame.contentDocument;
-  const printWindow = frame.contentWindow;
-  if (!printDocument || !printWindow) { cleanup(); return false; }
-  printWindow.onafterprint = cleanup;
-  printDocument.open();
-  printDocument.write(html);
-  printDocument.close();
-  window.setTimeout(() => {
-    try {
-      printWindow.focus();
-      printWindow.print();
-      window.setTimeout(cleanup, 60000);
-    } catch {
-      cleanup();
-    }
-  }, 300);
-  return true;
+function printHtmlInHiddenFrame(html: string, ar: boolean) {
+  // Open synchronously from the click handler so the browser does not block the new tab.
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return false;
+
+  const toolbar = `
+    <style>
+      .print-toolbar{position:sticky;top:0;z-index:9999;display:flex;justify-content:center;gap:12px;padding:12px;background:#fff;border-bottom:1px solid #ddd;font-family:Arial,Tahoma,sans-serif}
+      .print-toolbar button{border:0;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer}
+      .print-action{background:#34451f;color:#fff}.close-action{background:#eee;color:#222}
+      @media print{.print-toolbar{display:none!important}}
+    </style>
+    <div class="print-toolbar" dir="${ar ? "rtl" : "ltr"}">
+      <button class="print-action" type="button" onclick="window.print()">${ar ? "طباعة / PDF" : "Imprimer / PDF"}</button>
+      <button class="close-action" type="button" onclick="window.close()">${ar ? "إغلاق" : "Fermer"}</button>
+    </div>`;
+  const printableHtml = html.replace(/<\\/html>\\s*$/i, `${toolbar}</html>`);
+
+  try {
+    printWindow.document.open();
+    printWindow.document.write(printableHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    return true;
+  } catch {
+    printWindow.close();
+    return false;
+  }
 }
 
 function summarize(records: Attendance[], period: (record: Attendance) => string): Summary[] {
@@ -126,7 +120,7 @@ function printEmployeeRegistry(workers: Worker[], ar: boolean) {
   const salaryType = (type?: string) => type === "hourly" ? (ar ? "بالساعة" : "Horaire") : type === "daily" ? (ar ? "باليوم" : "Journalier") : (ar ? "شهري" : "Mensuel");
   const rows = workers.map((w) => `<tr><td>${escape(w.full_name)}</td><td>${escape(w.phone || "—")}</td><td>${escape(w.address || "—")}</td><td>${w.salary_amount == null ? "—" : w.salary_amount}</td><td>${salaryType(w.salary_type)}</td><td>${w.active === false ? labels[8] : labels[7]}</td></tr>`).join("");
   const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table></html>`;
-  return printHtmlInHiddenFrame(html);
+  return printHtmlInHiddenFrame(html, ar);
 }
 
 function escapeReportHtml(value: string) {
