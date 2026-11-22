@@ -621,16 +621,16 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
     sale_invoices, supplier_purchases = await asyncio.gather(
         db.commercial_sales_invoices.find(
             {"id": {"$in": sale_invoice_ids}, "season_code": season_code},
-            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1, "buyer_name": 1},
+            {"_id": 0, "id": 1, "sale_id": 1, "buyer_id": 1, "buyer_name": 1, "buyer_phone": 1, "buyer_address": 1, "number": 1, "invoice_number": 1, "invoice_date": 1, "sale_date": 1, "day": 1, "created_at": 1},
         ).to_list(limit),
         db.commercial_olive_purchases.find(
             {"id": {"$in": supplier_purchase_ids}, "season_code": season_code},
-            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1, "supplier_name": 1},
+            {"_id": 0, "id": 1, "status": 1, "supplier_id": 1, "supplier_name": 1, "supplier_phone": 1, "supplier_address": 1, "number": 1, "purchase_number": 1, "purchase_date": 1, "created_at": 1},
         ).to_list(limit),
     )
     seasonal_load_ids = await db.loads.distinct("id", {"season_id": season})
     traditional_invoices = await db.invoices.find(
-        {"load_id": {"$in": seasonal_load_ids}}, {"_id": 0, "id": 1, "number": 1, "client_id": 1, "client_name": 1, "payments": 1}
+        {"load_id": {"$in": seasonal_load_ids}}, {"_id": 0, "id": 1, "number": 1, "client_id": 1, "client_name": 1, "phone": 1, "load_code": 1, "day": 1, "created_at": 1, "total": 1, "paid_amount": 1, "balance": 1, "olive_kg": 1, "oil_kg": 1, "payments": 1}
     ).to_list(limit * 5)
     traditional_receipts = []
     for invoice in traditional_invoices:
@@ -639,6 +639,12 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
                 **payment, "invoice_id": invoice.get("id"),
                 "invoice_number": invoice.get("number"), "client_id": invoice.get("client_id"),
                 "client_name": invoice.get("client_name"),
+                "client_phone": invoice.get("phone"),
+                "invoice_date": invoice.get("day") or invoice.get("created_at"),
+                "load_code": invoice.get("load_code"),
+                "invoice_total": invoice.get("total"),
+                "invoice_paid_amount": invoice.get("paid_amount"),
+                "invoice_balance": invoice.get("balance"),
                 "payment_date": payment.get("at") or payment.get("payment_date") or payment.get("paid_at"),
                 "method": payment.get("method") or payment.get("payment_method"),
                 "currency": payment.get("currency") or "TND",
