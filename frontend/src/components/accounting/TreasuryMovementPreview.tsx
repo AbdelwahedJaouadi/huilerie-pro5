@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { useI18n, fmtMoney } from "@/lib/i18n";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, CheckCircle2, ChevronDown, ChevronUp, RefreshCw, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Candidate = {
   candidate_key: string; source_type: string; source_id: string;
   source_document_number?: string | null; business_date?: string | null;
   party_name?: string | null; description?: string | null; external_reference?: string | null;
-  reference?: string | null;
+  reference?: string | null; party_id?: string | null; party_phone?: string | null; party_address?: string | null;
+  linked_document_id?: string | null; linked_document_number?: string | null; linked_document_date?: string | null;
+  linked_document_total?: string | number | null; linked_document_paid?: string | number | null; linked_document_balance?: string | number | null; load_code?: string | null;
   direction: "IN" | "OUT"; account_id?: string | null; account_name?: string | null;
   payment_method?: string | null; amount?: string | null; currency?: string | null;
   eligibility: "ELIGIBLE_FOR_REVIEW" | "BLOCKED";
@@ -50,6 +53,7 @@ const money = (value:string|null|undefined) => fmtMoney(value);
 type Movement = {id:string; settlement_status:string; source_type:string; source_id:string};
 export default function TreasuryMovementPreview() {
   const {lang}=useI18n(); const ar=lang==="ar"; const qc=useQueryClient();
+  const [expandedCandidate,setExpandedCandidate]=useState<string|null>(null);
   const query=useQuery({queryKey:["accounting-treasury-movement-preview"],queryFn:()=>apiGet<Preview>("/accounting/treasury/movement-preview?limit=200"),staleTime:15000});
   const recordMovement=useMutation({mutationFn:(row:Candidate)=>apiPost<Movement>("/accounting/treasury/movements",{source_type:row.source_type,source_id:row.source_id,confirm:true}),onSuccess:()=>void qc.invalidateQueries({queryKey:["accounting-treasury-movement-preview"]})});
   if(query.isPending) return <p className="p-4 text-sm text-stone-500">{ar?"جارٍ إعداد معاينة حركات الخزينة…":"Préparation de l’aperçu des mouvements…"}</p>;
@@ -71,9 +75,9 @@ export default function TreasuryMovementPreview() {
       {data.candidates.length===0?<p className="rounded-lg bg-stone-50 p-4 text-sm text-stone-500">{ar?"لا توجد دفعات GS أو قبض فواتير العصر ضمن نطاق المعاينة.":"Aucun paiement GS ou règlement de facture de pressage dans le périmètre de l’aperçu."}</p>:
       <div className="overflow-x-auto"><table className="w-full min-w-[1150px] text-sm"><thead><tr className="border-b text-left text-xs text-stone-500">
         <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"الاسم / الطرف":"Nom / tiers"}</th><th className="px-2 py-2">{ar?"المصدر":"Origine"}</th><th className="px-2 py-2">{ar?"المرجع":"Référence"}</th><th className="px-2 py-2">{ar?"طريقة الدفع":"Mode de paiement"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"النتيجة / الإجراء":"Résultat / action"}</th>
-      </tr></thead><tbody>{data.candidates.map((row,index)=><tr key={`${row.candidate_key}-${index}`} className="border-b align-top">
+      </tr></thead><tbody>{data.candidates.map((row,index)=><Fragment key={`${row.candidate_key}-${index}`}><tr className="border-b align-top">
         <td className="px-2 py-3">{row.business_date||"—"}</td>
-        <td className="px-2 py-3 font-medium">{row.party_name||"—"}{row.description&&<p className="mt-1 text-xs text-stone-500">{row.description}</p>}</td>
+        <td className="px-2 py-3 font-medium">{row.party_name||"—"}{row.description&&<p className="mt-1 text-xs text-stone-500">{row.description}</p>}<button type="button" className="mt-2 inline-flex items-center gap-1 rounded-md border border-sky-300 px-2 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-50" aria-expanded={expandedCandidate===row.candidate_key} onClick={()=>setExpandedCandidate(current=>current===row.candidate_key?null:row.candidate_key)}>{expandedCandidate===row.candidate_key?(ar?"إخفاء التفاصيل":"Masquer les détails"):(ar?"عرض التفاصيل":"Voir les détails")}{expandedCandidate===row.candidate_key?<ChevronUp className="size-3"/>:<ChevronDown className="size-3"/>}</button></td>
         <td className="px-2 py-3">{labels[row.source_type]?.[ar?"ar":"fr"]||row.source_type}</td>
         <td className="px-2 py-3">{row.source_document_number||row.source_id}{row.external_reference&&<p className="mt-1 text-xs text-stone-500">{row.external_reference}</p>}</td>
         <td className="px-2 py-3">{row.payment_method||"—"}{row.reference&&<p className="mt-1 text-xs text-stone-500">{row.reference}</p>}</td>
@@ -91,7 +95,7 @@ export default function TreasuryMovementPreview() {
               if(window.confirm(message)) recordMovement.mutate(row);
             }} className="mt-2 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900 disabled:opacity-50">{recordMovement.isPending?(ar?"جارٍ التسجيل…":"Enregistrement…"):(ar?"تسجيل الحركة":"Enregistrer le mouvement")}</button> : null}
         </td>
-      </tr>)}</tbody></table></div>}
+      </tr>{expandedCandidate===row.candidate_key&&<tr className="border-b bg-sky-50/70"><td colSpan={9} className="px-4 py-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-sm"><div><p className="font-semibold text-sky-900">{ar?"الفاتورة / المستند المرتبط":"Facture / document lié"}</p><p>{ar?"الرقم":"Numéro"}: {row.linked_document_number||row.source_document_number||"—"}</p><p>{ar?"التاريخ":"Date"}: {row.linked_document_date?String(row.linked_document_date).slice(0,10):"—"}</p><p className="break-all">{ar?"المعرّف":"Identifiant"}: {row.linked_document_id||"—"}</p>{row.load_code&&<p>{ar?"رمز الحمولة":"Code chargement"}: {row.load_code}</p>}</div><div><p className="font-semibold text-sky-900">{ar?"بيانات الطرف المقابل":"Coordonnées du tiers"}</p><p>{ar?"الاسم":"Nom"}: {row.party_name||"—"}</p><p>{ar?"المعرّف":"Identifiant"}: {row.party_id||"—"}</p><p>{ar?"الهاتف":"Téléphone"}: {row.party_phone||"—"}</p><p>{ar?"العنوان":"Adresse"}: {row.party_address||"—"}</p></div><div><p className="font-semibold text-sky-900">{ar?"تفاصيل الدفعة":"Détails du paiement"}</p><p>{ar?"تاريخ الدفع":"Date du paiement"}: {row.business_date||"—"}</p><p>{ar?"المبلغ":"Montant"}: {money(row.amount)} TND</p><p>{ar?"الطريقة":"Mode"}: {row.payment_method||"—"}</p><p>{ar?"مرجع البنك / الشيك":"Référence bancaire / chèque"}: {row.reference||row.external_reference||"—"}</p><p>{ar?"الحساب":"Compte"}: {row.account_name||"—"}</p>{row.linked_document_total!=null&&<p>{ar?"إجمالي الفاتورة":"Total facture"}: {money(String(row.linked_document_total))} TND</p>}{row.linked_document_paid!=null&&<p>{ar?"المدفوع":"Déjà payé"}: {money(String(row.linked_document_paid))} TND</p>}{row.linked_document_balance!=null&&<p>{ar?"المتبقي":"Solde"}: {money(String(row.linked_document_balance))} TND</p>}</div></div></td></tr>}</Fragment>)}</tbody></table></div>}
       {recordMovement.isError&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar?"تعذّر تسجيل الحركة: ":"Échec de l’enregistrement : "}{recordMovement.error instanceof Error?recordMovement.error.message:"Erreur inconnue"}</p>}
       {data.unresolved_items.map(item=><div key={item.source_type+item.source_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{ar?"مراجعة مطلوبة":"À vérifier"} · {item.source_document_number||item.source_id}</strong>{item.party_name&&<p>{ar?"الحريف":"Client"}: {item.party_name}</p>}{item.business_date&&<p>{ar?"التاريخ":"Date"}: {item.business_date}</p>}{item.amount&&<p>{ar?"المبلغ":"Montant"}: {money(item.amount)} TND</p>}<p className="text-amber-900">{item.reason==="PAYMENT_CHILD_ID_MISSING"?(ar?"دفعة قديمة دون معرّف مستقل؛ عُرضت للمراجعة دون اختراع معرّف أو إتاحة تسجيلها.":"Ancien paiement sans identifiant propre : affiché pour examen, sans inventer d’identifiant ni autoriser son enregistrement."):(ar?"إلغاء قبض لا يثبت رجوع الأموال فعلياً إلى الصندوق أو البنك.":"L’annulation d’un règlement ne prouve pas le retour effectif des fonds en caisse ou en banque.")}</p></div>)}
       {Object.values(data.has_more).some(Boolean)&&<p className="text-xs text-amber-700">{ar?"تم بلوغ حد المعاينة؛ توجد سجلات إضافية غير معروضة.":"La limite d’aperçu est atteinte; d’autres documents ne sont pas affichés."}</p>}
