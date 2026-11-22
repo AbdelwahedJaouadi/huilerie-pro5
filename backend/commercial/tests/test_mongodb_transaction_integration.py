@@ -2067,6 +2067,7 @@ async def test_supplier_ready_oil_purchase_is_separate_from_later_partial_tank_r
         await db.commercial_counters.insert_many([
             {"season_code": "2627", "document_type": "BATCH", "last_sequence": 7},
             {"season_code": "2627", "document_type": "MVT", "last_sequence": 0},
+            {"season_code": "2627", "document_type": "RFS", "last_sequence": 0},
         ])
         await db.commercial_suppliers.insert_one({
             "id": "supplier-ready-oil", "name": "Supplier Ready Oil",
