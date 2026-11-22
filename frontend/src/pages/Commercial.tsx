@@ -2628,6 +2628,80 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             </TableBody>
           </Table>
         </div>
+        <Card className="border-2 border-emerald-200 shadow-sm" data-testid="gs-chargement-oil-purchases">
+          <CardHeader className="p-3 pb-2">
+            <CardTitle className="text-base">{lang === "ar" ? "مشتريات الزيت الجاهز من المزوّدين" : "Achats d’huile prête auprès des fournisseurs"}</CardTitle>
+            <CardDescription>{lang === "ar" ? "سجل مستقل داخل حالة الشراء؛ الكميات باللتر ولا تدخل في وزن الزيتون أو حسابات الحمولات." : "Registre distinct des achats d’huile; quantités en litres, sans impact sur le poids des olives ni sur les charges."}</CardDescription>
+          </CardHeader>
+          <CardContent className="p-3 pt-0">
+            <div className="overflow-x-auto">
+              <Table data-testid="gs-chargement-oil-purchases-table">
+                <TableHeader><TableRow>
+                  <TableHead>{lang === "ar" ? "تاريخ الشراء" : "Date d’achat"}</TableHead>
+                  <TableHead>{lang === "ar" ? "كود التتبع" : "Code de traçabilité"}</TableHead>
+                  <TableHead>{l.supplier}</TableHead>
+                  <TableHead>{lang === "ar" ? "الهاتف" : "Téléphone"}</TableHead>
+                  <TableHead>{lang === "ar" ? "نوع الزيت" : "Type d’huile"}</TableHead>
+                  <TableHead className="text-end">{lang === "ar" ? "الكمية المشتراة (لتر)" : "Quantité achetée (L)"}</TableHead>
+                  <TableHead className="text-end">{lang === "ar" ? "الكمية المدخلة (لتر)" : "Quantité entrée (L)"}</TableHead>
+                  <TableHead className="text-end">{lang === "ar" ? "سعر اللتر" : "Prix / L"}</TableHead>
+                  <TableHead className="text-end">{l.totalAmount}</TableHead>
+                  <TableHead className="text-end">{lang === "ar" ? "المدفوع" : "Payé"}</TableHead>
+                  <TableHead className="text-end">{lang === "ar" ? "المتبقي" : "Reste dû"}</TableHead>
+                  <TableHead>{lang === "ar" ? "حالة الخزان" : "État cuve"}</TableHead>
+                  <TableHead>{l.status}</TableHead>
+                  <TableHead>{l.actions}</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {(() => {
+                    const normalizedSearch = chargementSearch.trim().toLocaleLowerCase();
+                    const oilRows = purchaseRows
+                      .filter((purchase) => purchase.purchase_kind === "OIL")
+                      .filter((purchase) => chargementFilter === "ALL" || String(purchase.status ?? "").toUpperCase() === chargementFilter)
+                      .filter((purchase) => {
+                        if (!normalizedSearch) return true;
+                        const supplier = supplierRows.find((item) => item.id === purchase.supplier_id);
+                        const code = [purchase.batch_code, purchase.document_number, ...(purchase.batch_codes ?? [])].filter(Boolean).join(" ");
+                        return code.toLocaleLowerCase().includes(normalizedSearch)
+                          || String(supplier?.name ?? purchase.supplier_name ?? "").toLocaleLowerCase().includes(normalizedSearch)
+                          || String(supplier?.phone ?? purchase.supplier_phone ?? "").toLocaleLowerCase().includes(normalizedSearch)
+                          || String(purchase.oil_type ?? "").toLocaleLowerCase().includes(normalizedSearch);
+                      })
+                      .sort((a, b) => String(b.purchase_date ?? b.created_at ?? "").localeCompare(String(a.purchase_date ?? a.created_at ?? "")));
+                    if (!oilRows.length) return <EmptyRow colSpan={14} text={lang === "ar" ? "لا توجد مشتريات زيت مطابقة للبحث." : "Aucun achat d’huile correspondant à la recherche."} />;
+                    return oilRows.map((purchase) => {
+                      const supplier = supplierRows.find((item) => item.id === purchase.supplier_id);
+                      const total = Number(purchase.total_quantity_l ?? purchase.quantity_l ?? 0);
+                      const received = Number(purchase.received_quantity_l ?? 0);
+                      const inventoryStatus = purchase.inventory_status === "RECEIVED"
+                        ? (lang === "ar" ? "مُدخل بالكامل" : "Entièrement réceptionné")
+                        : purchase.inventory_status === "PARTIALLY_RECEIVED"
+                          ? (lang === "ar" ? "إدخال جزئي" : "Partiellement réceptionné")
+                          : (lang === "ar" ? "بانتظار الخزان" : "En attente de cuve");
+                      const purchaseStatus = purchase.status === "APPROVED" ? l.approved : purchase.status === "CANCELLED" ? (lang === "ar" ? "ملغى" : "Annulé") : l.draft;
+                      return <TableRow key={purchase.id} data-testid={`gs-chargement-oil-row-${purchase.id}`}>
+                        <TableCell className="whitespace-nowrap">{date(purchase.purchase_date ?? purchase.created_at)}</TableCell>
+                        <TableCell className="whitespace-nowrap font-mono font-bold text-emerald-800">{purchaseCodeDisplay(purchase.batch_code || purchase.batch_codes?.[0] || purchase.document_number)}</TableCell>
+                        <TableCell className="min-w-32 font-semibold">{value(supplier?.name ?? purchase.supplier_name, purchase.supplier_id)}</TableCell>
+                        <TableCell dir="ltr" className="whitespace-nowrap">{value(supplier?.phone ?? purchase.supplier_phone)}</TableCell>
+                        <TableCell>{value(purchase.oil_type)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-end font-semibold">{number(total)} L</TableCell>
+                        <TableCell className="whitespace-nowrap text-end">{number(received)} L</TableCell>
+                        <TableCell className="whitespace-nowrap text-end">{money(purchase.unit_price_tnd_per_l)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-end font-semibold">{money(purchase.total_amount_dt)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-end">{money(purchase.paid_amount_dt ?? purchase.paid_amount ?? 0)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-end">{money(purchase.outstanding_amount_dt ?? purchase.outstanding_amount ?? 0)}</TableCell>
+                        <TableCell className="whitespace-nowrap"><span className={purchase.inventory_status === "RECEIVED" ? "font-semibold text-emerald-700" : purchase.inventory_status === "PARTIALLY_RECEIVED" ? "font-semibold text-amber-700" : "font-semibold text-sky-700"}>{inventoryStatus}</span></TableCell>
+                        <TableCell className="whitespace-nowrap">{purchaseStatus}</TableCell>
+                        <TableCell><Button type="button" size="sm" variant="outline" onClick={() => navigate(`/search?purchase_id=${encodeURIComponent(purchase.id)}&code=${encodeURIComponent(purchase.batch_code || purchase.document_number || "")}&supplier_name=${encodeURIComponent(supplier?.name ?? purchase.supplier_name ?? "")}&supplier_phone=${encodeURIComponent(supplier?.phone ?? purchase.supplier_phone ?? "")}`)}>{lang === "ar" ? "التفاصيل" : "Détails"}</Button></TableCell>
+                      </TableRow>;
+                    });
+                  })()}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>}
 
       {tab === "procurement" && procurementView === "supplier-oil-purchases" && <div className="space-y-4">
