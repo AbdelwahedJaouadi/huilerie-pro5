@@ -743,6 +743,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] }),
         queryClient.invalidateQueries({ queryKey: ["commercial", "lots"] }),
         queryClient.invalidateQueries({ queryKey: ["commercial", "balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial", "movements"] }),
         queryClient.invalidateQueries({ queryKey: ["commercial", "tank-history-movements"] }),
       ]);
     },
