@@ -171,6 +171,7 @@ def build_treasury_movement_preview(
         candidate["source_document_number"] = row.get("invoice_number")
         candidate["party_name"] = row.get("client_name") or candidate.get("party_name")
         candidate["description"] = row.get("description") or row.get("paid_by") or candidate.get("description")
+        candidate["blocking_reasons"].append("TRADITIONAL_RECEIPT_POSTING_NOT_SUPPORTED")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
