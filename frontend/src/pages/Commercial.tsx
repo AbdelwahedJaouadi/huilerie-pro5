@@ -2539,6 +2539,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
               {(() => {
                 const normalizedSearch = chargementSearch.trim().toLocaleLowerCase();
                 const rows = [...purchaseRows]
+                  .filter((purchase) => purchase.purchase_kind !== "OIL")
                   .filter((purchase) => chargementFilter === "ALL" || String(purchase.status ?? "").toUpperCase() === chargementFilter)
                   .filter((purchase) => {
                     if (!normalizedSearch) return true;
