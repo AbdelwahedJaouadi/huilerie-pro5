@@ -57,6 +57,7 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const code = params.get("code") ?? "";
   const term = params.get("q") ?? "";
+  const purchaseId = params.get("purchase_id") ?? "";
   const [input, setInput] = useState(code || term);
   const [selectedCode, setSelectedCode] = useState(code);
   const [last, setLast] = useState(code + "|" + term);
@@ -83,6 +84,22 @@ export default function SearchPage() {
     enabled: !!selectedCode,
     retry: false,
   });
+  const purchaseDetail = useQuery({
+    queryKey: ["search-olive-purchase", purchaseId],
+    queryFn: async () => {
+      const records: Record<string, any>[] = [];
+      let skip = 0;
+      while (true) {
+        const page = await apiGet<Record<string, any>[]>(`/commercial/v1/olive-purchases?limit=500&skip=${skip}`);
+        records.push(...page);
+        if (page.length < 500) break;
+        skip += 500;
+      }
+      return records.find((purchase) => String(purchase.id) === purchaseId) ?? null;
+    },
+    enabled: !!purchaseId,
+    retry: false,
+  });
   const list = useQuery({
     queryKey: ["global-search", term],
     queryFn: () => apiGet<{ loads: Load[]; commercial: Array<{ id: string | null; source: string; code: string | null; name: string | null; phone: string | null; status: string | null }> }>(`/commercial/v1/global-search?q=${encodeURIComponent(term)}&limit=50`),
@@ -92,13 +109,6 @@ export default function SearchPage() {
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
   const isOlivePurchaseResult = (item: (typeof commercialResults)[number]) =>
     /olive.*purchase|purchase.*olive|achat.*olive|olive.*achat/i.test(item.source);
-  const openCommercialResult = (item: (typeof commercialResults)[number]) => {
-    if (!item.id || !isOlivePurchaseResult(item)) return;
-    const action = item.status?.toUpperCase() === "APPROVED" ? "receipt" : item.status?.toUpperCase() === "DRAFT" ? "edit" : "";
-    const query = new URLSearchParams({ tab: "purchases", purchase_id: item.id });
-    if (action) query.set("purchase_action", action);
-    navigate(`/commercial?${query.toString()}`);
-  };
   useEffect(() => {
     if (!selectedCode && term && list.isSuccess && results.length === 1 && commercialResults.length === 0) {
       setSelectedCode(results[0].code);
@@ -106,14 +116,16 @@ export default function SearchPage() {
   }, [selectedCode, term, list.isSuccess, results, commercialResults.length]);
   const singleOlivePurchase = commercialResults.length === 1 && isOlivePurchaseResult(commercialResults[0]) ? commercialResults[0] : null;
   useEffect(() => {
-    if (!selectedCode && term && list.isSuccess && results.length === 0 && singleOlivePurchase?.id) {
+    if (!purchaseId && !selectedCode && term && list.isSuccess && results.length === 0 && singleOlivePurchase?.id) {
       const action = singleOlivePurchase.status?.toUpperCase() === "APPROVED" ? "receipt" : singleOlivePurchase.status?.toUpperCase() === "DRAFT" ? "edit" : "";
       const query = new URLSearchParams({ tab: "purchases", purchase_id: singleOlivePurchase.id });
       if (action) query.set("purchase_action", action);
       navigate(`/commercial?${query.toString()}`);
     }
-  }, [selectedCode, term, list.isSuccess, results.length, singleOlivePurchase?.id, singleOlivePurchase?.status, navigate]);
-  const notFound = (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0);
+  }, [purchaseId, selectedCode, term, list.isSuccess, results.length, singleOlivePurchase?.id, singleOlivePurchase?.status, navigate]);
+  const purchaseRecord = purchaseDetail.data?.purchase ?? purchaseDetail.data;
+  const purchaseNumber = (v: any) => fmtNum(Number(v?.$numberDecimal ?? v ?? 0));
+  const notFound = !purchaseId && ((one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0));
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
   return (
@@ -156,7 +168,7 @@ export default function SearchPage() {
         </Button>
       </form>
 
-      {(one.isLoading || list.isLoading) && <p className="text-stone-500">{t("loading")}</p>}
+      {(one.isLoading || list.isLoading || purchaseDetail.isLoading) && <p className="text-stone-500">{t("loading")}</p>}
       {notFound && (
         <div data-testid="search-not-found" className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
           {t("not_found")}: <span className="font-mono font-bold" dir="ltr">{code || term}</span>
@@ -192,7 +204,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-stone-100">
                 {commercialResults.map((item, index) => (
                   <li key={item.id ?? `${item.source}-${index}`}>
-                    <button type="button" onClick={() => openCommercialResult(item)} disabled={!item.id || !isOlivePurchaseResult(item)} className={`flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors ${isOlivePurchaseResult(item) ? "hover:bg-emerald-50" : "cursor-default"}`} data-testid={`search-commercial-result-${item.id ?? index}`}>
+                    <button type="button" onClick={() => { if (item.id && isOlivePurchaseResult(item)) navigate(`/search?purchase_id=${encodeURIComponent(item.id)}&code=${encodeURIComponent(item.code ?? "")}&supplier_name=${encodeURIComponent(item.name ?? "")}&supplier_phone=${encodeURIComponent(item.phone ?? "")}`); }} disabled={!item.id || !isOlivePurchaseResult(item)} className={`flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors ${isOlivePurchaseResult(item) ? "hover:bg-emerald-50" : "cursor-default"}`} data-testid={`search-commercial-result-${item.id ?? index}`}>
                       <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{item.source}</span>
                       <span className="font-mono font-bold text-stone-900" dir="ltr">{item.code || "—"}</span>
                       <span className="flex min-w-40 flex-1 items-center gap-2 text-stone-700"><UserRound className="size-4 text-teal-600" />{item.name || "—"}</span>
@@ -209,6 +221,33 @@ export default function SearchPage() {
       )}
       </div>
 
+
+      {purchaseId && purchaseRecord && (
+        <div className="min-w-0 space-y-4" data-testid="search-olive-purchase-detail">
+          <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-3">
+              <div><h2 className="text-xl font-bold text-stone-900">{lang === "ar" ? "تفاصيل شراء الزيتون" : "Détails de l’achat d’olives"}</h2><p className="mt-1 text-sm text-stone-500">{lang === "ar" ? "جميع بيانات عملية الشراء" : "Toutes les informations de l’opération d’achat"}</p></div>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${purchaseRecord.status === "APPROVED" ? "bg-emerald-100 text-emerald-800" : purchaseRecord.status === "CANCELLED" ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>{purchaseRecord.status === "APPROVED" ? (lang === "ar" ? "مؤكد" : "Approuvé") : purchaseRecord.status === "CANCELLED" ? (lang === "ar" ? "ملغى" : "Annulé") : (lang === "ar" ? "مسودة" : "Brouillon")}</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "كود الشراء" : "Code d’achat"}</p><p className="mt-1 font-mono text-lg font-bold text-emerald-800" dir="ltr">{purchaseRecord.batch_code || purchaseRecord.batch_codes?.join(", ") || purchaseRecord.lines?.map((line: any) => line.batch_code).filter(Boolean).join(", ") || purchaseRecord.document_number || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "رقم الوثيقة" : "N° du document"}</p><p className="mt-1 font-semibold">{purchaseRecord.document_number || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "تاريخ الشراء" : "Date d’achat"}</p><p className="mt-1 font-semibold">{purchaseRecord.purchase_date ? fmtDate(purchaseRecord.purchase_date) : "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "المزوّد" : "Fournisseur"}</p><p className="mt-1 font-semibold">{purchaseRecord.supplier_name || purchaseRecord.supplier?.name || params.get("supplier_name") || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "الهاتف" : "Téléphone"}</p><p className="mt-1 font-semibold" dir="ltr">{purchaseRecord.supplier_phone || purchaseRecord.supplier?.phone || params.get("supplier_phone") || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "مكان الاستلام" : "Lieu de réception"}</p><p className="mt-1 font-semibold">{purchaseRecord.receiving_location_name || purchaseRecord.receiving_location?.name || "—"}</p></div>
+            </div>
+            <div className="mt-5 overflow-x-auto rounded-xl border border-stone-200">
+              <table className="w-full min-w-[560px] text-sm"><thead className="bg-stone-50 text-stone-600"><tr><th className="px-3 py-2 text-start">{lang === "ar" ? "الصنف" : "Variété"}</th><th className="px-3 py-2 text-end">{lang === "ar" ? "الكمية كغ" : "Quantité (kg)"}</th><th className="px-3 py-2 text-end">{lang === "ar" ? "السعر/كغ" : "Prix/kg"}</th><th className="px-3 py-2 text-end">{lang === "ar" ? "المجموع" : "Total"}</th></tr></thead>
+                <tbody>{(purchaseRecord.lines ?? []).map((line: any, index: number) => <tr key={line.id ?? index} className="border-t border-stone-100"><td className="px-3 py-2 font-medium">{line.variety_name || line.variety_fr || line.variety_ar || "—"}</td><td className="px-3 py-2 text-end">{purchaseNumber(line.quantity_kg)}</td><td className="px-3 py-2 text-end">{purchaseNumber(line.unit_price_dt)}</td><td className="px-3 py-2 text-end font-semibold">{purchaseNumber(line.line_total_dt ?? line.total_amount_dt)}</td></tr>)}</tbody>
+              </table>
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-6"><div><p className="text-xs text-stone-500">{lang === "ar" ? "الكمية الإجمالية" : "Quantité totale"}</p><p className="text-lg font-bold text-lime-800">{purchaseNumber(purchaseRecord.total_quantity_kg)} kg</p></div><div><p className="text-xs text-stone-500">{lang === "ar" ? "المبلغ الإجمالي" : "Montant total"}</p><p className="text-lg font-bold text-emerald-800">{purchaseNumber(purchaseRecord.total_amount_dt)} TND</p></div></div>
+            {purchaseRecord.notes && <div className="mt-4 border-t border-stone-100 pt-3 text-sm"><span className="text-stone-500">{lang === "ar" ? "ملاحظات" : "Notes"}: </span>{purchaseRecord.notes}</div>}
+          </div>
+        </div>
+      )}
+      {purchaseId && purchaseDetail.isError && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{lang === "ar" ? "تعذر تحميل تفاصيل الشراء. حاول إعادة البحث." : "Impossible de charger les détails de cet achat. Relancez la recherche."}</div>}
       {shown && (
         <div className="space-y-5" data-testid="search-load-detail">
           <LoadDetail load={shown} />
