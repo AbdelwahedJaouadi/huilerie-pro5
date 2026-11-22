@@ -86,7 +86,17 @@ export default function SearchPage() {
   });
   const purchaseDetail = useQuery({
     queryKey: ["search-olive-purchase", purchaseId],
-    queryFn: () => apiGet<Record<string, any>>(`/commercial/v1/olive-purchases/${encodeURIComponent(purchaseId)}`),
+    queryFn: async () => {
+      const records: Record<string, any>[] = [];
+      let skip = 0;
+      while (true) {
+        const page = await apiGet<Record<string, any>[]>(`/commercial/v1/olive-purchases?limit=500&skip=${skip}`);
+        records.push(...page);
+        if (page.length < 500) break;
+        skip += 500;
+      }
+      return records.find((purchase) => String(purchase.id) === purchaseId) ?? null;
+    },
     enabled: !!purchaseId,
     retry: false,
   });
@@ -115,7 +125,7 @@ export default function SearchPage() {
   }, [purchaseId, selectedCode, term, list.isSuccess, results.length, singleOlivePurchase?.id, singleOlivePurchase?.status, navigate]);
   const purchaseRecord = purchaseDetail.data?.purchase ?? purchaseDetail.data;
   const purchaseNumber = (v: any) => fmtNum(Number(v?.$numberDecimal ?? v ?? 0));
-  const notFound = !purchaseId && (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0));
+  const notFound = !purchaseId && ((one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0));
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
   return (
@@ -194,7 +204,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-stone-100">
                 {commercialResults.map((item, index) => (
                   <li key={item.id ?? `${item.source}-${index}`}>
-                    <button type="button" onClick={() => { if (item.id && isOlivePurchaseResult(item)) navigate(`/search?purchase_id=${encodeURIComponent(item.id)}&code=${encodeURIComponent(item.code ?? "")}`); }} disabled={!item.id || !isOlivePurchaseResult(item)} className={`flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors ${isOlivePurchaseResult(item) ? "hover:bg-emerald-50" : "cursor-default"}`} data-testid={`search-commercial-result-${item.id ?? index}`}>
+                    <button type="button" onClick={() => { if (item.id && isOlivePurchaseResult(item)) navigate(`/search?purchase_id=${encodeURIComponent(item.id)}&code=${encodeURIComponent(item.code ?? "")}&supplier_name=${encodeURIComponent(item.name ?? "")}&supplier_phone=${encodeURIComponent(item.phone ?? "")}`); }} disabled={!item.id || !isOlivePurchaseResult(item)} className={`flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors ${isOlivePurchaseResult(item) ? "hover:bg-emerald-50" : "cursor-default"}`} data-testid={`search-commercial-result-${item.id ?? index}`}>
                       <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{item.source}</span>
                       <span className="font-mono font-bold text-stone-900" dir="ltr">{item.code || "—"}</span>
                       <span className="flex min-w-40 flex-1 items-center gap-2 text-stone-700"><UserRound className="size-4 text-teal-600" />{item.name || "—"}</span>
