@@ -83,26 +83,23 @@ function printHtmlInHiddenFrame(html: string) {
     cleaned = true;
     frame.remove();
   };
-  frame.onload = () => {
-    const printWindow = frame.contentWindow;
-    if (!printWindow) { cleanup(); return; }
-    printWindow.onafterprint = cleanup;
-    window.setTimeout(() => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-        window.setTimeout(cleanup, 60000);
-      } catch {
-        cleanup();
-      }
-    }, 250);
-  };
   document.body.appendChild(frame);
   const printDocument = frame.contentDocument;
-  if (!printDocument) { cleanup(); return false; }
+  const printWindow = frame.contentWindow;
+  if (!printDocument || !printWindow) { cleanup(); return false; }
+  printWindow.onafterprint = cleanup;
   printDocument.open();
   printDocument.write(html);
   printDocument.close();
+  window.setTimeout(() => {
+    try {
+      printWindow.focus();
+      printWindow.print();
+      window.setTimeout(cleanup, 60000);
+    } catch {
+      cleanup();
+    }
+  }, 300);
   return true;
 }
 
@@ -128,7 +125,7 @@ function printEmployeeRegistry(workers: Worker[], ar: boolean) {
     : ["Registre des employés", "Nom et prénom", "Téléphone", "Adresse", "Salaire", "Type", "Statut", "Actif", "Archivé"];
   const salaryType = (type?: string) => type === "hourly" ? (ar ? "بالساعة" : "Horaire") : type === "daily" ? (ar ? "باليوم" : "Journalier") : (ar ? "شهري" : "Mensuel");
   const rows = workers.map((w) => `<tr><td>${escape(w.full_name)}</td><td>${escape(w.phone || "—")}</td><td>${escape(w.address || "—")}</td><td>${w.salary_amount == null ? "—" : w.salary_amount}</td><td>${salaryType(w.salary_type)}</td><td>${w.active === false ? labels[8] : labels[7]}</td></tr>`).join("");
-  const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>setTimeout(()=>window.print(),250)</script></html>`;
+  const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${ar ? "rtl" : "ltr"}"><meta charset="utf-8"><title>${labels[0]}</title><style>body{font-family:Arial,Tahoma,sans-serif;padding:24px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse}th{background:#34451f;color:white}td,th{border:1px solid #ddd;padding:9px;text-align:start}tr:nth-child(even){background:#f5f6f2}@page{size:A4 landscape;margin:12mm}</style><h1>ORO VERDE</h1><h2>${labels[0]}</h2><p>${new Date().toLocaleDateString(ar ? "ar-TN" : "fr-FR")}</p><table><thead><tr>${labels.slice(1,6).map(x=>`<th>${x}</th>`).join("")}<th>${labels[6]}</th></tr></thead><tbody>${rows}</tbody></table></html>`;
   return printHtmlInHiddenFrame(html);
 }
 
@@ -154,7 +151,7 @@ function printWorkforceReport({ records, workers, startDate, endDate, ar, locale
     "<style>@page{size:A3 landscape;margin:8mm}html,body{width:100%;margin:0}body{font-family:Tahoma,Arial,sans-serif;font-size:8px;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1{color:#34451f}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #ddd;padding:4px 2px;text-align:center;overflow-wrap:anywhere;font-size:" + (days.length > 24 ? "6px" : "8px") + "}thead th{background:#34451f;color:white}.worker{text-align:start;background:#f3f5ef}.present{background:#e9f4eb;color:#245c37}.absent{background:#fde8e8;color:#a12b2b}.empty{color:#999}.total{background:#f3f5ef;color:#34451f}</style>" +
     "<h1>ORO VERDE — " + labels.title + "</h1><p>" + labels.period + ": " + startDate + " — " + endDate + "</p>" +
     "<table><thead><tr><th class=\"worker\">" + labels.employee + "</th>" + head + "<th class=\"total\">" + labels.total + "</th></tr></thead><tbody>" + body + "</tbody></table><p>" + labels.note + "</p>" +
-    "<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></html>";
+    "</html>";
   return printHtmlInHiddenFrame(html);
 }
 export default function Workforce() {
