@@ -711,7 +711,6 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       idempotency_key: supplierOilPurchaseKey,
     }),
     onSuccess: async () => {
-      setSupplierOilPurchaseKey(crypto.randomUUID());
       toast.success(lang === "ar" ? "تم تسجيل شراء الزيت، دون إدخاله إلى الخزان" : "Achat d’huile enregistré; aucune entrée en cuve n’a été créée");
       setSupplierOilQuantityL("");
       setSupplierOilUnitPrice("");
