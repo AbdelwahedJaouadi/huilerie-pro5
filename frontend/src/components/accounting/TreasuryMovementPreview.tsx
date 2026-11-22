@@ -44,6 +44,7 @@ const reasonLabels: Record<string,{ar:string;fr:string}> = {
   PAYMENT_SALE_LINK_MISMATCH:{ar:"الدفعة لا تطابق عملية البيع",fr:"Le paiement ne correspond pas à la vente"},
   SUPPLIER_PURCHASE_LINK_INVALID:{ar:"شراء المزوّد غير موجود أو غير مصادق عليه",fr:"Achat fournisseur introuvable ou non approuvé"},
   PAYMENT_SUPPLIER_LINK_MISMATCH:{ar:"المزوّد لا يطابق سند الشراء",fr:"Le fournisseur ne correspond pas à l’achat"},
+  TRADITIONAL_RECEIPT_POSTING_NOT_SUPPORTED:{ar:"عرض فقط حالياً؛ تسجيل هذا النوع من الدفعات غير مفعّل بعد",fr:"Consultation uniquement : l’enregistrement de ce type de reçu n’est pas encore pris en charge"},
 };
 const money = (value:string|null|undefined) => fmtMoney(value);
 type Movement = {id:string; settlement_status:string; source_type:string; source_id:string};
