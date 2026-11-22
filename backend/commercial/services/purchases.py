@@ -451,11 +451,12 @@ async def create_supplier_oil_purchase(
 async def receive_supplier_oil_purchase(
     db: Any, purchase_id: str, draft: Any, *, actor_user: dict[str, Any],
     actor_user_id: str, receipt_id: str, lot_id: str, movement_id: str,
-    audit_event_id: str, received_at: datetime, session: Any,
+    audit_event_id: str, stock_audit_event_id: str,
+    received_at: datetime, session: Any,
 ) -> dict[str, Any]:
     """Post a later, separately authorized receipt of purchased oil into a tank."""
     require_commercial_permission(actor_user, "commercial.post_stock")
-    if not actor_user_id or not all((receipt_id, lot_id, movement_id, audit_event_id)) or received_at.tzinfo is None:
+    if not actor_user_id or not all((receipt_id, lot_id, movement_id, audit_event_id, stock_audit_event_id)) or received_at.tzinfo is None:
         raise ValueError("Stable actor and receipt identifiers plus timezone-aware timestamp are required")
     purchases = db["commercial_olive_purchases"]
     purchase = await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)
@@ -521,7 +522,7 @@ async def receive_supplier_oil_purchase(
     posted = await post_stock_movement(
         db, movement, season_code=purchase["season_code"],
         actor_user_id=actor_user_id, actor_user=actor_user,
-        movement_id=movement_id, audit_event_id=audit_event_id,
+        movement_id=movement_id, audit_event_id=stock_audit_event_id,
         created_at=now, session=session,
     )
     new_received = received_quantity + draft.quantity_l
