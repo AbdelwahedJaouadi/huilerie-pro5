@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -300,16 +300,23 @@ export default function Workforce() {
     setReason("");
     setEditStatus(record.status);
   };
-  const renderSummary = (title: string, rows: Summary[]) => (
-    <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 font-semibold text-stone-900">{title}</h3>
+  const renderSummary = (title: string, rows: Summary[]) => {
+    const SummaryIcon = title.includes(ar ? "اليومي" : "journaliers") ? CalendarCheck2
+      : title.includes(ar ? "الأسبوعي" : "hebdomadaires") ? CalendarRange : CalendarClock;
+    const summaryTone = title.includes(ar ? "اليومي" : "journaliers") ? "border-sky-200 bg-gradient-to-br from-sky-50 to-white"
+      : title.includes(ar ? "الأسبوعي" : "hebdomadaires") ? "border-violet-200 bg-gradient-to-br from-violet-50 to-white"
+      : "border-teal-200 bg-gradient-to-br from-teal-50 to-white";
+    return (
+    <section className={`rounded-2xl border p-4 shadow-sm ${summaryTone}`}>
+      <div className="mb-3 flex items-center gap-2"><span className="grid size-9 place-items-center rounded-xl bg-white/90 shadow-sm"><SummaryIcon className="size-5 text-slate-700" /></span><h3 className="font-semibold text-stone-900">{title}</h3></div>
       {rows.length === 0 ? <p className="text-sm text-stone-500">{ar ? "لا توجد ورديات مكتملة ضمن هذه الفترة." : "Aucun quart terminé sur cette période."}</p> :
         <div className="overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-2 text-start">{ar ? "الفترة" : "Période"}</th><th className="px-3 py-2 text-end">{ar ? "الورديات المكتملة" : "Quarts terminés"}</th><th className="px-3 py-2 text-end">{ar ? "مجموع الساعات" : "Total travaillé"}</th></tr></thead>
           <tbody>{rows.map((row) => <tr key={row.key} className="border-b last:border-0"><td className="px-3 py-2 font-medium" dir="ltr">{row.key}{title === (ar ? "المجموع الأسبوعي (الاثنين إلى الأحد)" : "Totaux hebdomadaires (lundi au dimanche)") ? ` → ${new Date(new Date(row.key + "T00:00:00Z").getTime() + 6 * 86400000).toISOString().slice(0, 10)}` : ""}</td><td className="px-3 py-2 text-end tabular-nums">{row.shifts}</td><td className="px-3 py-2 text-end font-semibold tabular-nums">{durationLabel(row.minutes)}</td></tr>)}</tbody>
         </table></div>}
     </section>
-  );
+    );
+  };
 
   return (
     <div className="space-y-5" dir={ar ? "rtl" : "ltr"} data-testid="workforce-page">
@@ -328,11 +335,11 @@ export default function Workforce() {
        data.isError ? <p className="py-8 text-center text-sm text-red-700">{ar ? "تعذر تحميل سجلات العمال." : "Impossible de charger les pointages."}</p> : <>
         <section className="grid gap-3 sm:grid-cols-4">
           {[
-            { label: ar ? "إجمالي ساعات العمل" : "Total des heures", value: durationLabel(totals.minutes), tone: "bg-indigo-50 text-indigo-800" },
-            { label: ar ? "ورديات مكتملة" : "Quarts terminés", value: totals.closed, tone: "bg-emerald-50 text-emerald-800" },
-            { label: ar ? "ورديات مفتوحة (غير محسوبة)" : "Quarts ouverts (exclus)", value: totals.open, tone: "bg-amber-50 text-amber-800" },
-            { label: ar ? "غياب مسجل يدوياً" : "Absences confirmées", value: totals.absent, tone: "bg-rose-50 text-rose-800" },
-          ].map((item) => <div key={item.label} className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><div className="text-sm text-stone-600">{item.label}</div><div className={`mt-2 inline-flex rounded-lg px-3 py-1 text-2xl font-bold tabular-nums ${item.tone}`}>{item.value}</div></div>)}
+            { label: ar ? "إجمالي ساعات العمل" : "Total des heures", value: durationLabel(totals.minutes), icon: Timer, tone: "border-blue-200 bg-gradient-to-br from-blue-100 via-sky-50 to-white text-blue-950", iconTone: "bg-blue-600 text-white" },
+            { label: ar ? "ورديات مكتملة" : "Quarts terminés", value: totals.closed, icon: CheckCircle2, tone: "border-emerald-200 bg-gradient-to-br from-emerald-100 via-green-50 to-white text-emerald-950", iconTone: "bg-emerald-600 text-white" },
+            { label: ar ? "ورديات مفتوحة (غير محسوبة)" : "Quarts ouverts (exclus)", value: totals.open, icon: Hourglass, tone: "border-amber-200 bg-gradient-to-br from-amber-100 via-yellow-50 to-white text-amber-950", iconTone: "bg-amber-500 text-white" },
+            { label: ar ? "غياب مسجل يدوياً" : "Absences confirmées", value: totals.absent, icon: UserX, tone: "border-rose-200 bg-gradient-to-br from-rose-100 via-pink-50 to-white text-rose-950", iconTone: "bg-rose-600 text-white" },
+          ].map((item) => <div key={item.label} className={`relative overflow-hidden rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${item.tone}`}><div className="flex items-start justify-between gap-3"><div className="text-sm font-semibold opacity-80">{item.label}</div><span className={`grid size-11 shrink-0 place-items-center rounded-xl shadow-sm ${item.iconTone}`}><item.icon className="size-6" /></span></div><div className="mt-3 text-3xl font-extrabold tracking-tight tabular-nums" dir="ltr">{item.value}</div></div>)}
         </section>
         <div className="grid gap-4 xl:grid-cols-3">
           {renderSummary(ar ? "المجموع اليومي" : "Totaux journaliers", daily)}
