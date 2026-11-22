@@ -87,7 +87,7 @@ def _candidate(
         "source_document_number": source.get("document_number") or source.get("payment_number") or source.get("invoice_number"),
         "party_name": source.get("party_name") or source.get("client_name") or source.get("buyer_name") or source.get("supplier_name"),
         "description": source.get("description") or source.get("notes") or source.get("paid_by"),
-        "external_reference": source.get("external_reference") or source.get("reference"),
+        "external_reference": source.get("external_reference"),
         "business_date": business_date or None,
         "direction": direction,
         "account_id": account_id or None,
