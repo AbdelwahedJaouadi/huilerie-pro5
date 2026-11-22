@@ -54,6 +54,8 @@ async def approve_olive_purchase(
     )
     if not purchase:
         raise ValueError("Olive purchase does not exist")
+    if purchase.get("purchase_kind") == "OIL":
+        raise ValueError("Ready-oil purchases must be received through the separate supplier oil receipt workflow")
 
     expected_key = command.idempotency_key
     approval_fingerprint = _approval_fingerprint(command)
