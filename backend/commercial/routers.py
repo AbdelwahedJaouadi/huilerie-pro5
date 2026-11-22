@@ -358,7 +358,7 @@ async def global_search(
             ("commercial_suppliers", "GS — Fournisseurs", ("name", "supplier_name", "phone", "mobile", "code", "tax_identifier")),
             ("commercial_buyers", "GS — Acheteurs", ("name", "buyer_name", "phone", "mobile", "code", "tax_identifier")),
             ("commercial_custody_owners", "GS — Garde des clients", ("client_name", "client_phone", "code")),
-            ("commercial_olive_purchases", "GS — Achats d’olives", ("document_number", "batch_code", "supplier_name", "supplier_phone", "code")),
+            ("commercial_olive_purchases", "GS — Achats d’olives et d’huile", ("document_number", "batch_code", "supplier_name", "supplier_phone", "code")),
             ("commercial_customer_custody_receipts", "GS — Réceptions clients", ("document_number", "batch_code", "customer_name", "customer_phone", "source_load_code")),
             ("commercial_customer_custody_releases", "GS — Restitutions clients", ("document_number", "batch_code", "customer_name", "customer_phone")),
             ("commercial_sales", "GS — Ventes", ("document_number", "invoice_number", "batch_code", "buyer_name", "buyer_phone", "code")),
