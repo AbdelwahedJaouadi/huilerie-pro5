@@ -262,6 +262,12 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [chargementFilter, setChargementFilter] = useState("ALL");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [purchaseNotes, setPurchaseNotes] = useState("");
+  const [supplierOilPurchaseSupplierId, setSupplierOilPurchaseSupplierId] = useState("");
+  const [supplierOilPurchaseDate, setSupplierOilPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [supplierOilType, setSupplierOilType] = useState("Huile d’olive");
+  const [supplierOilQuantityL, setSupplierOilQuantityL] = useState("");
+  const [supplierOilUnitPrice, setSupplierOilUnitPrice] = useState("");
+  const [supplierOilNotes, setSupplierOilNotes] = useState("");
   const [purchaseLines, setPurchaseLines] = useState([{ variety_id: "", quantity_kg: "", unit_price_dt: "" }]);
   const [receivingLocationId, setReceivingLocationId] = useState("");
   const [productionDate, setProductionDate] = useState(new Date().toISOString().slice(0, 10));
@@ -686,6 +692,28 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       setPurchaseNotes("");
       setPurchaseLines([{ variety_id: "", quantity_kg: "", unit_price_dt: "" }]);
       await queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : l.warning),
+  });
+  const createSupplierOilPurchase = useMutation({
+    mutationFn: () => apiPost<AnyRecord>("/commercial/v1/supplier-oil-purchases", {
+      supplier_id: supplierOilPurchaseSupplierId,
+      purchase_date: supplierOilPurchaseDate,
+      oil_type: supplierOilType.trim(),
+      quantity_l: supplierOilQuantityL,
+      unit_price_tnd_per_l: tndInputToDinars(supplierOilUnitPrice),
+      notes: supplierOilNotes.trim() || null,
+      idempotency_key: crypto.randomUUID(),
+    }),
+    onSuccess: async () => {
+      toast.success(lang === "ar" ? "تم تسجيل شراء الزيت، دون إدخاله إلى الخزان" : "Achat d’huile enregistré; aucune entrée en cuve n’a été créée");
+      setSupplierOilQuantityL("");
+      setSupplierOilUnitPrice("");
+      setSupplierOilNotes("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial", "supplier-statement", selectedSupplierId] }),
+      ]);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : l.warning),
   });
@@ -2589,6 +2617,17 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
           </form>
         </CardContent></Card>}
         {isAdmin && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.receivingLocation}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><select value={receivingLocationId} onChange={(e) => setReceivingLocationId(e.target.value)} className="h-8 w-full max-w-xl rounded-lg border bg-background px-2 text-sm"><option value="">—</option>{(locations.data ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.code} · {loc.name}</option>)}</select></CardContent></Card>}
+        {isAdmin && <Card className="border-emerald-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "شراء زيت جاهز من المزوّد" : "Achat d’huile prête auprès d’un fournisseur"}</CardTitle><CardDescription>{lang === "ar" ? "يُسجّل الشراء الآن، ويُسجّل إدخال الزيت إلى الخزان لاحقاً كعملية مستقلة." : "L’achat est enregistré maintenant; l’entrée en cuve sera saisie ultérieurement comme opération distincte."}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
+          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => { event.preventDefault(); createSupplierOilPurchase.mutate(); }}>
+            <label className="grid gap-1 text-sm font-medium">{l.supplier}<select required value={supplierOilPurchaseSupplierId} onChange={(e) => setSupplierOilPurchaseSupplierId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-medium">{l.purchaseDate}<input required type="date" value={supplierOilPurchaseDate} onChange={(e) => setSupplierOilPurchaseDate(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "نوع الزيت" : "Type d’huile"}<input required minLength={2} maxLength={80} value={supplierOilType} onChange={(e) => setSupplierOilType(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الكمية (لتر)" : "Quantité (L)"}<input required type="number" min="0.001" step="0.001" value={supplierOilQuantityL} onChange={(e) => setSupplierOilQuantityL(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "سعر اللتر (TND)" : "Prix par litre (TND)"}<input required type="text" inputMode="decimal" placeholder="0,000" value={supplierOilUnitPrice} onChange={(e) => setSupplierOilUnitPrice(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <label className="grid gap-1 text-sm font-medium">{l.notes}<input maxLength={1000} value={supplierOilNotes} onChange={(e) => setSupplierOilNotes(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 p-3 md:col-span-2 xl:col-span-3"><div><div className="text-xs text-emerald-800">{lang === "ar" ? "المبلغ الجملي التقديري" : "Montant total"}</div><div className="text-xl font-bold text-emerald-950">{money((Number(supplierOilQuantityL) || 0) * (parseTndInputToMillimes(supplierOilUnitPrice) / 1000))}</div></div><Button type="submit" disabled={createSupplierOilPurchase.isPending || !supplierOilPurchaseSupplierId || !(Number(supplierOilQuantityL) > 0) || !Number.isSafeInteger(parseTndInputToMillimes(supplierOilUnitPrice)) || !supplierOilType.trim()}>{lang === "ar" ? "تسجيل شراء الزيت" : "Enregistrer l’achat d’huile"}</Button></div>
+          </form>
+        </CardContent></Card>}
         {selectedPurchaseReceipt && <Card className="print-area oil-purchase-receipt-print code-reveal rounded-2xl border-2 border-dashed border-amber-300 bg-white p-8 text-stone-900 shadow-sm">
           <CardHeader className="no-print flex-row items-center justify-between p-0 pb-4">
             <CardTitle>{lang === "ar" ? "وصل استلام المزوّد" : "Bon de réception fournisseur"}</CardTitle>
@@ -2653,12 +2692,21 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
           </CardContent>
         </Card>}
         <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.purchasesTab}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{l.purchaseCode}</TableHead><TableHead>{l.purchaseReference}</TableHead><TableHead>{l.supplier}</TableHead><TableHead>{l.purchaseDate}</TableHead><TableHead>{l.totalQuantity}</TableHead><TableHead>{l.totalAmount}</TableHead><TableHead>{l.status}</TableHead><TableHead>{l.actions}</TableHead></TableRow></TableHeader><TableBody>
-          {(purchases.data ?? []).map((purchase) => <TableRow key={purchase.id}>
+          {(purchases.data ?? []).map((purchase) => purchase.purchase_kind === "OIL" ? <TableRow key={purchase.id}>
+            <TableCell className="font-mono font-bold text-stone-900">{purchaseCodeDisplay(purchase.batch_code || purchase.document_number)}</TableCell>
+            <TableCell className="font-mono font-bold text-stone-900">{purchaseCodeDisplay(purchase.document_number)}</TableCell>
+            <TableCell>{value((suppliers.data ?? []).find((s) => s.id === purchase.supplier_id)?.name || purchase.supplier_name, purchase.supplier_id)}</TableCell>
+            <TableCell>{date(purchase.purchase_date)}</TableCell>
+            <TableCell>{number(purchase.quantity_l)} L · {purchase.oil_type}</TableCell>
+            <TableCell>{money(purchase.total_amount_dt)}</TableCell>
+            <TableCell>{lang === "ar" ? "شراء زيت — بانتظار إدخال الخزان" : "Huile — en attente d’entrée en cuve"}</TableCell>
+            <TableCell><Button size="sm" variant="outline" onClick={() => setSelectedPurchaseReceipt(purchase)}><Printer className="mr-1 size-4" />{lang === "ar" ? "طباعة الوصل" : "Imprimer le reçu"}</Button></TableCell>
+          </TableRow> : <TableRow key={purchase.id}>
             <TableCell className="font-mono font-bold text-stone-900">{purchase.status === "DRAFT" && canEditRecords ? <button type="button" className="text-primary underline underline-offset-4 hover:opacity-80" onClick={() => startPurchaseEdit(purchase)} title={l.editPurchase}>{purchaseCodeDisplay(purchaseTraceabilityCodes(purchase), purchase.document_number)}</button> : purchaseCodeDisplay(purchaseTraceabilityCodes(purchase), purchase.document_number)}</TableCell>
             <TableCell className="font-mono font-bold text-stone-900">{purchase.status === "DRAFT" && canEditRecords ? <button type="button" className="text-primary underline underline-offset-4 hover:opacity-80" onClick={() => startPurchaseEdit(purchase)} title={l.editPurchase}>{purchaseCodeDisplay(purchase.document_number)}</button> : purchaseCodeDisplay(purchase.document_number)}</TableCell>
             <TableCell>{value((suppliers.data ?? []).find((s) => s.id === purchase.supplier_id)?.name, purchase.supplier_id)}</TableCell>
             <TableCell>{date(purchase.purchase_date)}</TableCell>
-            <TableCell>{number(purchase.total_quantity_kg)}</TableCell>
+            <TableCell>{number(purchase.total_quantity_kg)} kg</TableCell>
             <TableCell>{money(purchase.total_amount_dt)}</TableCell>
             <TableCell>{purchase.status === "APPROVED" ? l.approved : purchase.status === "CANCELLED" ? (lang === "ar" ? "ملغى" : "Annulé") : l.draft}</TableCell>
             <TableCell>{purchase.status === "DRAFT" ? <div className="flex flex-wrap gap-2">{isAdmin && <Button size="sm" disabled={approvePurchase.isPending || !receivingLocationId} onClick={() => approvePurchase.mutate(purchase)}>{l.approve}</Button>}{canDeleteRecords && <Button size="sm" variant="destructive" disabled={cancelPurchase.isPending} onClick={() => { if (!window.confirm(lang === "ar" ? "سيتم إلغاء مسودة الشراء مع الاحتفاظ بها في سجل التدقيق. هل تؤكد؟" : "Annuler ce brouillon en conservant sa trace d’audit ?")) return; const reason = window.prompt(lang === "ar" ? "سبب الإلغاء (5 أحرف على الأقل):" : "Motif de l’annulation (5 caractères minimum) :"); if (reason && reason.trim().length >= 5) cancelPurchase.mutate({ purchase, reason: reason.trim() }); }}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button>}</div> : purchase.status === "APPROVED" ? <Button size="sm" variant="outline" onClick={() => setSelectedPurchaseReceipt(purchase)}><Printer className="mr-1 size-4" />{lang === "ar" ? "طباعة / إعادة الطباعة" : "Imprimer / Réimprimer"}</Button> : "—"}</TableCell>
