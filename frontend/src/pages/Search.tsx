@@ -90,10 +90,10 @@ export default function SearchPage() {
   const results = list.isError ? [] : (list.data?.loads ?? []);
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
   useEffect(() => {
-    if (!selectedCode && term && list.isSuccess && results.length === 1) {
+    if (!selectedCode && term && list.isSuccess && results.length === 1 && commercialResults.length === 0) {
       setSelectedCode(results[0].code);
     }
-  }, [selectedCode, term, list.isSuccess, results]);
+  }, [selectedCode, term, list.isSuccess, results, commercialResults.length]);
   const notFound = (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0);
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
