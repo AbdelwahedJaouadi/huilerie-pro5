@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
 type Row = Record<string, any>;
+type WorkforceWorkersResponse = { workers: Row[]; total: number };
 type Overview = {
   active_season: string;
   supplier_olive_purchases: Row[];
@@ -75,7 +76,7 @@ export default function ManagerDashboard() {
   const isAdmin = me.data?.role === "admin";
   const stats = useQuery({ queryKey: ["manager-dashboard", "stats"], queryFn: () => apiGet<Stats>("/stats"), enabled: !!isAdmin, refetchInterval: 15_000 });
   const accounting = useQuery({ queryKey: ["manager-dashboard", "accounting"], queryFn: () => apiGet<Overview>("/accounting/overview"), enabled: !!isAdmin, refetchInterval: 30_000, retry: false });
-  const workers = useQuery({ queryKey: ["manager-dashboard", "workers"], queryFn: () => apiGet<Row[]>("/users"), enabled: !!isAdmin, refetchInterval: 30_000 });
+  const workers = useQuery({ queryKey: ["manager-dashboard", "workers"], queryFn: () => apiGet<WorkforceWorkersResponse>("/workforce/workers"), enabled: !!isAdmin, refetchInterval: 30_000 });
 
   if (me.isPending) return <div className="p-6 text-stone-500">{ar ? "جارٍ التحقق من الصلاحيات…" : "Vérification des autorisations…"}</div>;
   if (!isAdmin) return <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800">{ar ? "هذه اللوحة متاحة للمدير فقط." : "Ce tableau de bord est réservé à l’administrateur."}</div>;
@@ -129,21 +130,21 @@ export default function ManagerDashboard() {
       <section className="rounded-2xl border bg-white p-4 shadow-sm md:col-span-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="font-bold">{ar ? "العمال النشطون" : "Employés actifs"}</h2>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{workers.data ? workers.data.filter((worker) => worker.role === "worker" && worker.active).length : "—"}</span>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{workers.data ? workers.data.workers.filter((worker) => worker.active === true && worker.archived !== true).length : "—"}</span>
         </div>
         {workers.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل قائمة العمال." : "Impossible de charger la liste des employés."}</p> :
           workers.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال…" : "Chargement des employés…"}</p> :
-          workers.data.filter((worker) => worker.role === "worker" && worker.active).length === 0
+          workers.data.workers.filter((worker) => worker.active === true && worker.archived !== true).length === 0
             ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال نشطون." : "Aucun employé actif."}</p>
             : <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {workers.data.filter((worker) => worker.role === "worker" && worker.active).map((worker) => (
+                {workers.data.workers.filter((worker) => worker.active === true && worker.archived !== true).map((worker) => (
                   <div key={String(worker.id ?? worker._id ?? worker.username)} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-3">
                     <span className="min-w-0 truncate font-medium text-stone-800">{worker.full_name || worker.username || "—"}</span>
-                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{ar ? "الحساب نشط" : "Compte actif"}</span>
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{ar ? "عامل نشط" : "Employé actif"}</span>
                   </div>
                 ))}
               </div>}
-        <p className="mt-3 text-xs text-stone-500">{ar ? "هذه حالة الحساب فقط؛ لا يعرض التطبيق حالياً سجلاً يومياً موثوقاً للحضور والانصراف." : "Il s’agit uniquement de l’état du compte ; l’application ne fournit pas actuellement de registre journalier fiable des présences."}</p>
+        <p className="mt-3 text-xs text-stone-500">{ar ? "تعرض هذه القائمة العمال النشطين من السجل المستقل؛ وتُتابع أوقات الحضور والانصراف في صفحة Travail." : "Liste issue du registre indépendant des employés ; les heures de présence et de départ sont suivies dans la page Travail."}</p>
       </section>
       <Link to="/loads" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500"><section className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2 text-stone-700"><CalendarClock className="size-5 text-orange-700" /><h2 className="font-bold">{ar ? "حالة الحمولات" : "État des chargements"}</h2></div>
