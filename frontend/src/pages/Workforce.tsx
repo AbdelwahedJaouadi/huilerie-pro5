@@ -99,141 +99,28 @@ function escapeReportHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-function printWorkforceReport({
-  records, workers, startDate, endDate, ar, locale,
-}: {
-  records: Attendance[];
-  workers: Worker[];
-  startDate: string;
-  endDate: string;
-  ar: boolean;
-  locale: string;
-}) {
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) return false;
-
-  const text = ar ? {
-    title: "تقرير الحضور والانصراف", subtitle: "Oro Verde — جدول العمال",
-    period: "الفترة", employee: "العامل", all: "جميع العمال",
-    summary: "ملخص ساعات العمل حسب العامل", details: "تفاصيل الحضور والانصراف",
-    name: "اسم العامل", shifts: "الورديات المكتملة", hours: "مجموع ساعات العمل",
-    open: "ورديات مفتوحة", absent: "غياب مؤكد", noRecords: "لا توجد سجلات",
-    date: "التاريخ", status: "الحالة", arrival: "الحضور", departure: "الانصراف",
-    duration: "المدة", complete: "مكتمل", openStatus: "وردية مفتوحة — غير محسوبة",
-    absentStatus: "غياب مؤكد", review: "تتطلب مراجعة", noData: "لا توجد سجلات في الفترة المختارة",
-    note: "لا يتم خصم الاستراحة. الورديات المفتوحة لا تدخل في مجموع الساعات. عدم وجود سجل لا يعني الغياب.",
-    total: "الإجمالي العام", generated: "تاريخ استخراج التقرير",
-  } : {
-    title: "Rapport du personnel et du pointage", subtitle: "Oro Verde — Tableau des employés",
-    period: "Période", employee: "Employé", all: "Tous les employés",
-    summary: "Synthèse des heures par employé", details: "Détail des arrivées et départs",
-    name: "Nom de l’employé", shifts: "Quarts terminés", hours: "Total des heures",
-    open: "Quarts ouverts", absent: "Absences confirmées", noRecords: "Aucun pointage",
-    date: "Date", status: "Statut", arrival: "Arrivée", departure: "Départ",
-    duration: "Durée", complete: "Terminé", openStatus: "Quart ouvert — exclu",
-    absentStatus: "Absent confirmé", review: "À vérifier", noData: "Aucun pointage sur la période sélectionnée",
-    note: "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. L’absence d’un pointage ne signifie pas une absence.",
-    total: "Total général", generated: "Rapport généré le",
-  };
-  const selectedName = workers.length === 1 ? workers[0].full_name : text.all;
-  const sortedRecords = [...records].sort((a, b) =>
-    a.day.localeCompare(b.day) || a.worker_name.localeCompare(b.worker_name, locale)
-  );
-  const stats = workers.map((worker) => {
-    const rows = records.filter((record) => record.worker_id === worker.id);
-    const minutes = rows.reduce((sum, record) => sum + workedMinutes(record), 0);
-    return {
-      name: worker.full_name, minutes,
-      complete: rows.filter((record) => workedMinutes(record) > 0).length,
-      open: rows.filter((record) => record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at).length,
-      absent: rows.filter((record) => record.status === "ABSENT").length,
-      count: rows.length,
-    };
-  });
-  const totalMinutes = records.reduce((sum, record) => sum + workedMinutes(record), 0);
-  const totalComplete = records.filter((record) => workedMinutes(record) > 0).length;
-  const totalOpen = records.filter((record) => record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at).length;
-  const totalAbsent = records.filter((record) => record.status === "ABSENT").length;
-  const dayLabel = (day: string) => new Date(day + "T12:00:00").toLocaleDateString(locale, {
-    timeZone: "Africa/Tunis", year: "numeric", month: "2-digit", day: "2-digit",
-  });
-  const summaryRows = stats.map((item) => `
-    <tr><td class="employee">${escapeReportHtml(item.name)}</td>
-    <td class="num">${item.count ? item.complete : text.noRecords}</td>
-    <td class="num strong">${durationLabel(item.minutes)}</td>
-    <td class="num">${item.open}</td><td class="num">${item.absent}</td></tr>`
-  ).join("");
-  const detailRows = sortedRecords.map((record) => {
-    const minutes = workedMinutes(record);
-    const isOpen = record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at;
-    const isInvalid = record.status === "PRESENT" && !!record.check_in_at && !!record.check_out_at && minutes === 0;
-    const status = record.status === "ABSENT" ? text.absentStatus : isOpen ? text.openStatus : isInvalid ? text.review : text.complete;
-    const statusClass = record.status === "ABSENT" ? "absent" : isOpen ? "open" : isInvalid ? "review" : "complete";
-    return `<tr><td class="date">${dayLabel(record.day)}</td>
-      <td class="employee">${escapeReportHtml(record.worker_name)}</td>
-      <td><span class="status ${statusClass}">${status}</span></td>
-      <td class="time">${displayTime(record.check_in_at, locale)}</td>
-      <td class="time">${displayTime(record.check_out_at, locale)}</td>
-      <td class="num strong">${minutes ? durationLabel(minutes) : "—"}</td></tr>`;
+function printWorkforceReport({ records, workers, startDate, endDate, ar, locale }: { records: Attendance[]; workers: Worker[]; startDate: string; endDate: string; ar: boolean; locale: string }) {
+  const printWindow = window.open("", "_blank"); if (!printWindow) return false;
+  const days: string[] = []; const cursor = new Date(startDate + "T00:00:00Z"); const last = new Date(endDate + "T00:00:00Z");
+  while (cursor <= last) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); }
+  const labels = ar ? { title: "تقرير الحضور والانصراف", employee: "العامل", total: "الإجمالي", days: "أيام العمل", hours: "ساعات العمل", absent: "غياب", period: "الفترة", note: "يُحتسب يوم الحضور حتى إن كانت الوردية مفتوحة. تُحتسب ساعات الورديات المكتملة فقط دون خصم الاستراحة. عدم وجود سجل لا يعني الغياب." } : { title: "Rapport des arrivées et départs", employee: "Employé", total: "Total", days: "Jours travaillés", hours: "Heures travaillées", absent: "Absent", period: "Période", note: "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. Aucun pointage ne signifie pas une absence." };
+  const grouped = new Map<string, Map<string, Attendance>>();
+  records.forEach((record) => { const row = grouped.get(record.worker_id) || new Map<string, Attendance>(); row.set(record.day, record); grouped.set(record.worker_id, row); });
+  const head = days.map((day) => "<th title=\"" + day + "\">" + Number(day.slice(8, 10)) + "</th>").join("");
+  const body = workers.map((worker) => {
+    const entries = grouped.get(worker.id) || new Map<string, Attendance>(); const values = Array.from(entries.values());
+    const workedDays = values.filter((r) => r.status === "PRESENT").length;
+    const minutes = values.reduce((sum, r) => sum + workedMinutes(r), 0);
+    const cells = days.map((day) => { const r = entries.get(day); if (!r) return "<td class=\"empty\">—</td>"; if (r.status === "ABSENT") return "<td class=\"absent\">" + labels.absent + "</td>"; return "<td class=\"present\"><b>" + displayTime(r.check_in_at, locale) + "</b><br>" + displayTime(r.check_out_at, locale) + "</td>"; }).join("");
+    return "<tr><th class=\"worker\">" + escapeReportHtml(worker.full_name) + "</th>" + cells + "<td class=\"total\"><b>" + workedDays + "</b> " + labels.days + "<br><b>" + durationLabel(minutes) + "</b> " + labels.hours + "</td></tr>";
   }).join("");
-  const generatedAt = new Date().toLocaleString(locale, { timeZone: "Africa/Tunis", dateStyle: "medium", timeStyle: "short" });
-  const direction = ar ? "rtl" : "ltr";
-  const html = `<!doctype html><html lang="${ar ? "ar" : "fr"}" dir="${direction}"><head><meta charset="utf-8">
-    <title>${text.title} — ${startDate} — ${endDate}</title>
-    <style>
-      @page { size: A4 landscape; margin: 13mm 12mm 15mm; }
-      * { box-sizing: border-box; }
-      body { margin: 0; color: #1f2937; font-family: Tahoma, Arial, sans-serif; font-size: 10px; direction: ${direction}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .top { display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #647a3b; padding:0 0 12px; margin-bottom:13px; }
-      .brand { color:#34451f; font-size:19px; font-weight:800; letter-spacing:.4px; }
-      .eyebrow { color:#75805f; font-size:9px; margin-top:3px; }
-      h1 { margin:0; color:#18251b; font-size:19px; font-weight:800; }
-      .subtitle { color:#64748b; margin-top:4px; font-size:10px; }
-      .meta { display:flex; gap:24px; margin:12px 0; padding:10px 13px; background:#f3f5ef; border:1px solid #e1e7d7; border-radius:7px; }
-      .meta-label { color:#64748b; font-size:8px; margin-bottom:4px; }
-      .meta-value { color:#25351d; font-size:11px; font-weight:700; }
-      h2 { font-size:12px; color:#34451f; margin:15px 0 7px; }
-      table { width:100%; border-collapse:collapse; table-layout:fixed; }
-      thead { display:table-header-group; }
-      tr { break-inside:avoid; page-break-inside:avoid; }
-      th { background:#34451f; color:white; padding:8px 7px; text-align:start; font-size:9px; font-weight:700; }
-      td { border-bottom:1px solid #e5e7eb; padding:7px; vertical-align:middle; }
-      tbody tr:nth-child(even) { background:#f8faf7; }
-      .employee { font-weight:700; }
-      .num { text-align:center; font-variant-numeric:tabular-nums; }
-      .strong { color:#34451f; font-weight:800; }
-      .date,.time { direction:ltr; unicode-bidi:embed; text-align:start; font-variant-numeric:tabular-nums; }
-      .status { display:inline-block; border-radius:12px; padding:3px 7px; font-size:8px; font-weight:700; white-space:nowrap; }
-      .complete { background:#e5f3e9; color:#24623b; }
-      .open { background:#fff1d6; color:#8a5700; }
-      .absent { background:#fde8e8; color:#a12b2b; }
-      .review { background:#ffedd5; color:#9a3412; }
-      .totals { margin-top:8px; display:flex; justify-content:flex-end; gap:20px; padding:9px 12px; background:#f3f5ef; border:1px solid #e1e7d7; font-size:9px; }
-      .note { margin-top:13px; padding:8px 10px; background:#fff9e9; border-inline-start:3px solid #c49a3a; color:#6b5728; font-size:8px; line-height:1.6; }
-      .footer { display:flex; justify-content:space-between; margin-top:12px; padding-top:7px; border-top:1px solid #d9ded2; color:#7b8490; font-size:8px; }
-      @media screen { body { padding:18px; max-width:1100px; margin:auto; } }
-    </style></head><body>
-      <header class="top"><div><div class="brand">ORO VERDE</div><div class="eyebrow">HUILERIE • GESTION DU PERSONNEL</div></div>
-      <div style="text-align:${ar ? "left" : "right"}"><h1>${text.title}</h1><div class="subtitle">${text.subtitle}</div></div></header>
-      <section class="meta"><div><div class="meta-label">${text.period}</div><div class="meta-value" dir="ltr">${startDate} — ${endDate}</div></div>
-      <div><div class="meta-label">${text.employee}</div><div class="meta-value">${escapeReportHtml(selectedName)}</div></div></section>
-      <h2>${text.summary}</h2>
-      <table><thead><tr><th style="width:34%">${text.name}</th><th>${text.shifts}</th><th>${text.hours}</th><th>${text.open}</th><th>${text.absent}</th></tr></thead>
-      <tbody>${summaryRows || `<tr><td colspan="5" style="text-align:center;padding:15px">${text.noData}</td></tr>`}</tbody></table>
-      <div class="totals"><span>${text.total}</span><strong>${durationLabel(totalMinutes)}</strong><span>${text.shifts}: ${totalComplete}</span><span>${text.open}: ${totalOpen}</span><span>${text.absent}: ${totalAbsent}</span></div>
-      <h2>${text.details}</h2>
-      <table><thead><tr><th style="width:14%">${text.date}</th><th style="width:22%">${text.name}</th><th style="width:22%">${text.status}</th><th style="width:14%">${text.arrival}</th><th style="width:14%">${text.departure}</th><th style="width:14%">${text.duration}</th></tr></thead>
-      <tbody>${detailRows || `<tr><td colspan="6" style="text-align:center;padding:18px">${text.noData}</td></tr>`}</tbody></table>
-      <div class="note">${text.note}</div>
-      <footer class="footer"><span>ORO VERDE</span><span>${text.generated}: ${generatedAt}</span></footer>
-      <script>window.addEventListener("load", function(){ setTimeout(function(){ window.focus(); window.print(); }, 350); });</script>
-    </body></html>`;
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
-  return true;
+  const html = "<!doctype html><html lang=\"" + (ar ? "ar" : "fr") + "\" dir=\"" + (ar ? "rtl" : "ltr") + "\"><meta charset=\"utf-8\"><title>" + labels.title + "</title>" +
+    "<style>@page{size:A3 landscape;margin:10mm}body{font-family:Tahoma,Arial,sans-serif;font-size:8px;color:#222}h1{color:#34451f}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #ddd;padding:4px 2px;text-align:center;overflow-wrap:anywhere;font-size:" + (days.length > 24 ? "6px" : "8px") + "}thead th{background:#34451f;color:white}.worker{text-align:start;background:#f3f5ef}.present{background:#e9f4eb;color:#245c37}.absent{background:#fde8e8;color:#a12b2b}.empty{color:#999}.total{background:#f3f5ef;color:#34451f}</style>" +
+    "<h1>ORO VERDE — " + labels.title + "</h1><p>" + labels.period + ": " + startDate + " — " + endDate + "</p>" +
+    "<table><thead><tr><th class=\"worker\">" + labels.employee + "</th>" + head + "<th class=\"total\">" + labels.total + "</th></tr></thead><tbody>" + body + "</tbody></table><p>" + labels.note + "</p>" +
+    "<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></html>";
+  printWindow.document.open(); printWindow.document.write(html); printWindow.document.close(); return true;
 }
-
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
   const ar = lang === "ar";
@@ -333,6 +220,18 @@ export default function Workforce() {
     () => selectedWorkerId === "all" ? workers : workers.filter((worker) => worker.id === selectedWorkerId),
     [workers, selectedWorkerId],
   );
+  const historyDays = useMemo(() => {
+    const days: string[] = []; if (!validRange) return days;
+    const cursor = new Date(startDate + "T00:00:00Z"), last = new Date(endDate + "T00:00:00Z");
+    while (cursor <= last) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); }
+    return days;
+  }, [startDate, endDate, validRange]);
+  const historyByWorker = useMemo(() => {
+    const grouped = new Map<string, Map<string, Attendance>>();
+    records.forEach((record) => { const row = grouped.get(record.worker_id) || new Map<string, Attendance>(); row.set(record.day, record); grouped.set(record.worker_id, row); });
+    return grouped;
+  }, [records]);
+
   const recordsToday = useMemo(() => new Map(records.filter((record) => record.day === today).map((record) => [record.worker_id, record])), [records, today]);
   const openShiftsByWorker = useMemo(
     () => new Map((data.data?.open_shifts ?? []).map((record) => [record.worker_id, record])),
@@ -407,24 +306,41 @@ export default function Workforce() {
           {renderSummary(ar ? "المجموع الأسبوعي (الاثنين إلى الأحد)" : "Totaux hebdomadaires (lundi au dimanche)", weekly)}
           {renderSummary(ar ? "المجموع الشهري" : "Totaux mensuels", monthly)}
         </div>
-        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 font-semibold text-stone-900">{ar ? "سجلات الحضور والانصراف للفترة" : "Historique des arrivées et départs"}</h3>
-          {records.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Aucun pointage sur la période. L’absence d’un enregistrement ne signifie pas une absence confirmée."}</p> :
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm">
-            <thead><tr className="border-b bg-stone-50 text-stone-600"><th className="px-3 py-3 text-start">{ar ? "التاريخ" : "Date"}</th><th className="px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th><th className="px-3 py-3 text-start">{ar ? "الحالة" : "Statut"}</th><th className="px-3 py-3 text-start">{ar ? "الحضور" : "Arrivée"}</th><th className="px-3 py-3 text-start">{ar ? "الانصراف" : "Départ"}</th><th className="px-3 py-3 text-end">{ar ? "المدة" : "Durée"}</th><th className="px-3 py-3 text-end">{ar ? "إجراء" : "Action"}</th></tr></thead>
-            <tbody>{records.map((record) => {
-              const minutes = workedMinutes(record);
-              const open = record.status === "PRESENT" && !!record.check_in_at && !record.check_out_at;
-              const invalid = record.status === "PRESENT" && !!record.check_in_at && !!record.check_out_at && minutes === 0;
-              return <tr key={record.id} className="border-b last:border-0">
-                <td className="px-3 py-3 font-mono" dir="ltr">{record.day}</td><td className="px-3 py-3 font-semibold">{record.worker_name}</td>
-                <td className="px-3 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${record.status === "ABSENT" ? "bg-rose-100 text-rose-800" : open ? "bg-amber-100 text-amber-800" : invalid ? "bg-orange-100 text-orange-800" : "bg-emerald-100 text-emerald-800"}`}>{record.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : open ? (ar ? "وردية مفتوحة" : "Quart ouvert") : invalid ? (ar ? "تتطلب مراجعة" : "À vérifier") : (ar ? "مكتمل" : "Terminé")}</span></td>
-                <td className="px-3 py-3 font-mono">{displayTime(record.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record.check_out_at, locale)}</td>
-                <td className="px-3 py-3 text-end font-semibold tabular-nums">{minutes ? durationLabel(minutes) : "—"}</td>
-                <td className="px-3 py-3 text-end"><Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button></td>
+        <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm" data-testid="workforce-monthly-history">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold text-stone-900">{ar ? "سجل الحضور والانصراف حسب الأيام" : "Historique des arrivées et départs — vue par jour"}</h3>
+            <span className="text-xs text-stone-500" dir="ltr">{startDate} — {endDate}</span>
+          </div>
+          {visibleWorkers.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "لا يوجد عمال لعرضهم." : "Aucun employé à afficher."}</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-max border-collapse text-xs">
+            <thead><tr className="bg-stone-50 text-stone-600">
+              <th className="sticky start-0 z-10 min-w-44 border-b px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th>
+              {historyDays.map((day) => <th key={day} title={day} className="min-w-[92px] border-b px-2 py-3 text-center"><span dir="ltr">{Number(day.slice(8, 10))}</span></th>)}
+              <th className="min-w-40 border-b bg-emerald-50 px-3 py-3 text-center">{ar ? "الإجمالي" : "Total"}</th>
+            </tr></thead>
+            <tbody>{visibleWorkers.map((worker) => {
+              const entries = historyByWorker.get(worker.id);
+              const values = entries ? Array.from(entries.values()) : [];
+              const workedDays = values.filter((record) => record.status === "PRESENT").length;
+              const minutes = values.reduce((sum, record) => sum + workedMinutes(record), 0);
+              return <tr key={worker.id} className="border-b last:border-0 hover:bg-stone-50/70">
+                <th className="sticky start-0 z-[1] bg-white px-3 py-3 text-start font-semibold">{worker.full_name}</th>
+                {historyDays.map((day) => {
+                  const record = entries?.get(day);
+                  if (!record) return <td key={day} className="px-2 py-3 text-center text-stone-300">—</td>;
+                  if (record.status === "ABSENT") return <td key={day} className="px-2 py-2 text-center"><span className="inline-flex rounded-md bg-rose-100 px-2 py-1 font-semibold text-rose-800">{ar ? "غياب" : "Absent"}</span><div><Button size="sm" variant="ghost" className="h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button></div></td>;
+                  const open = !!record.check_in_at && !record.check_out_at;
+                  const invalid = !!record.check_in_at && !!record.check_out_at && workedMinutes(record) === 0;
+                  return <td key={day} className="px-2 py-2 text-center">
+                    <div className={"rounded-md px-1 py-1 font-mono font-semibold " + (open ? "bg-amber-50 text-amber-800" : invalid ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800")} dir="ltr">{displayTime(record.check_in_at, locale)} – {displayTime(record.check_out_at, locale)}</div>
+                    <Button size="sm" variant="ghost" className="mt-1 h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button>
+                  </td>;
+                })}
+                <td className="bg-emerald-50/60 px-3 py-2 text-center font-semibold text-emerald-900"><div>{workedDays} {ar ? "أيام" : "jours"}</div><div className="mt-1 font-mono" dir="ltr">{durationLabel(minutes)}</div></td>
               </tr>;
             })}</tbody>
           </table></div>}
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب يوم العمل عند وجود تسجيل حضور، حتى إن كانت الوردية مفتوحة. تُحتسب الساعات للورديات المكتملة فقط دون خصم الاستراحة. إذا لم توجد سجلات: لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. « — » signifie aucun pointage, pas une absence."}</p>
         </section>
         {startDate <= today && endDate >= today && <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 font-semibold text-stone-900">{ar ? "تسجيل حضور اليوم" : "Pointage du jour"} <span className="text-sm font-normal text-stone-500" dir="ltr">{today}</span></h3>
