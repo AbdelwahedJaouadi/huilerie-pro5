@@ -268,6 +268,10 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [supplierOilQuantityL, setSupplierOilQuantityL] = useState("");
   const [supplierOilUnitPrice, setSupplierOilUnitPrice] = useState("");
   const [supplierOilNotes, setSupplierOilNotes] = useState("");
+  const [supplierOilReceiptPurchase, setSupplierOilReceiptPurchase] = useState<AnyRecord | null>(null);
+  const [supplierOilReceiptTankId, setSupplierOilReceiptTankId] = useState("");
+  const [supplierOilReceiptQuantityL, setSupplierOilReceiptQuantityL] = useState("");
+  const [supplierOilReceiptKey, setSupplierOilReceiptKey] = useState(() => crypto.randomUUID());
   const [purchaseLines, setPurchaseLines] = useState([{ variety_id: "", quantity_kg: "", unit_price_dt: "" }]);
   const [receivingLocationId, setReceivingLocationId] = useState("");
   const [productionDate, setProductionDate] = useState(new Date().toISOString().slice(0, 10));
@@ -713,6 +717,31 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] }),
         queryClient.invalidateQueries({ queryKey: ["commercial", "supplier-statement", selectedSupplierId] }),
+      ]);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : l.warning),
+  });
+  const receiveSupplierOilPurchase = useMutation({
+    mutationFn: () => {
+      if (!supplierOilReceiptPurchase) throw new Error("Select a supplier oil purchase first");
+      return apiPost<AnyRecord>(`/commercial/v1/supplier-oil-purchases/${encodeURIComponent(supplierOilReceiptPurchase.id)}/receive`, {
+        tank_id: supplierOilReceiptTankId,
+        quantity_l: supplierOilReceiptQuantityL,
+        expected_purchase_version: supplierOilReceiptPurchase.version ?? 1,
+        idempotency_key: supplierOilReceiptKey,
+      });
+    },
+    onSuccess: async () => {
+      toast.success(lang === "ar" ? "تم تسجيل إدخال الزيت إلى الخزان" : "Entrée d’huile en cuve enregistrée");
+      setSupplierOilReceiptPurchase(null);
+      setSupplierOilReceiptTankId("");
+      setSupplierOilReceiptQuantityL("");
+      setSupplierOilReceiptKey(crypto.randomUUID());
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["commercial", "purchases"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial", "lots"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial", "balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial", "tank-history-movements"] }),
       ]);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : l.warning),
@@ -2618,7 +2647,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             <div className="flex flex-wrap gap-2"><Button type="submit" disabled={createPurchase.isPending || updatePurchase.isPending || !purchaseSupplierId || !(varieties.data?.length) || purchaseLines.some((line) => !line.variety_id || !(Number(line.quantity_kg) > 0) || !Number.isSafeInteger(parseTndInputToMillimes(line.unit_price_dt)))}>{editingPurchase ? l.updateDraft : l.createDraft}</Button>{editingPurchase && <Button type="button" variant="outline" onClick={cancelPurchaseEdit}>{l.cancelEdit}</Button>}</div>
           </form>
         </CardContent></Card>}
-        {isAdmin && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.receivingLocation}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><select value={receivingLocationId} onChange={(e) => setReceivingLocationId(e.target.value)} className="h-8 w-full max-w-xl rounded-lg border bg-background px-2 text-sm"><option value="">—</option>{(locations.data ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.code} · {loc.name}</option>)}</select></CardContent></Card>}
+        {supplierOilReceiptPurchase && <Card className="border-2 border-sky-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "إدخال الزيت المشترى إلى الخزان" : "Réceptionner l’huile achetée dans une cuve"}</CardTitle><CardDescription>{purchaseCodeDisplay(supplierOilReceiptPurchase.batch_code || supplierOilReceiptPurchase.document_number)} · {value(supplierOilReceiptPurchase.oil_type)} · {lang === "ar" ? "المتبقي للاستلام" : "Reste à réceptionner"}: {number(Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0)))} L</CardDescription></CardHeader><CardContent className="p-3 pt-0"><form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); receiveSupplierOilPurchase.mutate(); }}><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الخزان" : "Cuve"}<select required value={supplierOilReceiptTankId} onChange={(e) => setSupplierOilReceiptTankId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(tanks.data ?? []).filter((tank) => tank.active && tank.role !== "QUARANTINE").map((tank) => <option key={tank.id} value={tank.id}>{tank.code} · {tank.name}</option>)}</select></label><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الكمية المدخلة (لتر)" : "Quantité réceptionnée (L)"}<input required type="number" min="0.001" max={Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))} step="0.001" value={supplierOilReceiptQuantityL} onChange={(e) => setSupplierOilReceiptQuantityL(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label><div className="flex items-end gap-2"><Button type="submit" disabled={receiveSupplierOilPurchase.isPending || !supplierOilReceiptTankId || !(Number(supplierOilReceiptQuantityL) > 0) || Number(supplierOilReceiptQuantityL) > Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))}>{lang === "ar" ? "تأكيد الإدخال" : "Confirmer l’entrée"}</Button><Button type="button" variant="outline" onClick={() => setSupplierOilReceiptPurchase(null)}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button></div></form></CardContent></Card>}
+                {isAdmin && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.receivingLocation}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><select value={receivingLocationId} onChange={(e) => setReceivingLocationId(e.target.value)} className="h-8 w-full max-w-xl rounded-lg border bg-background px-2 text-sm"><option value="">—</option>{(locations.data ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.code} · {loc.name}</option>)}</select></CardContent></Card>}
         {isAdmin && <Card className="border-emerald-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "شراء زيت جاهز من المزوّد" : "Achat d’huile prête auprès d’un fournisseur"}</CardTitle><CardDescription>{lang === "ar" ? "يُسجّل الشراء الآن، ويُسجّل إدخال الزيت إلى الخزان لاحقاً كعملية مستقلة." : "L’achat est enregistré maintenant; l’entrée en cuve sera saisie ultérieurement comme opération distincte."}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
           <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => { event.preventDefault(); createSupplierOilPurchase.mutate(); }}>
             <label className="grid gap-1 text-sm font-medium">{l.supplier}<select required value={supplierOilPurchaseSupplierId} onChange={(e) => setSupplierOilPurchaseSupplierId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
@@ -2713,8 +2743,8 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             <TableCell>{date(purchase.purchase_date)}</TableCell>
             <TableCell>{number(purchase.quantity_l)} L · {purchase.oil_type}</TableCell>
             <TableCell>{money(purchase.total_amount_dt)}</TableCell>
-            <TableCell>{lang === "ar" ? "شراء زيت — بانتظار إدخال الخزان" : "Huile — en attente d’entrée en cuve"}</TableCell>
-            <TableCell><Button size="sm" variant="outline" onClick={() => setSelectedPurchaseReceipt(purchase)}><Printer className="mr-1 size-4" />{lang === "ar" ? "طباعة الوصل" : "Imprimer le reçu"}</Button></TableCell>
+            <TableCell>{purchase.inventory_status === "RECEIVED" ? (lang === "ar" ? "تم إدخال الكمية كاملة" : "Entièrement réceptionné") : purchase.inventory_status === "PARTIALLY_RECEIVED" ? (lang === "ar" ? "إدخال جزئي" : "Partiellement réceptionné") : (lang === "ar" ? "بانتظار إدخال الخزان" : "En attente d’entrée en cuve")}</TableCell>
+            <TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={() => setSelectedPurchaseReceipt(purchase)}><Printer className="mr-1 size-4" />{lang === "ar" ? "طباعة الوصل" : "Imprimer"}</Button>{purchase.inventory_status !== "RECEIVED" && <Button size="sm" onClick={() => { setSupplierOilReceiptPurchase(purchase); setSupplierOilReceiptTankId(""); setSupplierOilReceiptQuantityL(String(Math.max(0, Number(purchase.total_quantity_l ?? purchase.quantity_l ?? 0) - Number(purchase.received_quantity_l ?? 0)))); setSupplierOilReceiptKey(crypto.randomUUID()); }}>{lang === "ar" ? "إدخال إلى خزان" : "Entrée en cuve"}</Button>}</div></TableCell>
           </TableRow> : <TableRow key={purchase.id}>
             <TableCell className="font-mono font-bold text-stone-900">{purchase.status === "DRAFT" && canEditRecords ? <button type="button" className="text-primary underline underline-offset-4 hover:opacity-80" onClick={() => startPurchaseEdit(purchase)} title={l.editPurchase}>{purchaseCodeDisplay(purchaseTraceabilityCodes(purchase), purchase.document_number)}</button> : purchaseCodeDisplay(purchaseTraceabilityCodes(purchase), purchase.document_number)}</TableCell>
             <TableCell className="font-mono font-bold text-stone-900">{purchase.status === "DRAFT" && canEditRecords ? <button type="button" className="text-primary underline underline-offset-4 hover:opacity-80" onClick={() => startPurchaseEdit(purchase)} title={l.editPurchase}>{purchaseCodeDisplay(purchase.document_number)}</button> : purchaseCodeDisplay(purchase.document_number)}</TableCell>
