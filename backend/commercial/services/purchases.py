@@ -443,3 +443,134 @@ async def create_supplier_oil_purchase(
         },
     }, session=session)
     return record
+
+
+
+async def receive_supplier_oil_purchase(
+    db: Any, purchase_id: str, draft: Any, *, actor_user: dict[str, Any],
+    actor_user_id: str, receipt_id: str, lot_id: str, movement_id: str,
+    audit_event_id: str, received_at: datetime, session: Any,
+) -> dict[str, Any]:
+    """Post a later, separately authorized receipt of purchased oil into a tank."""
+    require_commercial_permission(actor_user, "commercial.post_stock")
+    if not actor_user_id or not all((receipt_id, lot_id, movement_id, audit_event_id)) or received_at.tzinfo is None:
+        raise ValueError("Stable actor and receipt identifiers plus timezone-aware timestamp are required")
+    purchases = db["commercial_olive_purchases"]
+    purchase = await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)
+    if not purchase or purchase.get("purchase_kind") != "OIL":
+        raise ValueError("Supplier ready-oil purchase does not exist")
+    if purchase.get("status") != "APPROVED":
+        raise ValueError("Only a recorded supplier oil purchase can be received")
+    fingerprint = _fingerprint(draft)
+    previous = next((item for item in purchase.get("supplier_oil_receipts", [])
+                     if item.get("idempotency_key") == draft.idempotency_key), None)
+    if previous:
+        if previous.get("request_fingerprint") != fingerprint:
+            raise ValueError("Receipt idempotency key was used for a different tank receipt")
+        return {"purchase": purchase, "receipt": previous}
+    if int(purchase.get("version", 1)) != draft.expected_purchase_version:
+        raise ValueError("Supplier oil purchase changed; refresh before receiving stock")
+    tank = await db["commercial_tanks"].find_one(
+        {"id": draft.tank_id, "active": True, "role": {"$in": ["NORMAL", None]}},
+        {"_id": 0, "id": 1, "code": 1}, session=session,
+    )
+    if not tank:
+        raise ValueError("Select an active normal tank")
+    total_quantity = purchase.get("total_quantity_l")
+    total_quantity = total_quantity.to_decimal() if isinstance(total_quantity, Decimal128) else Decimal(str(total_quantity or "0"))
+    received_quantity = purchase.get("received_quantity_l")
+    received_quantity = received_quantity.to_decimal() if isinstance(received_quantity, Decimal128) else Decimal(str(received_quantity or "0"))
+    remaining = total_quantity - received_quantity
+    if draft.quantity_l > remaining:
+        raise ValueError("Tank receipt quantity exceeds the unreceived purchased quantity")
+    now = received_at.astimezone(timezone.utc)
+    lot = {
+        "id": lot_id,
+        "season_code": purchase["season_code"],
+        "batch_code": purchase["batch_code"],
+        "product_kind": "OIL",
+        "source_purchase_id": purchase_id,
+        "supplier_oil_receipt_id": receipt_id,
+        "quantity_received_kg": Decimal128(draft.quantity_l),
+        "owner": {"kind": "MILL"},
+        "quality_status": "PENDING",
+        "status": "OPEN",
+        "version": 1,
+        "created_by": actor_user_id,
+        "created_at": now,
+    }
+    await db["commercial_lots"].insert_one(lot, session=session)
+    stock_key = hashlib.sha256(
+        f"supplier-oil-receipt:{purchase_id}:{draft.idempotency_key}".encode("utf-8")
+    ).hexdigest()
+    movement = StockMovementDraft(
+        movement_kind="RECEIPT",
+        product_kind="OIL",
+        lot_id=lot_id,
+        quantity_kg=draft.quantity_l,
+        destination_location_id=draft.tank_id,
+        destination_owner=OwnerRef(kind="MILL"),
+        source_document_type="ACH",
+        source_document_id=purchase_id,
+        idempotency_key=stock_key,
+        reason=f"Supplier oil purchase {purchase['document_number']} received into tank {tank.get('code') or draft.tank_id}",
+    )
+    posted = await post_stock_movement(
+        db, movement, season_code=purchase["season_code"],
+        actor_user_id=actor_user_id, actor_user=actor_user,
+        movement_id=movement_id, audit_event_id=audit_event_id,
+        created_at=now, session=session,
+    )
+    new_received = received_quantity + draft.quantity_l
+    new_status = "RECEIVED" if new_received == total_quantity else "PARTIALLY_RECEIVED"
+    receipt = {
+        "id": receipt_id,
+        "tank_id": draft.tank_id,
+        "tank_code": tank.get("code"),
+        "quantity_l": Decimal128(draft.quantity_l),
+        "lot_id": lot_id,
+        "movement_id": posted["id"],
+        "idempotency_key": draft.idempotency_key,
+        "request_fingerprint": fingerprint,
+        "received_at": now,
+        "received_by": actor_user_id,
+    }
+    updated = await purchases.update_one(
+        {"id": purchase_id, "status": "APPROVED", "version": draft.expected_purchase_version},
+        {
+            "$set": {
+                "received_quantity_l": Decimal128(new_received),
+                "inventory_status": new_status,
+                "updated_at": now,
+            },
+            "$push": {
+                "supplier_oil_receipts": receipt,
+                "receipt_lot_ids": lot_id,
+                "receipt_movement_ids": posted["id"],
+            },
+            "$inc": {"version": 1},
+        },
+        session=session,
+    )
+    if updated.matched_count != 1:
+        raise ValueError("Supplier oil purchase changed during tank receipt; transaction rolled back")
+    await db["commercial_audit_events"].insert_one({
+        "id": audit_event_id,
+        "entity_type": "commercial_supplier_oil_purchase",
+        "entity_id": purchase_id,
+        "action": "SUPPLIER_OIL_RECEIVED_IN_TANK",
+        "actor_user_id": actor_user_id,
+        "created_at": now,
+        "details": {
+            "receipt_id": receipt_id,
+            "batch_code": purchase.get("batch_code"),
+            "tank_id": draft.tank_id,
+            "quantity_l": Decimal128(draft.quantity_l),
+            "received_quantity_l": Decimal128(new_received),
+            "remaining_quantity_l": Decimal128(total_quantity - new_received),
+            "lot_id": lot_id,
+            "movement_id": posted["id"],
+        },
+    }, session=session)
+    result = await purchases.find_one({"id": purchase_id}, {"_id": 0}, session=session)
+    return {"purchase": result, "receipt": receipt}
