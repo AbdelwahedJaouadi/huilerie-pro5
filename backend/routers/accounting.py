@@ -669,10 +669,10 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         candidate["recorded_movement_id"] = movement.get("id") if movement else None
         candidate["settlement_status"] = movement.get("settlement_status") if movement else None
         candidate["recorded_at"] = movement.get("recorded_at").isoformat() if movement and movement.get("recorded_at") else None
-    return {
+    return _safe({
         **preview, "active_season": season, "season_code": season_code,
         "limit_per_source": limit, "has_more": has_more,
-    }
+    })
 
 
 class PassiveIncomeInput(BaseModel):
