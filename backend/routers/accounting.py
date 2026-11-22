@@ -630,7 +630,7 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
     )
     seasonal_load_ids = await db.loads.distinct("id", {"season_id": season})
     traditional_invoices = await db.invoices.find(
-        {"load_id": {"$in": seasonal_load_ids}}, {"_id": 0, "id": 1, "number": 1, "client_id": 1, "payments": 1}
+        {"load_id": {"$in": seasonal_load_ids}}, {"_id": 0, "id": 1, "number": 1, "client_id": 1, "client_name": 1, "payments": 1}
     ).to_list(limit * 5)
     traditional_receipts = []
     for invoice in traditional_invoices:
@@ -638,6 +638,10 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
             traditional_receipts.append({
                 **payment, "invoice_id": invoice.get("id"),
                 "invoice_number": invoice.get("number"), "client_id": invoice.get("client_id"),
+                "client_name": invoice.get("client_name"),
+                "payment_date": payment.get("at") or payment.get("payment_date") or payment.get("paid_at"),
+                "method": payment.get("method") or payment.get("payment_method"),
+                "currency": payment.get("currency") or "TND",
             })
     preview = build_treasury_movement_preview(
         sale_payments=sale_payment_rows,
