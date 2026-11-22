@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from commercial.schemas.oil_purchases import OilPurchasePaymentDraft, SupplierOilPurchaseDraft
+from commercial.schemas.oil_purchases import OilPurchasePaymentDraft, SupplierOilPurchaseDraft, SupplierOilReceiptDraft
 
 
 def base(**overrides):
@@ -68,3 +68,25 @@ def test_supplier_oil_purchase_requires_positive_litre_quantity(quantity):
 def test_supplier_oil_purchase_rejects_blank_oil_type():
     with pytest.raises(ValidationError, match="Oil type is required"):
         SupplierOilPurchaseDraft(**supplier_oil_base(oil_type="   "))
+
+
+
+def test_supplier_oil_receipt_requires_tank_and_versioned_positive_quantity():
+    receipt = SupplierOilReceiptDraft(
+        tank_id="tank-01",
+        quantity_l=Decimal("25.000"),
+        expected_purchase_version=2,
+        idempotency_key="supplier-oil-receipt-0001",
+    )
+    assert receipt.quantity_l == Decimal("25.000")
+    assert receipt.tank_id == "tank-01"
+
+
+def test_supplier_oil_receipt_rejects_zero_quantity():
+    with pytest.raises(ValidationError):
+        SupplierOilReceiptDraft(
+            tank_id="tank-01",
+            quantity_l=Decimal("0"),
+            expected_purchase_version=1,
+            idempotency_key="supplier-oil-receipt-0002",
+        )
