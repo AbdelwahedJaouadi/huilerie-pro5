@@ -177,11 +177,29 @@ async def test_employee_without_app_login_can_be_managed_and_pointed(monkeypatch
             workforce.AttendanceAction(worker_id=employee["id"], day=today), admin
         )
         assert attendance["worker_id"] == employee["id"]
+        await workforce.check_out(
+            workforce.AttendanceAction(worker_id=employee["id"], day=today), admin
+        )
+
+        other_employee = await workforce.create_worker(
+            workforce.EmployeeCreate(first_name="Other", last_name="Worker"), admin
+        )
+        other_attendance = await workforce.check_in(
+            workforce.AttendanceAction(worker_id=other_employee["id"], day=today), admin
+        )
+        assert other_attendance["worker_id"] == other_employee["id"]
 
         deleted = await workforce.delete_worker(employee["id"], admin)
-        assert deleted == {"ok": True, "archived": True, "deleted": False}
-        archived = await test_db.employees.find_one({"id": employee["id"]}, {"_id": 0})
-        assert archived["active"] is False
-        assert await test_db["workforce_attendance"].count_documents({"worker_id": employee["id"]}) == 1
+        assert deleted == {
+            "ok": True, "deleted": True, "attendance_deleted": 1, "events_deleted": 2,
+        }
+        assert await test_db.employees.find_one({"id": employee["id"]}) is None
+        assert await test_db["workforce_attendance"].count_documents({"worker_id": employee["id"]}) == 0
+        assert await test_db["workforce_attendance_events"].count_documents({"worker_id": employee["id"]}) == 0
+
+        # A cascade delete must never touch another employee's data.
+        assert await test_db.employees.find_one({"id": other_employee["id"]}) is not None
+        assert await test_db["workforce_attendance"].count_documents({"worker_id": other_employee["id"]}) == 1
+        assert await test_db["workforce_attendance_events"].count_documents({"worker_id": other_employee["id"]}) == 1
     finally:
         await db_module.client.drop_database(test_db.name)

@@ -160,19 +160,45 @@ async def update_worker(worker_id: str, body: EmployeeUpdate, admin: dict = Depe
 @router.delete("/workers/{worker_id}")
 async def delete_worker(worker_id: str, admin: dict = Depends(require_workforce_admin)):
     await _ensure_legacy_employee_records()
-    worker = await db.employees.find_one({"id": worker_id}, {"_id": 0})
-    if not worker:
-        raise HTTPException(404, "worker_not_found")
-    attendance_count = await db["workforce_attendance"].count_documents({"worker_id": worker_id})
-    # Preserve historical references; otherwise remove the unused employee record.
-    if attendance_count:
-        await db.employees.update_one(
-            {"id": worker_id},
-            {"$set": {"active": False, "archived": True, "updated_at": datetime.now(timezone.utc), "archived_by": admin.get("id")}},
+
+    async def permanently_delete_worker(session):
+        worker = await db.employees.find_one(
+            {"id": worker_id}, {"_id": 0, "id": 1}, session=session
         )
-        return {"ok": True, "archived": True, "deleted": False}
-    await db.employees.delete_one({"id": worker_id})
-    return {"ok": True, "archived": False, "deleted": True}
+        if not worker:
+            raise HTTPException(404, "worker_not_found")
+
+        attendance = await db["workforce_attendance"].find(
+            {"worker_id": worker_id}, {"_id": 0, "id": 1}, session=session
+        ).to_list(10000)
+        attendance_ids = [record["id"] for record in attendance if record.get("id")]
+
+        # Remove audit events tied to this employee or to any of their attendance rows.
+        event_filter = {"worker_id": worker_id}
+        if attendance_ids:
+            event_filter = {"$or": [
+                {"worker_id": worker_id},
+                {"attendance_id": {"$in": attendance_ids}},
+            ]}
+        events_result = await db["workforce_attendance_events"].delete_many(
+            event_filter, session=session
+        )
+        attendance_result = await db["workforce_attendance"].delete_many(
+            {"worker_id": worker_id}, session=session
+        )
+        employee_result = await db.employees.delete_one(
+            {"id": worker_id}, session=session
+        )
+        if employee_result.deleted_count != 1:
+            raise HTTPException(409, "worker_delete_conflict")
+        return {
+            "ok": True,
+            "deleted": True,
+            "attendance_deleted": attendance_result.deleted_count,
+            "events_deleted": events_result.deleted_count,
+        }
+
+    return await run_transaction(permanently_delete_worker)
 
 
 async def _audit(record: dict, action: str, admin: dict, details: dict | None = None, session=None):
