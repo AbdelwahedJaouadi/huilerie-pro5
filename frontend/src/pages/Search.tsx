@@ -91,7 +91,7 @@ export default function SearchPage() {
   const results = list.isError ? [] : (list.data?.loads ?? []);
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
   const isOlivePurchaseResult = (item: (typeof commercialResults)[number]) =>
-    /olive.?purchase|purchase.?olive|achat.?olive|olive.?achat/i.test(item.source);
+    /olive.*purchase|purchase.*olive|achat.*olive|olive.*achat/i.test(item.source);
   const openCommercialResult = (item: (typeof commercialResults)[number]) => {
     if (!item.id || !isOlivePurchaseResult(item)) return;
     const action = item.status?.toUpperCase() === "APPROVED" ? "receipt" : item.status?.toUpperCase() === "DRAFT" ? "edit" : "";
@@ -104,11 +104,15 @@ export default function SearchPage() {
       setSelectedCode(results[0].code);
     }
   }, [selectedCode, term, list.isSuccess, results, commercialResults.length]);
+  const singleOlivePurchase = commercialResults.length === 1 && isOlivePurchaseResult(commercialResults[0]) ? commercialResults[0] : null;
   useEffect(() => {
-    if (!selectedCode && term && list.isSuccess && results.length === 0 && commercialResults.length === 1 && isOlivePurchaseResult(commercialResults[0])) {
-      openCommercialResult(commercialResults[0]);
+    if (!selectedCode && term && list.isSuccess && results.length === 0 && singleOlivePurchase?.id) {
+      const action = singleOlivePurchase.status?.toUpperCase() === "APPROVED" ? "receipt" : singleOlivePurchase.status?.toUpperCase() === "DRAFT" ? "edit" : "";
+      const query = new URLSearchParams({ tab: "purchases", purchase_id: singleOlivePurchase.id });
+      if (action) query.set("purchase_action", action);
+      navigate(`/commercial?${query.toString()}`);
     }
-  }, [selectedCode, term, list.isSuccess, results.length, commercialResults]);
+  }, [selectedCode, term, list.isSuccess, results.length, singleOlivePurchase?.id, singleOlivePurchase?.status, navigate]);
   const notFound = (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0);
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
