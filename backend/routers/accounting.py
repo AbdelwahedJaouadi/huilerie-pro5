@@ -168,7 +168,7 @@ async def accounting_overview(
                 payment_day = _accounting_day(payment.get("at") or payment.get("payment_date") or payment.get("paid_at"))
                 if payment_day and (not period_selected or (not start_day or payment_day >= start_day) and (not end_day or payment_day <= end_day)):
                     traditional_invoice_payments.append({
-                        "id": payment.get("id"),
+                        "id": f"{invoice.get('id', '')}:{payment.get('at', '')}:{payment.get('amount', '')}",
                         "invoice_id": invoice.get("id"),
                         "invoice_number": invoice.get("number"),
                         "client_name": invoice.get("client_name"),
