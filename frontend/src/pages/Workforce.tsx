@@ -83,7 +83,8 @@ function printHtmlInHiddenFrame(html: string, ar: boolean) {
       <button class="print-action" type="button" onclick="window.print()">${ar ? "طباعة / PDF" : "Imprimer / PDF"}</button>
       <button class="close-action" type="button" onclick="window.close()">${ar ? "إغلاق" : "Fermer"}</button>
     </div>`;
-  const printableHtml = html.replace(/<\\/html>\\s*$/i, `${toolbar}</html>`);
+  const htmlEnd = html.toLowerCase().lastIndexOf("</html>");
+  const printableHtml = htmlEnd >= 0 ? `${html.slice(0, htmlEnd)}${toolbar}${html.slice(htmlEnd)}` : `${html}${toolbar}`;
 
   try {
     printWindow.document.open();
