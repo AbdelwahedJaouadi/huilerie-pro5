@@ -134,6 +134,7 @@ def build_treasury_movement_preview(
             candidate["blocking_reasons"].append("PAYMENT_SALE_LINK_MISMATCH")
         elif invoice.get("buyer_id"):
             candidate["party_id"] = str(invoice["buyer_id"])
+        candidate["party_name"] = (invoice or {}).get("buyer_name") or candidate.get("party_name")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
@@ -149,6 +150,7 @@ def build_treasury_movement_preview(
             candidate["blocking_reasons"].append("SUPPLIER_PURCHASE_LINK_INVALID")
         elif not row.get("supplier_id") or not purchase.get("supplier_id") or row.get("supplier_id") != purchase.get("supplier_id"):
             candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
+        candidate["party_name"] = (purchase or {}).get("supplier_name") or candidate.get("party_name")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
