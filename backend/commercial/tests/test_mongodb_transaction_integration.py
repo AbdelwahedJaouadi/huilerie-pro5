@@ -162,7 +162,6 @@ async def test_purchase_approval_audit_failure_rolls_back_lots_receipts_and_coun
         await db.commercial_counters.insert_many([
             {"season_code": "2627", "document_type": "LOT", "last_sequence": 4},
             {"season_code": "2627", "document_type": "MVT", "last_sequence": 0},
-            {"season_code": "2627", "document_type": "RFS", "last_sequence": 0},
         ])
         await db.commercial_locations.insert_one({
             "id": "olive-yard-rollback", "active": True, "kind": "OLIVE_STORAGE"
@@ -1154,7 +1153,6 @@ async def test_sale_return_receipt_is_atomic_idempotent_and_quarantined():
             {"season_code": "2627", "document_type": "RET", "last_sequence": 0},
             {"season_code": "2627", "document_type": "LOT", "last_sequence": 0},
             {"season_code": "2627", "document_type": "MVT", "last_sequence": 0},
-            {"season_code": "2627", "document_type": "RFS", "last_sequence": 0},
         ])
         await db.commercial_tanks.insert_one({
             "id": "tank-quarantine-1", "code": "T09", "active": True,
