@@ -15,7 +15,9 @@ from bson.decimal128 import Decimal128
 
 from lib.weighing import weight_measurement_audit_snapshot
 from commercial.permissions import require_commercial_permission
+from commercial.schemas.inventory import OwnerRef, StockMovementDraft
 from commercial.schemas.purchases import OlivePurchaseDraft
+from commercial.services.stock_ledger import post_stock_movement
 from commercial.services.numbering import reserve_document_number, reserve_batch_code
 from lib.season import DEFAULT_VARIETIES
 
