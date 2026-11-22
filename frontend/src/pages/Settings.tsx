@@ -711,7 +711,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="users">
         <PageHeader title={t("settings")} accent="bg-violet-500" right={
           <div className="flex w-full min-w-0 -translate-y-8 justify-end self-start">
-        <TabsList className="grid w-full grid-cols-6 gap-2 bg-transparent p-0">
+        <TabsList className="grid w-1/2 grid-cols-6 gap-2 bg-transparent p-0">
           <TabsTrigger value="users" data-testid="settings-tab-users" aria-label="users" title="users" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 data-[state=active]:border-sky-600 data-[state=active]:bg-sky-600 data-[state=active]:text-white">
             <span className="grid size-4 place-items-center"><Users className="size-3 stroke-[2.2]" /></span><span className="break-words text-[9px] font-semibold">Utilisateurs</span></TabsTrigger>
           <TabsTrigger value="tariff" data-testid="settings-tab-tariff" aria-label="tariff" title="tariff" className="flex min-h-10 min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 text-center text-[9px] font-semibold leading-tight shadow-sm transition-all border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 data-[state=active]:border-emerald-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
