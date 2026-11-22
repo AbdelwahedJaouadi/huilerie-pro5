@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search as SearchIcon, Droplet, Printer, ScanLine, UserRound, Activity } from "lucide-react";
@@ -52,8 +52,9 @@ function StatusControl({ load, onNeedOil }: { load: Load; onNeedOil: () => void 
 }
 
 export default function SearchPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const code = params.get("code") ?? "";
   const term = params.get("q") ?? "";
   const [input, setInput] = useState(code || term);
@@ -89,11 +90,29 @@ export default function SearchPage() {
   });
   const results = list.isError ? [] : (list.data?.loads ?? []);
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
+  const isOlivePurchaseResult = (item: (typeof commercialResults)[number]) =>
+    /olive.*purchase|purchase.*olive|achat.*olive|olive.*achat/i.test(item.source);
+  const openCommercialResult = (item: (typeof commercialResults)[number]) => {
+    if (!item.id || !isOlivePurchaseResult(item)) return;
+    const action = item.status?.toUpperCase() === "APPROVED" ? "receipt" : item.status?.toUpperCase() === "DRAFT" ? "edit" : "";
+    const query = new URLSearchParams({ tab: "purchases", purchase_id: item.id });
+    if (action) query.set("purchase_action", action);
+    navigate(`/commercial?${query.toString()}`);
+  };
   useEffect(() => {
     if (!selectedCode && term && list.isSuccess && results.length === 1 && commercialResults.length === 0) {
       setSelectedCode(results[0].code);
     }
   }, [selectedCode, term, list.isSuccess, results, commercialResults.length]);
+  const singleOlivePurchase = commercialResults.length === 1 && isOlivePurchaseResult(commercialResults[0]) ? commercialResults[0] : null;
+  useEffect(() => {
+    if (!selectedCode && term && list.isSuccess && results.length === 0 && singleOlivePurchase?.id) {
+      const action = singleOlivePurchase.status?.toUpperCase() === "APPROVED" ? "receipt" : singleOlivePurchase.status?.toUpperCase() === "DRAFT" ? "edit" : "";
+      const query = new URLSearchParams({ tab: "purchases", purchase_id: singleOlivePurchase.id });
+      if (action) query.set("purchase_action", action);
+      navigate(`/commercial?${query.toString()}`);
+    }
+  }, [selectedCode, term, list.isSuccess, results.length, singleOlivePurchase?.id, singleOlivePurchase?.status, navigate]);
   const notFound = (one.isError && one.error instanceof ApiError && one.error.status === 404) || (!!term && !selectedCode && list.isSuccess && results.length === 0 && commercialResults.length === 0);
   const shown = selectedCode ? (one.isError ? undefined : one.data) : (!term && !code && results.length === 1 ? results[0] : undefined);
 
@@ -172,12 +191,15 @@ export default function SearchPage() {
               <div className="bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">Gestion commerciale (GS)</div>
               <ul className="divide-y divide-stone-100">
                 {commercialResults.map((item, index) => (
-                  <li key={item.id ?? `${item.source}-${index}`} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{item.source}</span>
-                    <span className="font-mono font-bold text-stone-900" dir="ltr">{item.code || "—"}</span>
-                    <span className="flex min-w-40 flex-1 items-center gap-2 text-stone-700"><UserRound className="size-4 text-teal-600" />{item.name || "—"}</span>
-                    {item.phone && <span className="text-xs text-stone-500" dir="ltr">{item.phone}</span>}
-                    {item.status && <span className="text-xs text-stone-500">{item.status}</span>}
+                  <li key={item.id ?? `${item.source}-${index}`}>
+                    <button type="button" onClick={() => openCommercialResult(item)} disabled={!item.id || !isOlivePurchaseResult(item)} className={`flex w-full flex-wrap items-center gap-3 px-4 py-3 text-start transition-colors ${isOlivePurchaseResult(item) ? "hover:bg-emerald-50" : "cursor-default"}`} data-testid={`search-commercial-result-${item.id ?? index}`}>
+                      <span className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">{item.source}</span>
+                      <span className="font-mono font-bold text-stone-900" dir="ltr">{item.code || "—"}</span>
+                      <span className="flex min-w-40 flex-1 items-center gap-2 text-stone-700"><UserRound className="size-4 text-teal-600" />{item.name || "—"}</span>
+                      {item.phone && <span className="text-xs text-stone-500" dir="ltr">{item.phone}</span>}
+                      {item.status && <span className="text-xs text-stone-500">{item.status}</span>}
+                      {isOlivePurchaseResult(item) && <span className="text-xs font-semibold text-emerald-700">{lang === "ar" ? "عرض التفاصيل" : "Voir les détails"}</span>}
+                    </button>
                   </li>
                 ))}
               </ul>
