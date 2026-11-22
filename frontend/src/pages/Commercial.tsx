@@ -2547,7 +2547,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
                   const averagePricePerKg = totalKg > 0 ? Number(purchase.total_amount_dt ?? 0) / totalKg : 0;
                   return <TableRow key={purchase.id} data-testid={`gs-chargement-row-${purchase.id}`} className="transition-colors hover:bg-emerald-50/40">
                     <TableCell className="whitespace-nowrap">{date(purchase.purchase_date ?? purchase.created_at)}</TableCell>
-                    <TableCell className="whitespace-nowrap font-mono text-xs font-bold text-emerald-800">{purchaseCodes.join(", ") || value(purchase.document_number)}</TableCell>
+                    <TableCell className="whitespace-nowrap"><div className="flex flex-wrap items-center gap-1">{purchaseCodeDisplay(purchaseCodes.join(", ") || value(purchase.document_number))}</div></TableCell>
                     <TableCell className="min-w-36 font-semibold">{supplier?.name ?? purchase.supplier_name ?? "—"}</TableCell>
                     <TableCell dir="ltr" className="whitespace-nowrap text-start">{supplier?.phone ?? purchase.supplier_phone ?? "—"}</TableCell>
                     <TableCell className="min-w-32">{varietiesLabel}</TableCell>
