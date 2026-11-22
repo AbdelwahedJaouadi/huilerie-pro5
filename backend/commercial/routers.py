@@ -858,6 +858,7 @@ async def get_supplier_payable_statement(
             "date": purchase.get("purchase_date") or "",
             "entry_type": "PURCHASE_OIL" if purchase.get("purchase_kind") == "OIL" else "PURCHASE",
             "purchase_kind": purchase.get("purchase_kind", "OLIVE"),
+            "product_kind": purchase.get("product_kind", "OLIVE"),
             "document_number": purchase.get("document_number"),
             "traceability_code": purchase.get("batch_code"),
             "quantity_kg": purchase.get("total_quantity_kg"),
