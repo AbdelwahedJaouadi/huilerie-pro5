@@ -340,7 +340,7 @@ export default function Workforce() {
               </tr>;
             })}</tbody>
           </table></div>}
-          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب يوم العمل عند وجود تسجيل حضور، حتى إن كانت الوردية مفتوحة. تُحتسب الساعات للورديات المكتملة فقط دون خصم الاستراحة. «—» تعني عدم وجود سجل، ولا تعني الغياب." : "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. « — » signifie aucun pointage, pas une absence."}</p>
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب يوم العمل عند وجود تسجيل حضور، حتى إن كانت الوردية مفتوحة. تُحتسب الساعات للورديات المكتملة فقط دون خصم الاستراحة. إذا لم توجد سجلات: لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. « — » signifie aucun pointage, pas une absence."}</p>
         </section>
         {startDate <= today && endDate >= today && <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 font-semibold text-stone-900">{ar ? "تسجيل حضور اليوم" : "Pointage du jour"} <span className="text-sm font-normal text-stone-500" dir="ltr">{today}</span></h3>
