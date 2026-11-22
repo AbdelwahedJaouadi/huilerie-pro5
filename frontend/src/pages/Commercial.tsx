@@ -185,23 +185,23 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "accounting"];
-  const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "procurement";
+  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "production", "transfers", "buyers", "sales", "accounting"];
+  const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "supplier-oil-purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(embeddedStockView ? "stock" : initialTab);
   const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" ? "movements" : "lots"));
-  const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
+  const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "supplier-oil-purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "supplier-oil-purchases" ? "supplier-oil-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
   const [salesView, setSalesView] = useState<"buyers" | "sales">(requestedTab === "sales" ? "sales" : "buyers");
   const selectTab = (nextTab: TabKey) => {
-    const targetTab = nextTab === "lots" || nextTab === "movements" || nextTab === "chargement" ? "stock" : nextTab === "suppliers" || nextTab === "purchases" || nextTab === "customer-purchases" ? "procurement" : nextTab === "buyers" ? "sales" : nextTab;
+    const targetTab = nextTab === "lots" || nextTab === "movements" || nextTab === "chargement" ? "stock" : nextTab === "suppliers" || nextTab === "purchases" || nextTab === "supplier-oil-purchases" || nextTab === "customer-purchases" ? "procurement" : nextTab === "buyers" ? "sales" : nextTab;
     if (nextTab === "lots" || nextTab === "movements" || nextTab === "chargement") setStockView(nextTab);
-    if (nextTab === "suppliers" || nextTab === "purchases" || nextTab === "customer-purchases") setProcurementView(nextTab);
+    if (nextTab === "suppliers" || nextTab === "purchases" || nextTab === "supplier-oil-purchases" || nextTab === "customer-purchases") setProcurementView(nextTab);
     if (nextTab === "buyers" || nextTab === "sales") setSalesView(nextTab);
     setTab(targetTab);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      next.set("tab", ["suppliers", "purchases", "customer-purchases", "buyers"].includes(nextTab) ? nextTab : targetTab);
+      next.set("tab", ["suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "buyers"].includes(nextTab) ? nextTab : targetTab);
       return next;
     }, { replace: true });
   };
@@ -223,13 +223,13 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     if (embeddedStockView) return;
     if (!requestedTab || !validTabs.includes(requestedTab as TabKey)) return;
     const nextTab = requestedTab as TabKey;
-    const targetTab: TabKey = ["suppliers", "purchases", "customer-purchases"].includes(nextTab)
+    const targetTab: TabKey = ["suppliers", "purchases", "supplier-oil-purchases", "customer-purchases"].includes(nextTab)
       ? "procurement"
       : nextTab === "buyers"
         ? "sales"
         : nextTab;
-    if (["suppliers", "purchases", "customer-purchases"].includes(nextTab)) {
-      setProcurementView(nextTab as "suppliers" | "purchases" | "customer-purchases");
+    if (["suppliers", "purchases", "supplier-oil-purchases", "customer-purchases"].includes(nextTab)) {
+      setProcurementView(nextTab as "suppliers" | "purchases" | "supplier-oil-purchases" | "customer-purchases");
     }
     if (nextTab === "buyers" || nextTab === "sales") setSalesView(nextTab);
     setTab(targetTab);
@@ -1888,7 +1888,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     <div className={`commercial-workspace mx-auto max-w-7xl space-y-6 ${embeddedStockView ? "commercial-embedded-stock" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients") : tab === "procurement" && procurementView === "supplier-oil-purchases" ? (lang === "ar" ? "شراء زيت من المزوّدين" : "Achat d’huile auprès des fournisseurs") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
           {tab === "overview" && <p className="mt-2 max-w-3xl text-sm text-stone-500 md:text-base">{l.subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
@@ -1900,6 +1900,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       {tab === "procurement" && <div className="sticky top-0 z-40 -mx-1 flex flex-wrap gap-2 rounded-xl border border-stone-200 bg-white/95 p-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-white/90" role="tablist" aria-label={lang === "ar" ? "أقسام المشتريات" : "Sections des achats"}>
         <Button type="button" size="sm" variant={procurementView === "suppliers" ? "default" : "outline"} role="tab" aria-selected={procurementView === "suppliers"} onClick={() => selectTab("suppliers")}><Truck className="mr-2 size-4" />{l.suppliers}</Button>
         <Button type="button" size="sm" variant={procurementView === "purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "purchases"} onClick={() => selectTab("purchases")}><ShoppingBasket className="mr-2 size-4" />{l.purchasesTab}</Button>
+        <Button type="button" size="sm" variant={procurementView === "supplier-oil-purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "supplier-oil-purchases"} onClick={() => selectTab("supplier-oil-purchases")}><Droplet className="mr-2 size-4" />{lang === "ar" ? "شراء زيت" : "Achat d’huile"}</Button>
         <Button type="button" size="sm" variant={procurementView === "customer-purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "customer-purchases"} onClick={() => selectTab("customer-purchases")}><ShoppingCart className="mr-2 size-4" />{lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients"}</Button>
       </div>}
 
@@ -2626,29 +2627,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         </div>
       </div>}
 
-      {tab === "procurement" && procurementView === "purchases" && <div className="space-y-4">
-        {(isAdmin || (editingPurchase && canEditRecords)) && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{editingPurchase ? `${l.editPurchase} · ${value(editingPurchase.batch_codes?.join(", ") || editingPurchase.batch_code, editingPurchase.document_number)}` : l.newPurchase}</CardTitle><CardDescription className="text-xs">{l.bootstrapHint}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
-          {(suppliers.data?.length ?? 0) === 0 || (varieties.data?.length ?? 0) === 0 ? <p className="mb-3 text-sm text-amber-700">{(suppliers.data?.length ?? 0) === 0 ? l.noSuppliers : l.noVarieties}</p> : null}
-          <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); editingPurchase ? updatePurchase.mutate() : createPurchase.mutate(); }}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="grid gap-1 text-sm font-medium">{l.supplier}<select required value={purchaseSupplierId} onChange={(e) => setPurchaseSupplierId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-              <label className="grid gap-1 text-xs font-medium">{l.purchaseDate}<input required type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
-            </div>
-            <div className="space-y-3">
-              {purchaseLines.map((line, index) => <div key={index} className="grid items-end gap-3 rounded-xl border p-3 md:grid-cols-[1.3fr_1fr_1fr_auto]">
-                <label className="grid gap-1 text-xs font-medium">{l.variety}<select required value={line.variety_id} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, variety_id: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(varieties.data ?? []).filter((v) => v.active).map((v) => <option key={v.id} value={v.id}>{lang === "ar" ? (v.name_ar || v.name_fr) : v.name_fr}</option>)}</select></label>
-                <label className="grid gap-1 text-sm font-medium">{l.quantity}<input required type="number" min="0.001" step="0.001" value={line.quantity_kg} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, quantity_kg: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
-                <label className="grid gap-1 text-xs font-medium">{l.unitPrice} (TND/kg)<input required type="text" inputMode="decimal" placeholder="0,000" value={line.unit_price_dt} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, unit_price_dt: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
-                <Button type="button" variant="outline" disabled={purchaseLines.length === 1} onClick={() => setPurchaseLines((rows) => rows.filter((_, i) => i !== index))}>{l.removeLine}</Button>
-              </div>)}
-              <Button type="button" variant="outline" onClick={() => setPurchaseLines((rows) => [...rows, { variety_id: "", quantity_kg: "", unit_price_dt: "" }])}>{l.addLine}</Button>
-            </div>
-            <label className="grid gap-1 text-sm font-medium">{l.notes}<input maxLength={1000} value={purchaseNotes} onChange={(e) => setPurchaseNotes(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
-            <div className="flex flex-wrap gap-2"><Button type="submit" disabled={createPurchase.isPending || updatePurchase.isPending || !purchaseSupplierId || !(varieties.data?.length) || purchaseLines.some((line) => !line.variety_id || !(Number(line.quantity_kg) > 0) || !Number.isSafeInteger(parseTndInputToMillimes(line.unit_price_dt)))}>{editingPurchase ? l.updateDraft : l.createDraft}</Button>{editingPurchase && <Button type="button" variant="outline" onClick={cancelPurchaseEdit}>{l.cancelEdit}</Button>}</div>
-          </form>
-        </CardContent></Card>}
-        {supplierOilReceiptPurchase && <Card className="border-2 border-sky-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "إدخال الزيت المشترى إلى الخزان" : "Réceptionner l’huile achetée dans une cuve"}</CardTitle><CardDescription>{purchaseCodeDisplay(supplierOilReceiptPurchase.batch_code || supplierOilReceiptPurchase.document_number)} · {value(supplierOilReceiptPurchase.oil_type)} · {lang === "ar" ? "المتبقي للاستلام" : "Reste à réceptionner"}: {number(Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0)))} L</CardDescription></CardHeader><CardContent className="p-3 pt-0"><form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); receiveSupplierOilPurchase.mutate(); }}><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الخزان" : "Cuve"}<select required value={supplierOilReceiptTankId} onChange={(e) => setSupplierOilReceiptTankId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(tanks.data ?? []).filter((tank) => tank.active && tank.role !== "QUARANTINE").map((tank) => <option key={tank.id} value={tank.id}>{tank.code} · {tank.name}</option>)}</select></label><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الكمية المدخلة (لتر)" : "Quantité réceptionnée (L)"}<input required type="number" min="0.001" max={Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))} step="0.001" value={supplierOilReceiptQuantityL} onChange={(e) => setSupplierOilReceiptQuantityL(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label><div className="flex items-end gap-2"><Button type="submit" disabled={receiveSupplierOilPurchase.isPending || !supplierOilReceiptTankId || !(Number(supplierOilReceiptQuantityL) > 0) || Number(supplierOilReceiptQuantityL) > Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))}>{lang === "ar" ? "تأكيد الإدخال" : "Confirmer l’entrée"}</Button><Button type="button" variant="outline" onClick={() => setSupplierOilReceiptPurchase(null)}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button></div></form></CardContent></Card>}
-                {isAdmin && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.receivingLocation}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><select value={receivingLocationId} onChange={(e) => setReceivingLocationId(e.target.value)} className="h-8 w-full max-w-xl rounded-lg border bg-background px-2 text-sm"><option value="">—</option>{(locations.data ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.code} · {loc.name}</option>)}</select></CardContent></Card>}
+      {tab === "procurement" && procurementView === "supplier-oil-purchases" && <div className="space-y-4">
         {isAdmin && <Card className="border-emerald-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "شراء زيت جاهز من المزوّد" : "Achat d’huile prête auprès d’un fournisseur"}</CardTitle><CardDescription>{lang === "ar" ? "يُسجّل الشراء الآن، ويُسجّل إدخال الزيت إلى الخزان لاحقاً كعملية مستقلة." : "L’achat est enregistré maintenant; l’entrée en cuve sera saisie ultérieurement comme opération distincte."}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
           <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" onSubmit={(event) => { event.preventDefault(); createSupplierOilPurchase.mutate(); }}>
             <label className="grid gap-1 text-sm font-medium">{l.supplier}<select required value={supplierOilPurchaseSupplierId} onChange={(e) => setSupplierOilPurchaseSupplierId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
@@ -2735,6 +2714,31 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             </div>
           </CardContent>
         </Card>}
+      </div>}
+
+      {tab === "procurement" && procurementView === "purchases" && <div className="space-y-4">
+        {(isAdmin || (editingPurchase && canEditRecords)) && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{editingPurchase ? `${l.editPurchase} · ${value(editingPurchase.batch_codes?.join(", ") || editingPurchase.batch_code, editingPurchase.document_number)}` : l.newPurchase}</CardTitle><CardDescription className="text-xs">{l.bootstrapHint}</CardDescription></CardHeader><CardContent className="p-3 pt-0">
+          {(suppliers.data?.length ?? 0) === 0 || (varieties.data?.length ?? 0) === 0 ? <p className="mb-3 text-sm text-amber-700">{(suppliers.data?.length ?? 0) === 0 ? l.noSuppliers : l.noVarieties}</p> : null}
+          <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); editingPurchase ? updatePurchase.mutate() : createPurchase.mutate(); }}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1 text-sm font-medium">{l.supplier}<select required value={purchaseSupplierId} onChange={(e) => setPurchaseSupplierId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(suppliers.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+              <label className="grid gap-1 text-xs font-medium">{l.purchaseDate}<input required type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            </div>
+            <div className="space-y-3">
+              {purchaseLines.map((line, index) => <div key={index} className="grid items-end gap-3 rounded-xl border p-3 md:grid-cols-[1.3fr_1fr_1fr_auto]">
+                <label className="grid gap-1 text-xs font-medium">{l.variety}<select required value={line.variety_id} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, variety_id: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(varieties.data ?? []).filter((v) => v.active).map((v) => <option key={v.id} value={v.id}>{lang === "ar" ? (v.name_ar || v.name_fr) : v.name_fr}</option>)}</select></label>
+                <label className="grid gap-1 text-sm font-medium">{l.quantity}<input required type="number" min="0.001" step="0.001" value={line.quantity_kg} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, quantity_kg: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+                <label className="grid gap-1 text-xs font-medium">{l.unitPrice} (TND/kg)<input required type="text" inputMode="decimal" placeholder="0,000" value={line.unit_price_dt} onChange={(e) => setPurchaseLines((rows) => rows.map((row, i) => i === index ? { ...row, unit_price_dt: e.target.value } : row))} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+                <Button type="button" variant="outline" disabled={purchaseLines.length === 1} onClick={() => setPurchaseLines((rows) => rows.filter((_, i) => i !== index))}>{l.removeLine}</Button>
+              </div>)}
+              <Button type="button" variant="outline" onClick={() => setPurchaseLines((rows) => [...rows, { variety_id: "", quantity_kg: "", unit_price_dt: "" }])}>{l.addLine}</Button>
+            </div>
+            <label className="grid gap-1 text-sm font-medium">{l.notes}<input maxLength={1000} value={purchaseNotes} onChange={(e) => setPurchaseNotes(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label>
+            <div className="flex flex-wrap gap-2"><Button type="submit" disabled={createPurchase.isPending || updatePurchase.isPending || !purchaseSupplierId || !(varieties.data?.length) || purchaseLines.some((line) => !line.variety_id || !(Number(line.quantity_kg) > 0) || !Number.isSafeInteger(parseTndInputToMillimes(line.unit_price_dt)))}>{editingPurchase ? l.updateDraft : l.createDraft}</Button>{editingPurchase && <Button type="button" variant="outline" onClick={cancelPurchaseEdit}>{l.cancelEdit}</Button>}</div>
+          </form>
+        </CardContent></Card>}
+        {supplierOilReceiptPurchase && <Card className="border-2 border-sky-200 shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{lang === "ar" ? "إدخال الزيت المشترى إلى الخزان" : "Réceptionner l’huile achetée dans une cuve"}</CardTitle><CardDescription>{purchaseCodeDisplay(supplierOilReceiptPurchase.batch_code || supplierOilReceiptPurchase.document_number)} · {value(supplierOilReceiptPurchase.oil_type)} · {lang === "ar" ? "المتبقي للاستلام" : "Reste à réceptionner"}: {number(Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0)))} L</CardDescription></CardHeader><CardContent className="p-3 pt-0"><form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => { event.preventDefault(); receiveSupplierOilPurchase.mutate(); }}><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الخزان" : "Cuve"}<select required value={supplierOilReceiptTankId} onChange={(e) => setSupplierOilReceiptTankId(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal"><option value="">—</option>{(tanks.data ?? []).filter((tank) => tank.active && tank.role !== "QUARANTINE").map((tank) => <option key={tank.id} value={tank.id}>{tank.code} · {tank.name}</option>)}</select></label><label className="grid gap-1 text-sm font-medium">{lang === "ar" ? "الكمية المدخلة (لتر)" : "Quantité réceptionnée (L)"}<input required type="number" min="0.001" max={Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))} step="0.001" value={supplierOilReceiptQuantityL} onChange={(e) => setSupplierOilReceiptQuantityL(e.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal" /></label><div className="flex items-end gap-2"><Button type="submit" disabled={receiveSupplierOilPurchase.isPending || !supplierOilReceiptTankId || !(Number(supplierOilReceiptQuantityL) > 0) || Number(supplierOilReceiptQuantityL) > Math.max(0, Number(supplierOilReceiptPurchase.total_quantity_l ?? supplierOilReceiptPurchase.quantity_l ?? 0) - Number(supplierOilReceiptPurchase.received_quantity_l ?? 0))}>{lang === "ar" ? "تأكيد الإدخال" : "Confirmer l’entrée"}</Button><Button type="button" variant="outline" onClick={() => setSupplierOilReceiptPurchase(null)}>{lang === "ar" ? "إلغاء" : "Annuler"}</Button></div></form></CardContent></Card>}
+                {isAdmin && <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.receivingLocation}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><select value={receivingLocationId} onChange={(e) => setReceivingLocationId(e.target.value)} className="h-8 w-full max-w-xl rounded-lg border bg-background px-2 text-sm"><option value="">—</option>{(locations.data ?? []).map((loc) => <option key={loc.id} value={loc.id}>{loc.code} · {loc.name}</option>)}</select></CardContent></Card>}
         <Card className="shadow-sm"><CardHeader className="p-3 pb-2"><CardTitle className="text-base">{l.purchasesTab}</CardTitle></CardHeader><CardContent className="p-3 pt-0"><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{l.purchaseCode}</TableHead><TableHead>{l.purchaseReference}</TableHead><TableHead>{l.supplier}</TableHead><TableHead>{l.purchaseDate}</TableHead><TableHead>{lang === "ar" ? "الكمية (كغ / لتر)" : "Quantité (kg / L)"}</TableHead><TableHead>{l.totalAmount}</TableHead><TableHead>{l.status}</TableHead><TableHead>{l.actions}</TableHead></TableRow></TableHeader><TableBody>
           {(purchases.data ?? []).map((purchase) => purchase.purchase_kind === "OIL" ? <TableRow key={purchase.id}>
             <TableCell className="font-mono font-bold text-stone-900">{purchaseCodeDisplay(purchase.batch_code || purchase.document_number)}</TableCell>
