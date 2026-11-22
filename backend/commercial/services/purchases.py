@@ -493,6 +493,7 @@ async def receive_supplier_oil_purchase(
         "product_kind": "OIL",
         "source_purchase_id": purchase_id,
         "supplier_oil_receipt_id": receipt_id,
+        "receiving_tank_id": draft.tank_id,
         "quantity_received_kg": Decimal128(draft.quantity_l),
         "owner": {"kind": "MILL"},
         "quality_status": "PENDING",
