@@ -61,3 +61,14 @@ class SupplierOilPurchaseDraft(BaseModel):
         if not self.oil_type.strip():
             raise ValueError("Oil type is required")
         return self
+
+
+
+class SupplierOilReceiptDraft(BaseModel):
+    """Record a later physical receipt of previously purchased supplier oil."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tank_id: str = Field(min_length=1, max_length=100)
+    quantity_l: Decimal = Field(gt=Decimal("0"), max_digits=18, decimal_places=3)
+    expected_purchase_version: int = Field(ge=1)
+    idempotency_key: str = Field(min_length=16, max_length=128)
