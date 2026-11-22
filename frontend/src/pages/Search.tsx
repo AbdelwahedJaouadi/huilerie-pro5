@@ -99,13 +99,6 @@ export default function SearchPage() {
   const commercialResults = list.isError ? [] : (list.data?.commercial ?? []);
   const isOlivePurchaseResult = (item: (typeof commercialResults)[number]) =>
     /olive.*purchase|purchase.*olive|achat.*olive|olive.*achat/i.test(item.source);
-  const openCommercialResult = (item: (typeof commercialResults)[number]) => {
-    if (!item.id || !isOlivePurchaseResult(item)) return;
-    const action = item.status?.toUpperCase() === "APPROVED" ? "receipt" : item.status?.toUpperCase() === "DRAFT" ? "edit" : "";
-    const query = new URLSearchParams({ tab: "purchases", purchase_id: item.id });
-    if (action) query.set("purchase_action", action);
-    navigate(`/commercial?${query.toString()}`);
-  };
   useEffect(() => {
     if (!selectedCode && term && list.isSuccess && results.length === 1 && commercialResults.length === 0) {
       setSelectedCode(results[0].code);
@@ -230,8 +223,8 @@ export default function SearchPage() {
               <div><p className="text-xs text-stone-500">{lang === "ar" ? "كود الشراء" : "Code d’achat"}</p><p className="mt-1 font-mono text-lg font-bold text-emerald-800" dir="ltr">{purchaseRecord.batch_code || purchaseRecord.batch_codes?.join(", ") || purchaseRecord.lines?.map((line: any) => line.batch_code).filter(Boolean).join(", ") || purchaseRecord.document_number || "—"}</p></div>
               <div><p className="text-xs text-stone-500">{lang === "ar" ? "رقم الوثيقة" : "N° du document"}</p><p className="mt-1 font-semibold">{purchaseRecord.document_number || "—"}</p></div>
               <div><p className="text-xs text-stone-500">{lang === "ar" ? "تاريخ الشراء" : "Date d’achat"}</p><p className="mt-1 font-semibold">{purchaseRecord.purchase_date ? fmtDate(purchaseRecord.purchase_date) : "—"}</p></div>
-              <div><p className="text-xs text-stone-500">{lang === "ar" ? "المزوّد" : "Fournisseur"}</p><p className="mt-1 font-semibold">{purchaseRecord.supplier_name || purchaseRecord.supplier?.name || "—"}</p></div>
-              <div><p className="text-xs text-stone-500">{lang === "ar" ? "الهاتف" : "Téléphone"}</p><p className="mt-1 font-semibold" dir="ltr">{purchaseRecord.supplier_phone || purchaseRecord.supplier?.phone || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "المزوّد" : "Fournisseur"}</p><p className="mt-1 font-semibold">{purchaseRecord.supplier_name || purchaseRecord.supplier?.name || params.get("supplier_name") || "—"}</p></div>
+              <div><p className="text-xs text-stone-500">{lang === "ar" ? "الهاتف" : "Téléphone"}</p><p className="mt-1 font-semibold" dir="ltr">{purchaseRecord.supplier_phone || purchaseRecord.supplier?.phone || params.get("supplier_phone") || "—"}</p></div>
               <div><p className="text-xs text-stone-500">{lang === "ar" ? "مكان الاستلام" : "Lieu de réception"}</p><p className="mt-1 font-semibold">{purchaseRecord.receiving_location_name || purchaseRecord.receiving_location?.name || "—"}</p></div>
             </div>
             <div className="mt-5 overflow-x-auto rounded-xl border border-stone-200">
