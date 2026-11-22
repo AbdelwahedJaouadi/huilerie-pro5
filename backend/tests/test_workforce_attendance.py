@@ -97,7 +97,7 @@ def test_absence_cannot_be_marked_while_worker_has_an_open_shift():
     assert 'raise HTTPException(409, "worker_has_open_shift")' in route_source
 
 
-def test_workforce_has_independent_employee_registry_and_safe_archive():
+def test_workforce_has_independent_employee_registry_and_permanent_cascade_delete():
     source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
     assert '@router.get("/workers")' in source
     assert '@router.post("/workers")' in source
@@ -105,7 +105,12 @@ def test_workforce_has_independent_employee_registry_and_safe_archive():
     assert '@router.delete("/workers/{worker_id}")' in source
     assert 'db.employees.find_one' in source
     assert '"salary_type"' in source and '"salary_amount"' in source
-    assert 'if attendance_count:' in source
+    delete_route = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "delete_worker")
+    delete_source = ast.get_source_segment(source, delete_route)
+    assert "run_transaction(permanently_delete_worker)" in delete_source
+    assert '"workforce_attendance_events"' in delete_source
+    assert "delete_many" in delete_source
+    assert "attendance_deleted" in delete_source
     assert not re.search(r'^\s*"(?:user_id|username)"\s*:', source, re.MULTILINE)
     assert 'migration_key = "workforce_employees_registry_v1"' in source
     assert 'db.users.find(' in source
@@ -121,3 +126,11 @@ def test_employee_registry_import_is_one_time_and_has_no_account_link_fields():
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     employee_indexes = indexes[indexes.index('"employees"'):indexes.index('"workforce_attendance"')]
     assert "user_id" not in employee_indexes
+
+
+def test_employee_delete_requires_a_second_explicit_confirmation_in_ui():
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    assert 'data-testid="delete-employee-confirmation"' in page
+    assert 'Confirmer la suppression définitive' in page
+    assert 'Les données de l’employé, tous ses pointages et leur historique de corrections seront effacés.' in page
+    assert 'onClick={()=>setDeletingEmployee(worker)}' in page
