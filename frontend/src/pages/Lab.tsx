@@ -548,7 +548,6 @@ export default function Lab() {
                 <TableCell className="text-end">{fmtNum(r.k270, 3)}</TableCell>
                 <TableCell className="text-end">{fmtNum(r.oil_content_pct, 1)}</TableCell>
                 <TableCell><GradeBadge grade={r.classification} /></TableCell>
-                <TableCell className="text-sm font-medium text-stone-800" data-testid={`lab-row-oil-type-${r.code}`}>{r.oil_type || "—"}</TableCell>
                 <TableCell className="text-xs text-stone-500" dir="ltr">{fmtDate(loadsList.data?.find((load) => load.id === r.load_id)?.day)}</TableCell>
                 <TableCell className="text-end">
                   <Link to={`/certificate/${r.id}`} data-testid={`lab-certificate-${r.code}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
