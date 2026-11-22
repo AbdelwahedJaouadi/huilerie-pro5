@@ -147,7 +147,7 @@ function printWorkforceReport({ records, workers, startDate, endDate, ar, locale
     "<h1>ORO VERDE — " + labels.title + "</h1><p>" + labels.period + ": " + startDate + " — " + endDate + "</p>" +
     "<table><thead><tr><th class=\"worker\">" + labels.employee + "</th>" + head + "<th class=\"total\">" + labels.total + "</th></tr></thead><tbody>" + body + "</tbody></table><p>" + labels.note + "</p>" +
     "</html>";
-  return printHtmlInHiddenFrame(html);
+  return printHtmlInHiddenFrame(html, ar);
 }
 export default function Workforce() {
   const { lang, errMsg } = useI18n();
