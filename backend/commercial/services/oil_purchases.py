@@ -404,7 +404,10 @@ async def record_supplier_olive_purchase_payment(
     if not purchase:
         raise ValueError("Supplier olive purchase does not exist")
     if purchase.get("status") != "APPROVED":
-        raise ValueError("Only approved and received supplier purchases can be paid")
+        raise ValueError("Only approved supplier purchases can be paid")
+    # Ready-oil purchases are financially approved at purchase time; their
+    # physical tank receipt is a separate later operation. Olive approvals
+    # already imply receipt through the existing approval workflow.
     supplier = await db["commercial_suppliers"].find_one(
         {"id": purchase.get("supplier_id")}, {"_id": 0, "id": 1, "name": 1, "phone": 1},
         session=session,
@@ -476,6 +479,8 @@ async def record_supplier_olive_purchase_payment(
         "document_number": number,
         "purchase_id": purchase_id,
         "purchase_number": purchase.get("document_number"),
+        "purchase_kind": purchase.get("purchase_kind", "OLIVE"),
+        "product_kind": purchase.get("product_kind", "OLIVE"),
         "supplier_id": supplier["id"],
         "supplier_name": supplier.get("name"),
         "amount_tnd": Decimal128(amount),
@@ -507,9 +512,9 @@ async def record_supplier_olive_purchase_payment(
         raise ValueError("Supplier purchase changed concurrently; payment was rolled back")
     await db["commercial_audit_events"].insert_one({
         "id": audit_event_id,
-        "entity_type": "commercial_olive_purchase",
+        "entity_type": "commercial_supplier_oil_purchase" if purchase.get("purchase_kind") == "OIL" else "commercial_olive_purchase",
         "entity_id": purchase_id,
-        "action": "SUPPLIER_PAYMENT_RECORDED",
+        "action": "SUPPLIER_OIL_PAYMENT_RECORDED" if purchase.get("purchase_kind") == "OIL" else "SUPPLIER_PAYMENT_RECORDED",
         "actor_user_id": actor_user_id,
         "created_at": now,
         "details": {

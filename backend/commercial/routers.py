@@ -47,7 +47,7 @@ from commercial.schemas.buyers import (
     CommercialBuyerDraft, CommercialBuyerUpdate, CommercialBuyerStatusCommand,
 )
 from commercial.schemas.sales import WholesaleSaleDraft, ApproveWholesaleSaleCommand, SalePaymentDraft, CancelWholesaleSaleCommand
-from commercial.schemas.oil_purchases import OilPurchasePaymentDraft, SupplierPaymentDraft
+from commercial.schemas.oil_purchases import OilPurchasePaymentDraft, SupplierPaymentDraft, SupplierOilPurchaseDraft, SupplierOilReceiptDraft
 from commercial.schemas.returns import SaleReturnDraft
 from commercial.schemas.return_acceptance import AcceptSaleReturnCommand
 from commercial.schemas.return_rejection import RejectSaleReturnCommand
@@ -69,6 +69,8 @@ from commercial.services.purchases import (
     cancel_olive_purchase_draft,
     create_olive_purchase_draft,
     update_olive_purchase_draft,
+    create_supplier_oil_purchase,
+    receive_supplier_oil_purchase,
 )
 from commercial.services.quality import (
     record_oil_quality_assessment,
@@ -356,7 +358,7 @@ async def global_search(
             ("commercial_suppliers", "GS — Fournisseurs", ("name", "supplier_name", "phone", "mobile", "code", "tax_identifier")),
             ("commercial_buyers", "GS — Acheteurs", ("name", "buyer_name", "phone", "mobile", "code", "tax_identifier")),
             ("commercial_custody_owners", "GS — Garde des clients", ("client_name", "client_phone", "code")),
-            ("commercial_olive_purchases", "GS — Achats d’olives", ("document_number", "batch_code", "supplier_name", "supplier_phone", "code")),
+            ("commercial_olive_purchases", "GS — Achats d’olives et d’huile", ("document_number", "batch_code", "supplier_name", "supplier_phone", "code")),
             ("commercial_customer_custody_receipts", "GS — Réceptions clients", ("document_number", "batch_code", "customer_name", "customer_phone", "source_load_code")),
             ("commercial_customer_custody_releases", "GS — Restitutions clients", ("document_number", "batch_code", "customer_name", "customer_phone")),
             ("commercial_sales", "GS — Ventes", ("document_number", "invoice_number", "batch_code", "buyer_name", "buyer_phone", "code")),
@@ -855,10 +857,14 @@ async def get_supplier_payable_statement(
     for purchase in purchases:
         entries.append({
             "date": purchase.get("purchase_date") or "",
-            "entry_type": "PURCHASE",
+            "entry_type": "PURCHASE_OIL" if purchase.get("purchase_kind") == "OIL" else "PURCHASE",
+            "purchase_kind": purchase.get("purchase_kind", "OLIVE"),
+            "product_kind": purchase.get("product_kind", "OLIVE"),
             "document_number": purchase.get("document_number"),
             "traceability_code": purchase.get("batch_code"),
             "quantity_kg": purchase.get("total_quantity_kg"),
+            "quantity_l": purchase.get("total_quantity_l") if purchase.get("purchase_kind") == "OIL" else None,
+            "oil_type": purchase.get("oil_type") if purchase.get("purchase_kind") == "OIL" else None,
             "amount_tnd": purchase.get("total_amount_dt", Decimal128("0.000")),
             "purchase_id": purchase.get("id"),
             "method": None,
@@ -1973,6 +1979,59 @@ async def create_olive_purchase(
                 db, draft, season_code=season_code, actor_user=user,
                 actor_user_id=user["id"], purchase_id=purchase_id,
                 audit_event_id=audit_id, created_at=now, session=session,
+            )
+        )
+        return _safe(result)
+    except Exception as exc:
+        _raise_domain_error(exc)
+
+
+@router.post("/supplier-oil-purchases", status_code=201)
+async def create_supplier_oil_purchase_route(
+    draft: SupplierOilPurchaseDraft,
+    user: dict = Depends(require_admin),
+):
+    """Record ready oil bought from a supplier; deliberately posts no stock movement."""
+    _authorize(user, "commercial.manage_purchases")
+    season, season_code = await _require_commercial_ready()
+    if season_of(draft.purchase_date.isoformat()) != season:
+        raise HTTPException(422, "purchase_date_outside_active_season")
+    purchase_id, audit_id = str(uuid.uuid4()), str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    try:
+        result = await run_transaction(
+            lambda session: create_supplier_oil_purchase(
+                db, draft, season_code=season_code, actor_user=user,
+                actor_user_id=user["id"], purchase_id=purchase_id,
+                audit_event_id=audit_id, created_at=now, session=session,
+            )
+        )
+        return _safe(result)
+    except Exception as exc:
+        _raise_domain_error(exc)
+
+
+@router.post("/supplier-oil-purchases/{purchase_id}/receive", status_code=201)
+async def receive_supplier_oil_purchase_route(
+    purchase_id: str,
+    draft: SupplierOilReceiptDraft,
+    user: dict = Depends(current_user),
+):
+    """Post a later physical receipt of a supplier oil purchase into a tank."""
+    _authorize(user, "commercial.post_stock")
+    await _require_commercial_ready()
+    receipt_id, lot_id, movement_id, stock_audit_id, audit_id = (
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    )
+    now = datetime.now(timezone.utc)
+    try:
+        result = await run_transaction(
+            lambda session: receive_supplier_oil_purchase(
+                db, purchase_id, draft, actor_user=user,
+                actor_user_id=user["id"], receipt_id=receipt_id, lot_id=lot_id,
+                movement_id=movement_id, audit_event_id=audit_id,
+                stock_audit_event_id=stock_audit_id,
+                received_at=now, session=session,
             )
         )
         return _safe(result)

@@ -2040,3 +2040,142 @@ async def test_customer_olive_purchase_creates_bon_and_tracks_partial_then_final
     finally:
         await client.drop_database(db_name)
         client.close()
+
+
+
+@pytest.mark.asyncio
+async def test_supplier_ready_oil_purchase_is_separate_from_later_partial_tank_receipts():
+    from decimal import Decimal
+
+    from bson.decimal128 import Decimal128
+    from commercial.inventory_bootstrap import ensure_inventory_indexes
+    from commercial.schemas.oil_purchases import SupplierOilPurchaseDraft, SupplierOilReceiptDraft, SupplierPaymentDraft
+    from commercial.services.oil_purchases import record_supplier_olive_purchase_payment
+    from commercial.services.purchases import create_supplier_oil_purchase, receive_supplier_oil_purchase
+
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+    db_name = "supplier_oil_receipts_" + uuid.uuid4().hex
+    db = client[db_name]
+    actor = {"active": True, "role": "admin"}
+    actor_id = "integration-admin"
+    now = datetime(2026, 11, 22, tzinfo=timezone.utc)
+    purchase_id = str(uuid.uuid4())
+    try:
+        await ensure_inventory_indexes(db)
+        await db.commercial_counters.insert_many([
+            {"season_code": "2627", "document_type": "BATCH", "last_sequence": 7},
+            {"season_code": "2627", "document_type": "MVT", "last_sequence": 0},
+            {"season_code": "2627", "document_type": "RFS", "last_sequence": 0},
+        ])
+        await db.commercial_suppliers.insert_one({
+            "id": "supplier-ready-oil", "name": "Supplier Ready Oil",
+            "phone": "00000000", "active": True,
+        })
+        purchase_draft = SupplierOilPurchaseDraft(
+            supplier_id="supplier-ready-oil",
+            purchase_date=now.date(),
+            oil_type="Extra virgin",
+            quantity_l=Decimal("100.000"),
+            unit_price_tnd_per_l=Decimal("18.250"),
+            idempotency_key="supplier-oil-purchase-integration-01",
+        )
+        async with await client.start_session() as session:
+            purchase = await session.with_transaction(
+                lambda active: create_supplier_oil_purchase(
+                    db, purchase_draft, season_code="2627",
+                    actor_user=actor, actor_user_id=actor_id,
+                    purchase_id=purchase_id, audit_event_id=str(uuid.uuid4()),
+                    created_at=now, session=active,
+                )
+            )
+        assert purchase["batch_code"] == "2627A0008"
+        assert purchase["document_number"] == "2627A0008"
+        assert purchase["inventory_status"] == "NOT_RECEIVED"
+        assert await db.commercial_lots.count_documents({}) == 0
+        assert await db.commercial_stock_movements.count_documents({}) == 0
+
+        # Supplier payment is allowed before physical tank receipt and does not create stock.
+        payment_draft = SupplierPaymentDraft(
+            payment_date=now.date(), amount_tnd=Decimal("500.000"),
+            method="CASH", expected_purchase_version=1,
+            idempotency_key="supplier-oil-payment-integration-01",
+        )
+        async with await client.start_session() as session:
+            payment = await session.with_transaction(
+                lambda active: record_supplier_olive_purchase_payment(
+                    db, purchase_id, payment_draft, season_code="2627",
+                    actor_user=actor, actor_user_id=actor_id,
+                    payment_id=str(uuid.uuid4()), audit_event_id=str(uuid.uuid4()),
+                    created_at=now, session=active,
+                )
+            )
+        assert payment["purchase_kind"] == "OIL"
+        purchase_after_payment = await db.commercial_olive_purchases.find_one({"id": purchase_id})
+        assert purchase_after_payment["paid_amount_dt"].to_decimal() == Decimal("500.000")
+        assert purchase_after_payment["outstanding_amount_dt"].to_decimal() == Decimal("1325.000")
+        assert purchase_after_payment["version"] == 2
+        assert await db.commercial_lots.count_documents({}) == 0
+        assert await db.commercial_stock_movements.count_documents({}) == 0
+
+        await db.commercial_tanks.insert_many([
+            {"id": "tank-a", "code": "T01", "active": True, "role": "NORMAL", "capacity_kg": Decimal128("100.000"), "version": 1},
+            {"id": "tank-b", "code": "T02", "active": True, "role": "NORMAL", "capacity_kg": Decimal128("100.000"), "version": 1},
+        ])
+        first_draft = SupplierOilReceiptDraft(
+            tank_id="tank-a", quantity_l=Decimal("40.000"),
+            expected_purchase_version=2,
+            idempotency_key="supplier-oil-receipt-integration-01",
+        )
+        async with await client.start_session() as session:
+            first = await session.with_transaction(
+                lambda active: receive_supplier_oil_purchase(
+                    db, purchase_id, first_draft, actor_user=actor,
+                    actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
+                    lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
+                )
+            )
+        assert first["purchase"]["inventory_status"] == "PARTIALLY_RECEIVED"
+        assert first["purchase"]["received_quantity_l"].to_decimal() == Decimal("40.000")
+        assert await db.commercial_stock_movements.count_documents({"product_kind": "OIL"}) == 1
+
+        # Replaying the same receipt key is idempotent and must not add stock twice.
+        async with await client.start_session() as session:
+            replay = await session.with_transaction(
+                lambda active: receive_supplier_oil_purchase(
+                    db, purchase_id, first_draft, actor_user=actor,
+                    actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
+                    lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
+                )
+            )
+        assert replay["receipt"]["id"] == first["receipt"]["id"]
+        assert await db.commercial_stock_movements.count_documents({"product_kind": "OIL"}) == 1
+
+        second_draft = SupplierOilReceiptDraft(
+            tank_id="tank-b", quantity_l=Decimal("60.000"),
+            expected_purchase_version=3,
+            idempotency_key="supplier-oil-receipt-integration-02",
+        )
+        async with await client.start_session() as session:
+            second = await session.with_transaction(
+                lambda active: receive_supplier_oil_purchase(
+                    db, purchase_id, second_draft, actor_user=actor,
+                    actor_user_id=actor_id, receipt_id=str(uuid.uuid4()),
+                    lot_id=str(uuid.uuid4()), movement_id=str(uuid.uuid4()),
+                    audit_event_id=str(uuid.uuid4()),
+                    stock_audit_event_id=str(uuid.uuid4()),
+                    received_at=now, session=active,
+                )
+            )
+        assert second["purchase"]["inventory_status"] == "RECEIVED"
+        assert second["purchase"]["received_quantity_l"].to_decimal() == Decimal("100.000")
+        assert await db.commercial_lots.count_documents({"source_purchase_id": purchase_id, "product_kind": "OIL"}) == 2
+        assert await db.commercial_stock_movements.count_documents({"source_document_id": purchase_id, "product_kind": "OIL"}) == 2
+    finally:
+        await client.drop_database(db_name)
+        client.close()

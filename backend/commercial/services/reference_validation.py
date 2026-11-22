@@ -115,7 +115,7 @@ async def validate_stock_references(db: Any, draft: Any, *, session: Any) -> Non
         {"_id": 0, "id": 1, "status": 1, "returned_oil_lot_id": 1, "quarantine_tank_id": 1,
          "customer_id": 1, "olive_lot_id": 1, "receiving_location_id": 1,
          "oil_lot_id": 1, "source_tank_id": 1, "return_id": 1,
-         "quantity_kg": 1, "season_code": 1, "owner": 1, "inputs": 1,
+         "quantity_kg": 1, "quantity_l": 1, "purchase_kind": 1, "season_code": 1, "owner": 1, "inputs": 1,
          "actual_oil_output_kg": 1, "output_tank_id": 1, "output_oil_lot_id": 1,
          "source_purchase_id": 1, "quantity_received_kg": 1,
          "movement_kind": 1, "product_kind": 1, "lot_id": 1,
@@ -128,22 +128,43 @@ async def validate_stock_references(db: Any, draft: Any, *, session: Any) -> Non
     if not source:
         raise ValueError("Source document does not exist")
     if draft.source_document_type == "ACH":
-        received_lot = await db["commercial_lots"].find_one(
-            {"id": draft.lot_id, "source_purchase_id": source["id"], "product_kind": "OLIVE"},
-            {"_id": 0, "quantity_received_kg": 1, "owner": 1}, session=session,
-        )
-        if (
-            source.get("status") != "APPROVED"
-            or draft.movement_kind != "RECEIPT"
-            or draft.product_kind != "OLIVE"
-            or draft.source_location_id is not None
-            or draft.destination_location_id != source.get("receiving_location_id")
-            or not _owner_matches(draft.destination_owner, {"kind": "MILL"})
-            or not received_lot
-            or _quantity(received_lot.get("quantity_received_kg")) != _quantity(draft.quantity_kg)
-            or not _owner_matches(draft.destination_owner, received_lot.get("owner"))
-        ):
-            raise ValueError("Olive purchase receipt does not match its approved purchase and lot")
+        if source.get("purchase_kind") == "OIL":
+            received_lot = await db["commercial_lots"].find_one(
+                {"id": draft.lot_id, "source_purchase_id": source["id"],
+                 "product_kind": "OIL", "supplier_oil_receipt_id": {"$exists": True}},
+                {"_id": 0, "quantity_received_kg": 1, "owner": 1, "receiving_tank_id": 1},
+                session=session,
+            )
+            if (
+                source.get("status") != "APPROVED"
+                or draft.movement_kind != "RECEIPT"
+                or draft.product_kind != "OIL"
+                or draft.source_location_id is not None
+                or not draft.destination_location_id
+                or not received_lot
+                or received_lot.get("receiving_tank_id") != draft.destination_location_id
+                or _quantity(received_lot.get("quantity_received_kg")) != _quantity(draft.quantity_kg)
+                or not _owner_matches(draft.destination_owner, {"kind": "MILL"})
+                or not _owner_matches(draft.destination_owner, received_lot.get("owner"))
+            ):
+                raise ValueError("Supplier oil receipt does not match its approved purchase, tank, and receipt lot")
+        else:
+            received_lot = await db["commercial_lots"].find_one(
+                {"id": draft.lot_id, "source_purchase_id": source["id"], "product_kind": "OLIVE"},
+                {"_id": 0, "quantity_received_kg": 1, "owner": 1}, session=session,
+            )
+            if (
+                source.get("status") != "APPROVED"
+                or draft.movement_kind != "RECEIPT"
+                or draft.product_kind != "OLIVE"
+                or draft.source_location_id is not None
+                or draft.destination_location_id != source.get("receiving_location_id")
+                or not _owner_matches(draft.destination_owner, {"kind": "MILL"})
+                or not received_lot
+                or _quantity(received_lot.get("quantity_received_kg")) != _quantity(draft.quantity_kg)
+                or not _owner_matches(draft.destination_owner, received_lot.get("owner"))
+            ):
+                raise ValueError("Olive purchase receipt does not match its approved purchase and lot")
     elif draft.source_document_type == "PROD":
         if source.get("status") != "COMPLETED":
             raise ValueError("Production run is not completed")

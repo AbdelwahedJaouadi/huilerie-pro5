@@ -42,7 +42,9 @@ def _candidate(
         amount = None
         blockers.append("AMOUNT_MISSING_OR_INVALID")
 
-    raw_date = source.get(date_field)
+    raw_date = source.get(date_field) or source.get("at") or source.get("payment_date")
+    if hasattr(raw_date, "date") and not isinstance(raw_date, str):
+        raw_date = raw_date.date().isoformat()
     business_date = str(raw_date or "")[:10]
     try:
         date.fromisoformat(business_date)
@@ -202,7 +204,8 @@ def build_treasury_movement_preview(
         candidate["linked_document_balance"] = row.get("invoice_balance")
         candidate["party_name"] = row.get("client_name") or candidate.get("party_name")
         candidate["description"] = row.get("description") or row.get("paid_by") or candidate.get("description")
-        candidate["blocking_reasons"].append("TRADITIONAL_RECEIPT_POSTING_NOT_SUPPORTED")
+        # Traditional receipts have a dedicated explicit posting workflow.
+        # Valid records can therefore be proposed for review.
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
