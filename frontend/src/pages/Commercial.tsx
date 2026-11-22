@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Activity, AlertTriangle, Beaker, Boxes, ClipboardList, Factory, FileText, Calculator,
   RefreshCw, ShieldCheck, Warehouse, ShoppingCart, UserRound, Wallet, Pencil, UserCheck, X, Ban, Trash2, Printer,
-  Truck, ShoppingBasket, ArrowLeftRight, Handshake, MapPin, Plus, Search, BookUser, Phone, Sprout, Layers, ScanLine,
+  Truck, ShoppingBasket, ArrowLeftRight, Handshake, MapPin, Plus, Search, BookUser, Phone, Sprout, Layers, ScanLine, Droplet,
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import { dinarsToTndInput, parseTndInputToMillimes, tndInputToDinars, unitPriceTndToTotalDinars } from "@/lib/commercial-money";
@@ -30,7 +30,7 @@ type CommercialStatus = {
   season_counters_provisioned: number;
   ready: boolean;
 };
-type TabKey = "overview" | "customer-purchases" | "factures" | "stock" | "lots" | "movements" | "laboratory" | "procurement" | "suppliers" | "purchases" | "chargement" | "production" | "custody" | "transfers" | "buyers" | "sales" | "reports" | "accounting";
+type TabKey = "overview" | "customer-purchases" | "factures" | "stock" | "lots" | "movements" | "laboratory" | "procurement" | "suppliers" | "purchases" | "supplier-oil-purchases" | "chargement" | "production" | "custody" | "transfers" | "buyers" | "sales" | "reports" | "accounting";
 
 const labels = {
   fr: {
