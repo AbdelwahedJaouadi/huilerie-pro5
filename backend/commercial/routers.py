@@ -2020,8 +2020,8 @@ async def receive_supplier_oil_purchase_route(
     """Post a later physical receipt of a supplier oil purchase into a tank."""
     _authorize(user, "commercial.post_stock")
     await _require_commercial_ready()
-    receipt_id, lot_id, movement_id, audit_id = (
-        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    receipt_id, lot_id, movement_id, stock_audit_id, audit_id = (
+        str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     )
     now = datetime.now(timezone.utc)
     try:
@@ -2030,6 +2030,7 @@ async def receive_supplier_oil_purchase_route(
                 db, purchase_id, draft, actor_user=user,
                 actor_user_id=user["id"], receipt_id=receipt_id, lot_id=lot_id,
                 movement_id=movement_id, audit_event_id=audit_id,
+                stock_audit_event_id=stock_audit_id,
                 received_at=now, session=session,
             )
         )
