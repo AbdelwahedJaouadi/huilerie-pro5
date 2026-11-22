@@ -98,6 +98,15 @@ def _candidate(
         "currency": "TND" if amount is not None else None,
         "amount": format(amount, ".3f") if amount is not None else None,
         "party_id": str(source.get(party_field)) if source.get(party_field) else None,
+        "party_phone": source.get("party_phone") or source.get("client_phone") or source.get("buyer_phone") or source.get("supplier_phone"),
+        "party_address": source.get("party_address") or source.get("buyer_address") or source.get("supplier_address"),
+        "linked_document_id": source.get("invoice_id") or source.get("purchase_id"),
+        "linked_document_number": source.get("invoice_number") or source.get("purchase_number") or source.get("document_number"),
+        "linked_document_date": source.get("invoice_date") or source.get("purchase_date") or source.get("sale_date") or source.get("day") or source.get("created_at"),
+        "linked_document_total": source.get("invoice_total"),
+        "linked_document_paid": source.get("invoice_paid_amount"),
+        "linked_document_balance": source.get("invoice_balance"),
+        "load_code": source.get("load_code"),
         "eligibility": "BLOCKED" if blockers else "ELIGIBLE_FOR_REVIEW",
         "blocking_reasons": sorted(set(blockers)),
         "warnings": sorted(set(warnings)),
@@ -135,6 +144,11 @@ def build_treasury_movement_preview(
         elif invoice.get("buyer_id"):
             candidate["party_id"] = str(invoice["buyer_id"])
         candidate["party_name"] = (invoice or {}).get("buyer_name") or candidate.get("party_name")
+        candidate["linked_document_id"] = (invoice or {}).get("id")
+        candidate["linked_document_number"] = (invoice or {}).get("number") or (invoice or {}).get("invoice_number") or candidate.get("source_document_number")
+        candidate["linked_document_date"] = (invoice or {}).get("invoice_date") or (invoice or {}).get("sale_date") or (invoice or {}).get("day") or (invoice or {}).get("created_at")
+        candidate["party_phone"] = (invoice or {}).get("buyer_phone") or candidate.get("party_phone")
+        candidate["party_address"] = (invoice or {}).get("buyer_address") or candidate.get("party_address)
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
@@ -151,6 +165,11 @@ def build_treasury_movement_preview(
         elif not row.get("supplier_id") or not purchase.get("supplier_id") or row.get("supplier_id") != purchase.get("supplier_id"):
             candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
         candidate["party_name"] = (purchase or {}).get("supplier_name") or candidate.get("party_name")
+        candidate["linked_document_id"] = (purchase or {}).get("id")
+        candidate["linked_document_number"] = (purchase or {}).get("purchase_number") or (purchase or {}).get("number") or candidate.get("source_document_number")
+        candidate["linked_document_date"] = (purchase or {}).get("purchase_date") or (purchase or {}).get("created_at")
+        candidate["party_phone"] = (purchase or {}).get("supplier_phone") or candidate.get("party_phone")
+        candidate["party_address"] = (purchase or {}).get("supplier_address") or candidate.get("party_address)
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
@@ -173,6 +192,14 @@ def build_treasury_movement_preview(
             })
             continue
         candidate["source_document_number"] = row.get("invoice_number")
+        candidate["linked_document_id"] = row.get("invoice_id")
+        candidate["linked_document_number"] = row.get("invoice_number")
+        candidate["linked_document_date"] = row.get("invoice_date")
+        candidate["party_phone"] = row.get("client_phone")
+        candidate["load_code"] = row.get("load_code")
+        candidate["linked_document_total"] = row.get("invoice_total")
+        candidate["linked_document_paid"] = row.get("invoice_paid_amount")
+        candidate["linked_document_balance"] = row.get("invoice_balance")
         candidate["party_name"] = row.get("client_name") or candidate.get("party_name")
         candidate["description"] = row.get("description") or row.get("paid_by") or candidate.get("description")
         candidate["blocking_reasons"].append("TRADITIONAL_RECEIPT_POSTING_NOT_SUPPORTED")
