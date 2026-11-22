@@ -42,11 +42,7 @@ const reasonLabels: Record<string,{ar:string;fr:string}> = {
   SUPPLIER_PURCHASE_LINK_INVALID:{ar:"شراء المزوّد غير موجود أو غير مصادق عليه",fr:"Achat fournisseur introuvable ou non approuvé"},
   PAYMENT_SUPPLIER_LINK_MISMATCH:{ar:"المزوّد لا يطابق سند الشراء",fr:"Le fournisseur ne correspond pas à l’achat"},
 };
-const money = (value:string|null|undefined) => {
-  if(!value) return "—";
-  const [whole,fraction="000"] = value.split(".");
-  return `${fmtMoney(whole)}.${fraction.padEnd(3,"0").slice(0,3)}`;
-};
+const money = (value:string|null|undefined) => fmtMoney(value);
 type Movement = {id:string; settlement_status:string; source_type:string; source_id:string};
 export default function TreasuryMovementPreview() {
   const {lang}=useI18n(); const ar=lang==="ar"; const qc=useQueryClient();
