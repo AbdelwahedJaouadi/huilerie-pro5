@@ -17,7 +17,7 @@ type Candidate = {
 };
 type Preview = {
   candidates: Candidate[];
-  unresolved_items: Array<{source_type:string;source_id:string;source_document_number?:string;reason:string;detail:string}>;
+  unresolved_items: Array<{source_type:string;source_id:string;source_document_number?:string;party_name?:string;business_date?:string|null;amount?:string;reason:string;detail:string}>;
   summary: {candidate_count:number;eligible_for_review:number;blocked:number;unresolved_count:number};
   read_only: true; database_writes: false; movement_creation_enabled: true;
   opening_balances_used: false; active_season: string; has_more: Record<string,boolean>;
@@ -93,7 +93,7 @@ export default function TreasuryMovementPreview() {
         </td>
       </tr>)}</tbody></table></div>}
       {recordMovement.isError&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ar?"تعذّر تسجيل الحركة: ":"Échec de l’enregistrement : "}{recordMovement.error instanceof Error?recordMovement.error.message:"Erreur inconnue"}</p>}
-      {data.unresolved_items.map(item=><div key={item.source_type+item.source_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{ar?"مراجعة مطلوبة":"À vérifier"} · {item.source_document_number||item.source_id}</strong><p className="text-amber-900">{ar?"إلغاء قبض لا يثبت رجوع الأموال فعلياً إلى الصندوق أو البنك.":"L’annulation d’un règlement ne prouve pas le retour effectif des fonds en caisse ou en banque."}</p></div>)}
+      {data.unresolved_items.map(item=><div key={item.source_type+item.source_id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{ar?"مراجعة مطلوبة":"À vérifier"} · {item.source_document_number||item.source_id}</strong>{item.party_name&&<p>{ar?"الحريف":"Client"}: {item.party_name}</p>}{item.business_date&&<p>{ar?"التاريخ":"Date"}: {item.business_date}</p>}{item.amount&&<p>{ar?"المبلغ":"Montant"}: {money(item.amount)} TND</p>}<p className="text-amber-900">{item.reason==="PAYMENT_CHILD_ID_MISSING"?(ar?"دفعة قديمة دون معرّف مستقل؛ عُرضت للمراجعة دون اختراع معرّف أو إتاحة تسجيلها.":"Ancien paiement sans identifiant propre : affiché pour examen, sans inventer d’identifiant ni autoriser son enregistrement."):(ar?"إلغاء قبض لا يثبت رجوع الأموال فعلياً إلى الصندوق أو البنك.":"L’annulation d’un règlement ne prouve pas le retour effectif des fonds en caisse ou en banque.")}</p></div>)}
       {Object.values(data.has_more).some(Boolean)&&<p className="text-xs text-amber-700">{ar?"تم بلوغ حد المعاينة؛ توجد سجلات إضافية غير معروضة.":"La limite d’aperçu est atteinte; d’autres documents ne sont pas affichés."}</p>}
       </CardContent>
     </Card>
