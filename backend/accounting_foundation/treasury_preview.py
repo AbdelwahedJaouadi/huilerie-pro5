@@ -169,7 +169,7 @@ def build_treasury_movement_preview(
         candidate["linked_document_number"] = (purchase or {}).get("purchase_number") or (purchase or {}).get("number") or candidate.get("source_document_number")
         candidate["linked_document_date"] = (purchase or {}).get("purchase_date") or (purchase or {}).get("created_at")
         candidate["party_phone"] = (purchase or {}).get("supplier_phone") or candidate.get("party_phone")
-        candidate["party_address"] = (purchase or {}).get("supplier_address") or candidate.get("party_address)
+        candidate["party_address"] = (purchase or {}).get("supplier_address") or candidate.get("party_address")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
