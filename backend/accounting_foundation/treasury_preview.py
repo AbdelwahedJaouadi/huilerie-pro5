@@ -164,6 +164,10 @@ def build_treasury_movement_preview(
             unresolved.append({
                 "source_type": "TRADITIONAL_RECEIPT",
                 "source_id": row.get("invoice_id") or "MISSING",
+                "source_document_number": row.get("invoice_number"),
+                "party_name": row.get("client_name"),
+                "business_date": str(row.get("payment_date") or "")[:10] or None,
+                "amount": str(row.get("amount") or ""),
                 "reason": "PAYMENT_CHILD_ID_MISSING",
                 "detail": "Legacy invoice payment has no stable child event ID; no ID is inferred.",
             })
