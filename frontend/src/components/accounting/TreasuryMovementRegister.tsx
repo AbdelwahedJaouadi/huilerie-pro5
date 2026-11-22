@@ -22,12 +22,7 @@ type RegisterResponse = {
   balances_calculated:false; currency:"TND";
 };
 type Account = {id:string;name:string;account_type:"CASH"|"BANK";active:boolean};
-const money=(value:string)=>{
-  const match=value.match(/^(-?)(\d+)(?:\.(\d+))?$/);
-  if(!match)return "—";
-  const fraction=(match[3]||"").padEnd(3,"0").slice(0,3);
-  return `${match[1]}${fmtMoney(match[2])}.${fraction}`;
-};
+const money=(value:string)=>fmtMoney(value);
 const sourceLabel=(type:string,ar:boolean)=>type==="GS_SALE_PAYMENT"?(ar?"قبض مبيعات GS":"Encaissement vente GS"):type==="GS_SUPPLIER_PAYMENT"?(ar?"دفع لمزوّد":"Paiement fournisseur"):type;
 const methodLabel=(method:string,ar:boolean)=>method==="CASH"?(ar?"نقداً":"Espèces"):method==="BANK_TRANSFER"?(ar?"تحويل بنكي":"Virement bancaire"):method==="CHEQUE"?(ar?"شيك":"Chèque"):method;
 const statusLabel=(status:string,ar:boolean)=>status==="CASH_RECORDED"?(ar?"نقداً مسجّل":"Espèces enregistrées"):status==="PENDING_BANK_CONFIRMATION"?(ar?"بانتظار تأكيد البنك":"Confirmation bancaire en attente"):status==="PENDING_CHEQUE_CLEARANCE"?(ar?"بانتظار خلاص الشيك":"Compensation du chèque en attente"):status;
