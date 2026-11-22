@@ -84,7 +84,10 @@ def _candidate(
         "candidate_key": candidate_key,
         "source_type": source_type,
         "source_id": source_id,
-        "source_document_number": source.get("document_number") or source.get("payment_number"),
+        "source_document_number": source.get("document_number") or source.get("payment_number") or source.get("invoice_number"),
+        "party_name": source.get("party_name") or source.get("client_name") or source.get("buyer_name") or source.get("supplier_name"),
+        "description": source.get("description") or source.get("notes") or source.get("paid_by"),
+        "external_reference": source.get("external_reference"),
         "business_date": business_date or None,
         "direction": direction,
         "account_id": account_id or None,
@@ -131,6 +134,7 @@ def build_treasury_movement_preview(
             candidate["blocking_reasons"].append("PAYMENT_SALE_LINK_MISMATCH")
         elif invoice.get("buyer_id"):
             candidate["party_id"] = str(invoice["buyer_id"])
+        candidate["party_name"] = (invoice or {}).get("buyer_name") or candidate.get("party_name")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
@@ -146,6 +150,7 @@ def build_treasury_movement_preview(
             candidate["blocking_reasons"].append("SUPPLIER_PURCHASE_LINK_INVALID")
         elif not row.get("supplier_id") or not purchase.get("supplier_id") or row.get("supplier_id") != purchase.get("supplier_id"):
             candidate["blocking_reasons"].append("PAYMENT_SUPPLIER_LINK_MISMATCH")
+        candidate["party_name"] = (purchase or {}).get("supplier_name") or candidate.get("party_name")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
@@ -153,17 +158,24 @@ def build_treasury_movement_preview(
     for row in traditional_receipts:
         candidate = _candidate(
             source_type="TRADITIONAL_RECEIPT", source=row, amount_field="amount",
-            date_field="at", direction="IN", party_field="client_id", accounts=accounts,
+            date_field="payment_date", direction="IN", party_field="client_id", accounts=accounts,
         )
         if not row.get("id"):
             unresolved.append({
                 "source_type": "TRADITIONAL_RECEIPT",
                 "source_id": row.get("invoice_id") or "MISSING",
+                "source_document_number": row.get("invoice_number"),
+                "party_name": row.get("client_name"),
+                "business_date": str(row.get("payment_date") or "")[:10] or None,
+                "amount": str(row.get("amount") or ""),
                 "reason": "PAYMENT_CHILD_ID_MISSING",
                 "detail": "Legacy invoice payment has no stable child event ID; no ID is inferred.",
             })
             continue
         candidate["source_document_number"] = row.get("invoice_number")
+        candidate["party_name"] = row.get("client_name") or candidate.get("party_name")
+        candidate["description"] = row.get("description") or row.get("paid_by") or candidate.get("description")
+        candidate["blocking_reasons"].append("TRADITIONAL_RECEIPT_POSTING_NOT_SUPPORTED")
         if candidate["blocking_reasons"]:
             candidate["blocking_reasons"] = sorted(set(candidate["blocking_reasons"]))
             candidate["eligibility"] = "BLOCKED"
