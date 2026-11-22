@@ -495,14 +495,13 @@ export default function Lab() {
               <TableHead className="text-end">%</TableHead>
               <TableHead className="text-start">{t("classification")}</TableHead>
               <TableHead className="text-start">Type d’olive</TableHead>
-              <TableHead className="text-start">{t("oil_type")}</TableHead>
               <TableHead className="text-start">{t("date")}</TableHead>
-              <TableHead className="text-end">{t("certificate")}</TableHead>
+              <TableHead className="text-end">Certificat d’analyse</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && gsAnalysisRows.length === 0 && (
-              <TableRow><TableCell colSpan={13} className="py-12 text-center text-stone-500">{t("no_data")}</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="py-12 text-center text-stone-500">{t("no_data")}</TableCell></TableRow>
             )}
             {gsAnalysisRows.map((r) => (
               <TableRow key={`gs-${r.id}`} data-testid={`lab-gs-row-${r.batch_code || r.sample_reference}`}>
@@ -527,7 +526,6 @@ export default function Lab() {
                 <TableCell className="text-end">{fmtNum(r.oil_content_pct, 1)}</TableCell>
                 <TableCell>{r.classification ? <GradeBadge grade={r.classification} /> : "—"}</TableCell>
                 <TableCell className="text-sm font-medium text-stone-800">{(() => { const purchase = (gsPurchases.data ?? []).find((p) => p.batch_code === (r.batch_code || r.sample_reference)); const varietyIds = (purchase?.lines ?? []).map((line: any) => line.variety_id); const names = varietyIds.map((id: string) => (gsVarieties.data ?? []).find((v) => v.id === id)?.name_fr || id); return [...new Set(names)].join(", ") || "—"; })()}</TableCell>
-                <TableCell className="text-sm font-medium text-stone-800">{r.oil_type || "—"}</TableCell>
                 <TableCell className="text-xs text-stone-500" dir="ltr">{fmtDate(r.tested_date || r.created_at)}</TableCell>
                 <TableCell className="text-end">{<Link to={`/commercial/certificate/${r.id}?from=lab`} data-testid={`lab-gs-certificate-${r.batch_code || r.sample_reference}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Award className="size-4 text-emerald-600" /> {t("view_certificate")}</Link>}</TableCell>
               </TableRow>
@@ -550,11 +548,11 @@ export default function Lab() {
                 <TableCell className="text-end">{fmtNum(r.k270, 3)}</TableCell>
                 <TableCell className="text-end">{fmtNum(r.oil_content_pct, 1)}</TableCell>
                 <TableCell><GradeBadge grade={r.classification} /></TableCell>
-                <TableCell className="text-sm font-medium text-stone-800" data-testid={`lab-row-oil-type-${r.code}`}>{r.oil_type || "—"}</TableCell>
-                <TableCell className="text-xs text-stone-500" dir="ltr">{fmtDate(r.created_at)}</TableCell>
+                <TableCell className="text-sm font-medium text-stone-800">{loadsList.data?.find((load) => load.id === r.load_id)?.variety || "—"}</TableCell>
+                <TableCell className="text-xs text-stone-500" dir="ltr">{fmtDate(loadsList.data?.find((load) => load.id === r.load_id)?.day)}</TableCell>
                 <TableCell className="text-end">
                   <Link to={`/certificate/${r.id}`} data-testid={`lab-certificate-${r.code}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                    <Award className="size-4 text-emerald-600" /> {t("view_certificate")}
+                    <Award className="size-4 text-emerald-600" /> Certificat
                   </Link>
                 </TableCell>
               </TableRow>
