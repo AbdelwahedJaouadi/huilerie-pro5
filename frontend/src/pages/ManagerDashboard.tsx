@@ -136,10 +136,32 @@ export default function ManagerDashboard() {
 
     <section className="space-y-3">
       <div className="flex items-center gap-2 px-1"><Activity className="size-5 text-sky-700" /><h2 className="text-base font-bold text-slate-800">{ar ? "مؤشرات نشاط اليوم" : "Indicateurs du jour"}</h2></div>
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Metric label={ar ? "حمولات اليوم" : "Réceptions aujourd’hui"} value={s ? fmtNum(s.loads_today) : "—"} detail={ar ? "عدد الحمولات المسجلة اليوم" : "Nombre de réceptions du jour"} icon={Boxes} tone="border-sky-200 bg-sky-50 text-sky-950" to="/loads" />
-        <Metric label={ar ? "الزيتون المعالج اليوم" : "Olives traitées aujourd’hui"} value={s ? `${fmtNum(s.olive_kg_today)} kg` : "—"} detail={ar ? "حسب سجل الحمولات" : "D’après les chargements"} icon={Factory} tone="border-lime-200 bg-lime-50 text-lime-950" to="/loads" />
-        <Metric label={ar ? "الزيت المستخرج اليوم" : "Huile extraite aujourd’hui"} value={s ? `${fmtNum(s.oil_kg_today)} kg` : "—"} detail={ar ? "حسب وحدة سجل الإنتاج" : "Selon l’unité du registre de production"} icon={Activity} tone="border-amber-200 bg-amber-50 text-amber-950" to="/loads" />
+      <div className="grid gap-3 xl:grid-cols-[3fr_1fr]">
+        <Link to="/loads" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
+          <section className="h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <Activity className="size-5 text-sky-700" />
+              <h3 className="font-bold text-slate-800">{ar ? "نشاط اليوم" : "Activité d’aujourd’hui"}</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="min-w-0 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950">
+                <div className="flex items-center gap-2"><Boxes className="size-5 shrink-0 text-sky-700" /><p className="text-sm font-semibold">{ar ? "الاستقبالات اليوم" : "Réceptions aujourd’hui"}</p></div>
+                <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? fmtNum(s.loads_today) : "—"}</p>
+                <p className="mt-1 text-xs opacity-70">{ar ? "عدد الحمولات المستقبلة" : "Nombre de réceptions"}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-lime-200 bg-lime-50 p-3 text-lime-950">
+                <div className="flex items-center gap-2"><Factory className="size-5 shrink-0 text-lime-700" /><p className="text-sm font-semibold">{ar ? "الزيتون المعالج اليوم" : "Olives traitées aujourd’hui"}</p></div>
+                <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? `${fmtNum(s.olive_kg_today)} kg` : "—"}</p>
+                <p className="mt-1 text-xs opacity-70">{ar ? "حسب سجل الحمولات" : "D’après les chargements"}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                <div className="flex items-center gap-2"><Activity className="size-5 shrink-0 text-amber-700" /><p className="text-sm font-semibold">{ar ? "الزيت المستخرج اليوم" : "Huile extraite aujourd’hui"}</p></div>
+                <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? `${fmtNum(s.oil_kg_today)} kg` : "—"}</p>
+                <p className="mt-1 text-xs opacity-70">{ar ? "حسب وحدة سجل الإنتاج" : "Selon l’unité du registre de production"}</p>
+              </div>
+            </div>
+          </section>
+        </Link>
         <Metric label={ar ? "مداخيل العصر اليوم" : "Recettes de pressage aujourd’hui"} value={s ? money(s.revenue_today) : "—"} detail="TND" icon={Wallet} tone="border-violet-200 bg-violet-50 text-violet-950" to="/comptabilite" />
       </div>
     </section>
