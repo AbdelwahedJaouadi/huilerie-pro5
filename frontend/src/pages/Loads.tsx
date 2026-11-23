@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,7 +22,11 @@ export default function Loads() {
   const ar = lang === "ar";
   const isAdmin = useMe().data?.role === "admin";
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"loads" | "chargement" | "lots" | "movements">("loads");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<"loads" | "chargement" | "lots" | "movements">(() => {
+    const requestedTab = searchParams.get("tab");
+    return requestedTab === "chargement" || requestedTab === "lots" || requestedTab === "movements" ? requestedTab : "loads";
+  });
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [editing, setEditing] = useState<Load | null>(null);
