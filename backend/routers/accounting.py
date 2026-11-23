@@ -208,7 +208,8 @@ async def accounting_overview(
         source_owner = movement.get("source_owner") or {}
         movement["customer_name"] = owner_names.get(str(source_owner.get("customer_id")))
 
-    approved_supplier_purchases = [row for row in olive_purchases if row.get("status") == "APPROVED"]
+    approved_supplier_purchases = [row for row in olive_purchases if row.get("status") == "APPROVED" and row.get("purchase_kind") != "OIL"]
+    approved_supplier_oil_purchases = [row for row in olive_purchases if row.get("status") == "APPROVED" and row.get("purchase_kind") == "OIL"]
     customer_olive_purchases = [row for row in oil_purchases if row.get("product_kind") == "OLIVE"]
     customer_oil_purchases = [row for row in oil_purchases if row.get("product_kind", "OIL") == "OIL"]
     customer_olive_payments = [row for row in oil_payments if row.get("product_kind") == "OLIVE"]
@@ -221,8 +222,11 @@ async def accounting_overview(
             "gs_sales_revenue_total": _sum_accounting_rows(sales_invoices, "net_amount_dt"),
             "gs_sales_collected_total": _sum_accounting_rows(sales_invoices, "paid_amount_dt"),
             "supplier_olive_purchase_total": _sum_accounting_rows(approved_supplier_purchases, "total_amount_dt"),
-            "supplier_olive_paid_total": _sum_accounting_rows(supplier_payments, "amount_tnd"),
+            "supplier_olive_paid_total": _sum_accounting_rows([row for row in supplier_payments if row.get("purchase_kind") != "OIL"], "amount_tnd"),
             "supplier_olive_outstanding_total": _outstanding_accounting_rows(approved_supplier_purchases),
+            "supplier_oil_purchase_total": _sum_accounting_rows(approved_supplier_oil_purchases, "total_amount_dt"),
+            "supplier_oil_paid_total": _sum_accounting_rows([row for row in supplier_payments if row.get("purchase_kind") == "OIL"], "amount_tnd"),
+            "supplier_oil_outstanding_total": _outstanding_accounting_rows(approved_supplier_oil_purchases),
             "customer_olive_purchase_total": _sum_accounting_rows(customer_olive_purchases, "agreed_amount_tnd"),
             "customer_olive_paid_total": _sum_accounting_rows(customer_olive_payments, "amount_tnd"),
             "customer_oil_purchase_total": _sum_accounting_rows(customer_oil_purchases, "agreed_amount_tnd"),
@@ -232,15 +236,19 @@ async def accounting_overview(
         (
             pressing_revenue, pressing_collected, gs_sales_revenue, gs_collected,
             supplier_olive_total, supplier_olive_paid, supplier_olive_outstanding,
+            supplier_oil_total, supplier_oil_paid, supplier_oil_outstanding,
             customer_olive_total, customer_olive_paid, customer_oil_total, customer_oil_paid,
         ) = await asyncio.gather(
             _sum("invoices", "total", invoice_match),
             _sum("invoices", "paid_amount", invoice_match),
             _sum("commercial_sales_invoices", "net_amount_dt", commercial_match),
             _sum("commercial_sales_invoices", "paid_amount_dt", commercial_match),
-            _sum("commercial_olive_purchases", "total_amount_dt", {**commercial_match, "status": "APPROVED"}),
-            _sum("commercial_supplier_olive_purchase_payments", "amount_tnd", commercial_match),
-            _supplier_outstanding_total({**commercial_match, "status": "APPROVED"}),
+            _sum("commercial_olive_purchases", "total_amount_dt", {**commercial_match, "status": "APPROVED", "purchase_kind": {"$ne": "OIL"}}),
+            _sum("commercial_supplier_olive_purchase_payments", "amount_tnd", {**commercial_match, "purchase_kind": {"$ne": "OIL"}}),
+            _supplier_outstanding_total({**commercial_match, "status": "APPROVED", "purchase_kind": {"$ne": "OIL"}}),
+            _sum("commercial_olive_purchases", "total_amount_dt", {**commercial_match, "status": "APPROVED", "purchase_kind": "OIL"}),
+            _sum("commercial_supplier_olive_purchase_payments", "amount_tnd", {**commercial_match, "purchase_kind": "OIL"}),
+            _supplier_outstanding_total({**commercial_match, "status": "APPROVED", "purchase_kind": "OIL"}),
             _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {**commercial_match, "product_kind": "OLIVE"}),
             _sum("commercial_oil_purchase_payments", "amount_tnd", {**commercial_match, "product_kind": "OLIVE"}),
             _sum("commercial_oil_purchase_documents", "agreed_amount_tnd", {**commercial_match, "$or": [{"product_kind": "OIL"}, {"product_kind": {"$exists": False}}]}),
@@ -254,6 +262,9 @@ async def accounting_overview(
             "supplier_olive_purchase_total": supplier_olive_total,
             "supplier_olive_paid_total": supplier_olive_paid,
             "supplier_olive_outstanding_total": supplier_olive_outstanding,
+            "supplier_oil_purchase_total": supplier_oil_total,
+            "supplier_oil_paid_total": supplier_oil_paid,
+            "supplier_oil_outstanding_total": supplier_oil_outstanding,
             "customer_olive_purchase_total": customer_olive_total,
             "customer_olive_paid_total": customer_olive_paid,
             "customer_oil_purchase_total": customer_oil_total,
@@ -265,7 +276,8 @@ async def accounting_overview(
         "season_code": season_code,
         "traditional_invoices": invoices,
         "traditional_invoice_payments": traditional_invoice_payments,
-        "supplier_olive_purchases": olive_purchases,
+        "supplier_olive_purchases": [row for row in olive_purchases if row.get("purchase_kind") != "OIL"],
+        "supplier_oil_purchases": [row for row in olive_purchases if row.get("purchase_kind") == "OIL"],
         "supplier_olive_purchase_payments": supplier_payments,
         "customer_ownership_transfers": internal_movements,
         "customer_olive_purchases": customer_olive_purchases,
