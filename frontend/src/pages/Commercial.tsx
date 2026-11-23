@@ -2631,7 +2631,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
             </TableBody>
           </Table>
         </div>
-        <Card className="border-2 border-emerald-200 shadow-sm" data-testid="gs-chargement-oil-purchases">
+        {searchParams.get("chargement_section") !== "olive-purchases" && <Card className="border-2 border-emerald-200 shadow-sm" data-testid="gs-chargement-oil-purchases">
           <CardHeader className="p-3 pb-2">
             <CardTitle className="text-base">{lang === "ar" ? "مشتريات الزيت الجاهز من المزوّدين" : "Achats d’huile prête auprès des fournisseurs"}</CardTitle>
             <CardDescription>{lang === "ar" ? "سجل مستقل داخل حالة الشراء؛ الكميات باللتر ولا تدخل في وزن الزيتون أو حسابات الحمولات." : "Registre distinct des achats d’huile; quantités en litres, sans impact sur le poids des olives ni sur les charges."}</CardDescription>
@@ -2704,7 +2704,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
               </Table>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
       </div>}
 
       {tab === "procurement" && procurementView === "supplier-oil-purchases" && <div className="space-y-4">
