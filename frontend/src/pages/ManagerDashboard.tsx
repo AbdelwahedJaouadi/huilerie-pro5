@@ -145,10 +145,10 @@ export default function ManagerDashboard() {
         labels={{ total: ar ? "إجمالي معتمد" : "Total approuvé", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-emerald-200" to="/commercial?tab=purchases" />
       <SummaryPanel title={ar ? "شراء الزيت من المزودين" : "Achats d’huile auprès des fournisseurs"} icon={ShoppingBasket}
         total={moneyOrDash(supplierOilTotal)} paid={moneyOrDash(supplierOilPaid)} remaining={moneyOrDash(supplierOilRemaining)}
-        labels={{ total: ar ? "إجمالي معتمد" : "Total approuvé", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-amber-200" to="/commercial?tab=purchases" />
+        labels={{ total: ar ? "إجمالي معتمد" : "Total approuvé", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-amber-200" to="/commercial?tab=supplier-oil-purchases" />
       <SummaryPanel title={ar ? "شراء الزيتون من الحرفاء" : "Achats d’olives auprès des clients"} icon={ShoppingBasket}
         total={moneyOrDash(customerOliveTotal)} paid={moneyOrDash(customerOlivePaid)} remaining={moneyOrDash(customerOliveRemaining)}
-        labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-cyan-200" to="/commercial?tab=custody" />
+        labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-cyan-200" to="/commercial?tab=customer-purchases" />
       <SummaryPanel title={ar ? "شراء الزيت من الحرفاء" : "Achats d’huile auprès des clients"} icon={ShoppingBasket}
         total={moneyOrDash(customerOilTotal)} paid={moneyOrDash(customerOilPaid)} remaining={moneyOrDash(customerOilRemaining)}
         labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-violet-200" to="/commercial?tab=custody" />
@@ -183,14 +183,20 @@ export default function ManagerDashboard() {
         <div className="flex items-center gap-2 text-stone-700"><CalendarClock className="size-5 text-orange-700" /><h2 className="font-bold">{ar ? "حالة الحمولات" : "État des chargements"}</h2></div>
         <div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold">{s ? fmtNum(s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "قيد المعالجة" : "En attente"}</p></div><div><p className="text-2xl font-bold">{s ? fmtNum(s.loads_total - s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "اكتملت" : "Terminés"}</p></div></div>
       </section></Link>
-      <Link to="/factures" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500"><section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-stone-700"><ClipboardList className="size-5 text-indigo-700" /><h2 className="font-bold">{ar ? "الفواتير" : "Factures"}</h2></div>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div><p className="text-2xl font-bold">{accounting.data ? accounting.data.traditional_invoices.length : "—"}</p><p className="text-xs text-stone-500">{ar ? "فواتير العصر" : "Pressage"}</p></div>
-          <div><p className="text-2xl font-bold text-indigo-700">{accounting.data ? accounting.data.commercial_sales_invoices.length : "—"}</p><p className="text-xs text-stone-500">{ar ? "فواتير تجارية" : "Gestion commerciale"}</p></div>
-        </div>
-        <p className="mt-2 text-xs text-stone-400">{ar ? "الأعداد حسب السجلات الحديثة المحمّلة لكل نوع." : "Comptage des documents récents chargés pour chaque type."}</p>
-      </section></Link>
+      <Link to="/factures" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
+        <section className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-stone-700"><ClipboardList className="size-5 text-indigo-700" /><h2 className="font-bold">{ar ? "فواتير العصر" : "Factures de pressage"}</h2></div>
+          <p className="mt-3 text-2xl font-bold tabular-nums">{accounting.data ? accounting.data.traditional_invoices.length : "—"}</p>
+          <p className="mt-1 text-xs text-stone-500">{ar ? "الفواتير التقليدية لعمليات العصر" : "Facturation traditionnelle des opérations de pressage"}</p>
+        </section>
+      </Link>
+      <Link to="/commercial?tab=factures" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
+        <section className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-stone-700"><ClipboardList className="size-5 text-violet-700" /><h2 className="font-bold">{ar ? "فواتير التسيير التجاري" : "Factures Gestion commerciale"}</h2></div>
+          <p className="mt-3 text-2xl font-bold text-violet-700 tabular-nums">{accounting.data ? accounting.data.commercial_sales_invoices.length : "—"}</p>
+          <p className="mt-1 text-xs text-stone-500">{ar ? "فواتير المبيعات التجارية في GS" : "Factures de vente du module GS"}</p>
+        </section>
+      </Link>
     </div>
 
     {loading && <p className="text-xs text-stone-500">{ar ? "جارٍ تحميل البيانات…" : "Chargement des données…"}</p>}
