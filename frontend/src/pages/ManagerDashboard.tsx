@@ -11,12 +11,22 @@ type WorkforceWorkersResponse = { workers: Row[]; total: number };
 type Overview = {
   active_season: string;
   supplier_olive_purchases: Row[];
+  supplier_oil_purchases: Row[];
+  customer_olive_purchases: Row[];
+  customer_oil_purchases: Row[];
   commercial_sales_invoices: Row[];
   traditional_invoices: Row[];
   summary: {
     supplier_olive_purchase_total: number | string;
     supplier_olive_paid_total: number | string;
     supplier_olive_outstanding_total: number | string;
+    supplier_oil_purchase_total: number | string;
+    supplier_oil_paid_total: number | string;
+    supplier_oil_outstanding_total: number | string;
+    customer_olive_purchase_total: number | string;
+    customer_olive_paid_total: number | string;
+    customer_oil_purchase_total: number | string;
+    customer_oil_paid_total: number | string;
     gs_sales_revenue_total: number | string;
     gs_sales_collected_total: number | string;
   };
@@ -87,6 +97,18 @@ export default function ManagerDashboard() {
   const purchasePaid = summary?.supplier_olive_paid_total;
   const purchaseRemaining = summary?.supplier_olive_outstanding_total
     ?? (purchaseTotal != null && purchasePaid != null ? Number(purchaseTotal) - Number(purchasePaid) : null);
+  const supplierOilTotal = summary?.supplier_oil_purchase_total;
+  const supplierOilPaid = summary?.supplier_oil_paid_total;
+  const supplierOilRemaining = summary?.supplier_oil_outstanding_total
+    ?? (supplierOilTotal != null && supplierOilPaid != null ? Number(supplierOilTotal) - Number(supplierOilPaid) : null);
+  const customerOliveTotal = summary?.customer_olive_purchase_total;
+  const customerOlivePaid = summary?.customer_olive_paid_total;
+  const customerOliveRemaining = customerOliveTotal != null && customerOlivePaid != null
+    ? Number(customerOliveTotal) - Number(customerOlivePaid) : null;
+  const customerOilTotal = summary?.customer_oil_purchase_total;
+  const customerOilPaid = summary?.customer_oil_paid_total;
+  const customerOilRemaining = customerOilTotal != null && customerOilPaid != null
+    ? Number(customerOilTotal) - Number(customerOilPaid) : null;
   const salesTotal = summary?.gs_sales_revenue_total;
   const salesPaid = summary?.gs_sales_collected_total;
   const salesRemaining = salesTotal != null && salesPaid != null
@@ -117,10 +139,21 @@ export default function ManagerDashboard() {
       <Metric label={ar ? "مداخيل العصر اليوم" : "Recettes de pressage aujourd’hui"} value={s ? money(s.revenue_today) : "—"} detail="TND" icon={Wallet} tone="border-violet-200 bg-violet-50 text-violet-950" to="/comptabilite" />
     </div>
 
-    <div className="grid gap-3 lg:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryPanel title={ar ? "شراء الزيتون من المزودين" : "Achats d’olives auprès des fournisseurs"} icon={ShoppingBasket}
         total={moneyOrDash(purchaseTotal)} paid={moneyOrDash(purchasePaid)} remaining={moneyOrDash(purchaseRemaining)}
-        labels={{ total: ar ? "قيمة المشتريات" : "Achats approuvés", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "المتبقي" : "À payer" }} tone="border-emerald-200" to="/commercial?tab=purchases" />
+        labels={{ total: ar ? "إجمالي معتمد" : "Total approuvé", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-emerald-200" to="/commercial?tab=purchases" />
+      <SummaryPanel title={ar ? "شراء الزيت من المزودين" : "Achats d’huile auprès des fournisseurs"} icon={ShoppingBasket}
+        total={moneyOrDash(supplierOilTotal)} paid={moneyOrDash(supplierOilPaid)} remaining={moneyOrDash(supplierOilRemaining)}
+        labels={{ total: ar ? "إجمالي معتمد" : "Total approuvé", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-amber-200" to="/commercial?tab=purchases" />
+      <SummaryPanel title={ar ? "شراء الزيتون من الحرفاء" : "Achats d’olives auprès des clients"} icon={ShoppingBasket}
+        total={moneyOrDash(customerOliveTotal)} paid={moneyOrDash(customerOlivePaid)} remaining={moneyOrDash(customerOliveRemaining)}
+        labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-cyan-200" to="/commercial?tab=custody" />
+      <SummaryPanel title={ar ? "شراء الزيت من الحرفاء" : "Achats d’huile auprès des clients"} icon={ShoppingBasket}
+        total={moneyOrDash(customerOilTotal)} paid={moneyOrDash(customerOilPaid)} remaining={moneyOrDash(customerOilRemaining)}
+        labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-violet-200" to="/commercial?tab=custody" />
+    </div>
+    <div className="grid gap-3 lg:grid-cols-2">
       <SummaryPanel title={ar ? "بيع الزيت للحرفاء" : "Ventes d’huile aux clients"} icon={ShoppingCart}
         total={moneyOrDash(salesTotal)} paid={moneyOrDash(salesPaid)} remaining={moneyOrDash(salesRemaining)}
         labels={{ total: ar ? "صافي المبيعات" : "Ventes nettes", paid: ar ? "المقبوض" : "Encaissé", remaining: ar ? "المتبقي" : "À encaisser" }} tone="border-blue-200" to="/commercial?tab=sales" />
@@ -152,9 +185,11 @@ export default function ManagerDashboard() {
       </section></Link>
       <Link to="/factures" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500"><section className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="flex items-center gap-2 text-stone-700"><ClipboardList className="size-5 text-indigo-700" /><h2 className="font-bold">{ar ? "الفواتير" : "Factures"}</h2></div>
-        <p className="mt-3 text-3xl font-bold">{accounting.data ? accounting.data.traditional_invoices.length : "—"}</p>
-        <p className="text-xs text-stone-500">{ar ? "فواتير العصر في السجل المعروض" : "Factures de pressage dans la liste chargée"}</p>
-        <p className="mt-2 text-xs text-stone-400">{ar ? "قائمة المحاسبة تعرض أحدث السجلات فقط." : "La comptabilité charge une liste récente plafonnée."}</p>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div><p className="text-2xl font-bold">{accounting.data ? accounting.data.traditional_invoices.length : "—"}</p><p className="text-xs text-stone-500">{ar ? "فواتير العصر" : "Pressage"}</p></div>
+          <div><p className="text-2xl font-bold text-indigo-700">{accounting.data ? accounting.data.commercial_sales_invoices.length : "—"}</p><p className="text-xs text-stone-500">{ar ? "فواتير تجارية" : "Gestion commerciale"}</p></div>
+        </div>
+        <p className="mt-2 text-xs text-stone-400">{ar ? "الأعداد حسب السجلات الحديثة المحمّلة لكل نوع." : "Comptage des documents récents chargés pour chaque type."}</p>
       </section></Link>
     </div>
 
