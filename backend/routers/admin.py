@@ -416,10 +416,15 @@ async def export_database_pdf(_: dict = Depends(require_admin)):
             rows = [[Paragraph(shape("Champ / الحقل"), key_style), Paragraph(shape("Valeur / القيمة"), key_style)]]
             for key, value in record.items():
                 rendered = display_value(value)
-                rows.append([
-                    Paragraph(shape(html_escape(str(key))), key_style),
-                    Paragraph(shape(html_escape(rendered).replace("\n", "<br/>")), cell_style),
-                ])
+                # Keep every table row short enough for ReportLab to split reliably.
+                # A single very long value (for example a URL, serialized payload, or
+                # unbroken identifier) can otherwise create a row taller than an A4 page.
+                chunks = [rendered[i:i + 500] for i in range(0, len(rendered), 500)] or [""]
+                for chunk_index, chunk in enumerate(chunks):
+                    rows.append([
+                        Paragraph(shape(html_escape(str(key) if chunk_index == 0 else "")), key_style),
+                        Paragraph(shape(html_escape(chunk).replace("\n", "<br/>")), cell_style),
+                    ])
             table = Table(rows, colWidths=[42 * mm, 142 * mm], repeatRows=1, splitByRow=1, hAlign="LEFT")
             table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DCEEFF")),
