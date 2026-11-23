@@ -24,6 +24,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme}
       // bottom-right: top positions sit on the header nav and swallow clicks; bottom-left is the preview bug button
       position="bottom-right"
+      offset={72}
       className="toaster group"
       icons={{
         success: (
