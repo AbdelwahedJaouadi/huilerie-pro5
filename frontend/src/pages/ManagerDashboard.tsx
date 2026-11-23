@@ -166,7 +166,7 @@ export default function ManagerDashboard() {
         <div className="flex items-center gap-2 text-stone-700"><CalendarClock className="size-5 text-orange-700" /><h2 className="font-bold">{ar ? "حالة الحمولات" : "État des chargements"}</h2></div>
         <div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold">{s ? fmtNum(s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "قيد المعالجة" : "En attente"}</p></div><div><p className="text-2xl font-bold">{s ? fmtNum(s.loads_total - s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "اكتملت" : "Terminés"}</p></div></div>
       </section></Link>
-      <Link to="/commercial?tab=chargement" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
+      <Link to="/commercial?tab=chargement&chargement_section=olive-purchases" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
         <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-emerald-950"><Boxes className="size-5 text-emerald-700" /><h2 className="font-bold">{ar ? "حالة الشحنات – التسيير التجاري" : "État des chargements – Gestion commerciale"}</h2></div>
           <div className="mt-3 grid grid-cols-4 gap-2">
