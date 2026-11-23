@@ -228,6 +228,9 @@ export default function CommercialTanksSettings() {
                 return (
                   <TableRow key={tank.id}>
                     <TableCell className="font-semibold">{String(tank.code ?? "—")} · {String(tank.name ?? "—")}</TableCell>
+                    <TableCell>{tank.active ? labels.active : labels.inactive}</TableCell>
+                    <TableCell>{(tank.role ?? "NORMAL") === "QUARANTINE" ? labels.quarantine : labels.normal}</TableCell>
+                    <TableCell>{tank.capacity_kg == null ? labels.flexible : formatQuantity(tank.capacity_kg)}</TableCell>
                     <TableCell className="min-w-[190px]">
                       <div dir="ltr" className="flex items-center gap-3">
                         <div
@@ -246,9 +249,6 @@ export default function CommercialTanksSettings() {
                         <span className="whitespace-nowrap font-bold tabular-nums">{formatQuantity(quantity)} L</span>
                       </div>
                     </TableCell>
-                    <TableCell>{tank.capacity_kg == null ? labels.flexible : formatQuantity(tank.capacity_kg)}</TableCell>
-                    <TableCell>{(tank.role ?? "NORMAL") === "QUARANTINE" ? labels.quarantine : labels.normal}</TableCell>
-                    <TableCell>{tank.active ? labels.active : labels.inactive}</TableCell>
                     <TableCell>
                       <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-wrap items-center gap-2">
                         <input
