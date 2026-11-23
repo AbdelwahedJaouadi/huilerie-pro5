@@ -152,6 +152,45 @@ export default function Dashboard() {
 
       <OlivePurchaseTracking />
 
+      <section className="mt-12" aria-labelledby="accueil-gallery-title" data-testid="accueil-gallery">
+        <div className="mb-5">
+          <h2 id="accueil-gallery-title" className="font-heading text-2xl font-bold text-stone-900">{ar ? "صور من عالم زيت الزيتون" : "Au cœur de notre huilerie"}</h2>
+          <p className="mt-1 text-sm text-stone-500">{ar ? "مراحل الإنتاج والتجهيز والتخزين" : "Notre savoir-faire, de la production au stockage"}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[
+  "/images/accueil/IMG_8906.jpg",
+  "/images/accueil/IMG_8907.jpg",
+  "/images/accueil/IMG_8908.jpg",
+  "/images/accueil/IMG_8909.jpg",
+  "/images/accueil/IMG_8910.jpg",
+  "/images/accueil/IMG_8911.jpg",
+  "/images/accueil/IMG_8912.jpg",
+  "/images/accueil/IMG_8913.jpg",
+  "/images/accueil/IMG_8914.jpg",
+  "/images/accueil/IMG_8915.jpg",
+  "/images/accueil/IMG_8916.jpg",
+  "/images/accueil/IMG_8917.jpg",
+  "/images/accueil/IMG_8918.jpg",
+  "/images/accueil/IMG_8919.jpg",
+  "/images/accueil/IMG_8920.jpg",
+  "/images/accueil/IMG_8921.jpg",
+  "/images/accueil/IMG_8922.jpg",
+  "/images/accueil/IMG_8923.jpg",
+  "/images/accueil/IMG_8924.jpg",
+  "/images/accueil/IMG_8925.jpg",
+  "/images/accueil/IMG_8926.jpg",
+  "/images/accueil/IMG_8927.jpg",
+  "/images/accueil/IMG_8928.jpg",
+  "/images/accueil/IMG_8929.jpg",
+          ].map((src, index) => (
+            <div key={src} className="group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+              <img src={src} alt={ar ? `صورة من مراحل إنتاج زيت الزيتون ${index + 1}` : `Étape de production d'huile d'olive ${index + 1}`} loading="lazy" decoding="async" className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+            </div>
+          ))}
+        </div>
+      </section>
+
       <Sheet open={intakeOpen} onOpenChange={setIntakeOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto bg-[#F9F8F3] p-4 sm:max-w-lg" data-testid="new-reception-sheet">
           <SheetTitle className="mb-2 font-heading text-lg">{t("new_reception")}</SheetTitle>
