@@ -79,6 +79,7 @@ def to_load(doc: dict, user: dict, lab: Optional[dict] = None) -> Load:
         weighed_at=_aware(weight_measurement["measured_at"]) if weight_measurement.get("measured_at") else None,
         weighed_by=weight_measurement.get("operator_username"),
         ownership_transferred=bool(doc.get("ownership_transferred", False)), ownership_transferred_at=_aware(doc["ownership_transferred_at"]) if doc.get("ownership_transferred_at") else None, oil_kg=oil,
+        oil_liters=money_float(to_decimal(doc["oil_liters"])) if doc.get("oil_liters") is not None else None,
         yield_pct=round(oil / olive_kg * 100, 2) if oil is not None and olive_kg else None,
         status="cancelled" if doc.get("cancelled") else (
             "delivered" if doc.get("delivered") else (
@@ -297,13 +298,13 @@ async def _ensure_load_invoice(id: str, user: dict) -> None:
             raise
 
 
-async def _complete_load_and_invoice(id: str, oil_kg: float, user: dict):
+async def _complete_load_and_invoice(id: str, oil_kg: float, oil_liters: float, user: dict):
     """Persist the oil weight and its invoice atomically; return (load, notify_customer)."""
 
     async def operation(session):
         before = await db.loads.find_one(
             {"id": id},
-            {"_id": 0, "olive_kg": 1, "customer_available_olive_kg": 1, "ownership_transferred": 1, "oil_kg": 1, "cancelled": 1, "delivered": 1},
+            {"_id": 0, "olive_kg": 1, "customer_available_olive_kg": 1, "ownership_transferred": 1, "oil_kg": 1, "oil_liters": 1, "cancelled": 1, "delivered": 1},
             session=session,
         )
         if not before:
@@ -316,7 +317,9 @@ async def _complete_load_and_invoice(id: str, oil_kg: float, user: dict):
             raise HTTPException(409, "load_ownership_transferred_to_mill")
 
         if before.get("oil_kg") is not None:
-            if float(before["oil_kg"]) != float(oil_kg):
+            if (float(before["oil_kg"]) != float(oil_kg)
+                    or before.get("oil_liters") is None
+                    or float(before["oil_liters"]) != float(oil_liters)):
                 raise HTTPException(409, "oil_already_entered")
             # A same-value retry repairs an invoice missing after an older
             # non-transactional completion, but never sends a duplicate SMS.
@@ -330,6 +333,7 @@ async def _complete_load_and_invoice(id: str, oil_kg: float, user: dict):
 
         upd = {
             "oil_kg": oil_kg,
+            "oil_liters": oil_liters,
             "oil_by": user["username"],
             "oil_ready_at": datetime.now(timezone.utc),
         }
@@ -353,7 +357,7 @@ async def _complete_load_and_invoice(id: str, oil_kg: float, user: dict):
             {"load_id": id, "paid_amount": 0}, user, session
         )
         await _audit_load_event(doc, user, "LOAD_OIL_RECORDED", {
-            "oil_kg": oil_kg, "previous_oil_kg": before.get("oil_kg")
+            "oil_kg": oil_kg, "oil_liters": oil_liters, "previous_oil_kg": before.get("oil_kg")
         }, session=session)
         return doc, True
 
@@ -362,7 +366,7 @@ async def _complete_load_and_invoice(id: str, oil_kg: float, user: dict):
 
 @router.patch("/loads/{id}/oil", response_model=Load)
 async def set_oil(id: str, body: OilUpdate, user: dict = Depends(current_user)):
-    doc, should_notify = await _complete_load_and_invoice(id, body.oil_kg, user)
+    doc, should_notify = await _complete_load_and_invoice(id, body.oil_kg, body.oil_liters, user)
 
     # Notification is deliberately outside the transaction: a provider outage
     # must not roll back the completed load or its accounting invoice.
@@ -593,6 +597,10 @@ async def stats(user: dict = Depends(current_user)):
         daily.append(DailyPoint(day=day, olive_kg=round(a[0], 2), oil_kg=round(a[1], 2),
                                 revenue=round(a[2], 3) if is_admin else None))
     t = by_day.get(today, [0.0, 0.0, 0.0, 0.0])
+    recorded_oil_liters_today = [
+        float(d["oil_liters"]) for d in docs
+        if d.get("day") == today and d.get("oil_liters") is not None
+    ]
     non_terminated = sum(
         1 for d in docs if d.get("oil_kg") is None
     )
@@ -601,6 +609,7 @@ async def stats(user: dict = Depends(current_user)):
         non_terminated=non_terminated, loads_total=len(docs),
         pending=sum(1 for d in docs if d.get("oil_kg") is None),
         olive_kg_today=round(t[0], 2), oil_kg_today=round(t[1], 2),
+        oil_liters_today=round(sum(recorded_oil_liters_today), 2) if recorded_oil_liters_today else None,
         olive_kg_total=round(o_t, 2), oil_kg_total=round(oil_t, 2),
         avg_yield=round(oil_done / olive_done * 100, 2) if olive_done else None,
         revenue_today=round(t[2], 3) if is_admin else None,
