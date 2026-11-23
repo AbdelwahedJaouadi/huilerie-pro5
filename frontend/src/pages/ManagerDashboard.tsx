@@ -154,25 +154,6 @@ export default function ManagerDashboard() {
         labels={{ total: ar ? "إجمالي الشراء" : "Total achats", paid: ar ? "المدفوع" : "Payé", remaining: ar ? "غير مدفوع" : "Impayé" }} tone="border-violet-200" to="/commercial?tab=custody" />
     </div>
     <div className="grid gap-3 md:grid-cols-3">
-      <section className="rounded-2xl border bg-white p-4 shadow-sm md:col-span-3">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="font-bold">{ar ? "العمال" : "Employés"}</h2>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{workers.data ? workers.data.workers.length : "—"}</span>
-        </div>
-        {workers.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل قائمة العمال." : "Impossible de charger la liste des employés."}</p> :
-          workers.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال…" : "Chargement des employés…"}</p> :
-          workers.data.workers.length === 0
-            ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال مسجلون." : "Aucun employé enregistré."}</p>
-            : <div className="flex flex-col gap-2">
-                {workers.data.workers.map((worker) => (
-                  <div key={String(worker.id ?? worker._id ?? worker.username)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3">
-                    <span className="min-w-0 truncate font-medium text-stone-800">{worker.full_name || worker.username || "—"}</span>
-                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
-                  </div>
-                ))}
-              </div>}
-        <p className="mt-3 text-xs text-stone-500">{ar ? "تعرض هذه القائمة جميع العمال وحالتهم الحالية؛ وتُتابع أوقات الحضور والانصراف في صفحة Travail." : "Liste complète du registre des employés avec leur statut actuel ; les heures de présence et de départ sont suivies dans la page Travail."}</p>
-      </section>
     <div className="grid gap-3 lg:grid-cols-2">
       <SummaryPanel title={ar ? "بيع الزيت للحرفاء" : "Ventes d’huile aux clients"} icon={ShoppingCart}
         total={moneyOrDash(salesTotal)} paid={moneyOrDash(salesPaid)} remaining={moneyOrDash(salesRemaining)}
@@ -199,6 +180,25 @@ export default function ManagerDashboard() {
       </Link>
     </div>
 
+      <section className="rounded-2xl border bg-white p-4 shadow-sm md:col-span-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="font-bold">{ar ? "العمال" : "Employés"}</h2>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">{workers.data ? workers.data.workers.length : "—"}</span>
+        </div>
+        {workers.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل قائمة العمال." : "Impossible de charger la liste des employés."}</p> :
+          workers.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال…" : "Chargement des employés…"}</p> :
+          workers.data.workers.length === 0
+            ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال مسجلون." : "Aucun employé enregistré."}</p>
+            : <div className="flex flex-col gap-2">
+                {workers.data.workers.map((worker) => (
+                  <div key={String(worker.id ?? worker._id ?? worker.username)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3">
+                    <span className="min-w-0 truncate font-medium text-stone-800">{worker.full_name || worker.username || "—"}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
+                  </div>
+                ))}
+              </div>}
+        <p className="mt-3 text-xs text-stone-500">{ar ? "تعرض هذه القائمة جميع العمال وحالتهم الحالية؛ وتُتابع أوقات الحضور والانصراف في صفحة Travail." : "Liste complète du registre des employés avec leur statut actuel ; les heures de présence et de départ sont suivies dans la page Travail."}</p>
+      </section>
     {loading && <p className="text-xs text-stone-500">{ar ? "جارٍ تحميل البيانات…" : "Chargement des données…"}</p>}
   </div>;
 }
