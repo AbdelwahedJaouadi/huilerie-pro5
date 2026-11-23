@@ -72,6 +72,7 @@ export interface Load {
   ownership_transferred: boolean;
   ownership_transferred_at: string | null;
   oil_kg: number | null;
+  oil_liters?: number | null;
   yield_pct: number | null;
   status: LoadStatus;
   season: string;
