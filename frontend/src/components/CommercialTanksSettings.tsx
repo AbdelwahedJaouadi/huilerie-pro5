@@ -204,15 +204,15 @@ export default function CommercialTanksSettings() {
           <p className="py-6 text-center text-sm text-muted-foreground">{labels.loading}</p>
         )}
         {ready && !tanks.isLoading && !balances.isLoading && !tanks.isError && !balances.isError && (
-          <Table dir={lang === "ar" ? "rtl" : "ltr"}>
+          <Table dir="ltr">
             <TableHeader>
               <TableRow>
-                <TableHead>{labels.actions}</TableHead>
-                <TableHead>{labels.quantity}</TableHead>
-                <TableHead>{labels.capacity}</TableHead>
-                <TableHead>{labels.role}</TableHead>
-                <TableHead>{labels.status}</TableHead>
                 <TableHead>{labels.tank}</TableHead>
+                <TableHead>{labels.status}</TableHead>
+                <TableHead>{labels.role}</TableHead>
+                <TableHead>{labels.capacity}</TableHead>
+                <TableHead>{labels.quantity}</TableHead>
+                <TableHead>{labels.actions}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -227,6 +227,28 @@ export default function CommercialTanksSettings() {
 
                 return (
                   <TableRow key={tank.id}>
+                    <TableCell className="font-semibold">{String(tank.code ?? "—")} · {String(tank.name ?? "—")}</TableCell>
+                    <TableCell className="min-w-[190px]">
+                      <div dir="ltr" className="flex items-center gap-3">
+                        <div
+                          className="h-5 min-w-[90px] flex-1 overflow-hidden rounded-full bg-stone-200 shadow-inner"
+                          role="progressbar"
+                          aria-label={labels.quantity + ": " + formatQuantity(quantity) + " L"}
+                          aria-valuemin={0}
+                          aria-valuemax={scale}
+                          aria-valuenow={quantity}
+                        >
+                          <div
+                            className="h-full rounded-full transition-[width,background-color] duration-500"
+                            style={{ width: formatPercent(fillPercent), backgroundColor: "hsl(" + (120 - (fillPercent * 1.2)) + " 75% 40%)" }}
+                          />
+                        </div>
+                        <span className="whitespace-nowrap font-bold tabular-nums">{formatQuantity(quantity)} L</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{tank.capacity_kg == null ? labels.flexible : formatQuantity(tank.capacity_kg)}</TableCell>
+                    <TableCell>{(tank.role ?? "NORMAL") === "QUARANTINE" ? labels.quarantine : labels.normal}</TableCell>
+                    <TableCell>{tank.active ? labels.active : labels.inactive}</TableCell>
                     <TableCell>
                       <div dir={lang === "ar" ? "rtl" : "ltr"} className="flex flex-wrap items-center gap-2">
                         <input
@@ -262,28 +284,6 @@ export default function CommercialTanksSettings() {
                         </select>
                       </div>
                     </TableCell>
-                    <TableCell className="min-w-[190px]">
-                      <div dir="ltr" className="flex items-center gap-3">
-                        <div
-                          className="h-5 min-w-[90px] flex-1 overflow-hidden rounded-full bg-stone-200 shadow-inner"
-                          role="progressbar"
-                          aria-label={labels.quantity + ": " + formatQuantity(quantity) + " L"}
-                          aria-valuemin={0}
-                          aria-valuemax={scale}
-                          aria-valuenow={quantity}
-                        >
-                          <div
-                            className="h-full rounded-full transition-[width,background-color] duration-500"
-                            style={{ width: formatPercent(fillPercent), backgroundColor: "hsl(" + (120 - (fillPercent * 1.2)) + " 75% 40%)" }}
-                          />
-                        </div>
-                        <span className="whitespace-nowrap font-bold tabular-nums">{formatQuantity(quantity)} L</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{tank.capacity_kg == null ? labels.flexible : formatQuantity(tank.capacity_kg)}</TableCell>
-                    <TableCell>{(tank.role ?? "NORMAL") === "QUARANTINE" ? labels.quarantine : labels.normal}</TableCell>
-                    <TableCell>{tank.active ? labels.active : labels.inactive}</TableCell>
-                    <TableCell className="font-semibold">{String(tank.code ?? "—")} · {String(tank.name ?? "—")}</TableCell>
                   </TableRow>
                 );
               })}
