@@ -114,6 +114,8 @@ export default function ManagerDashboard() {
   const salesRemaining = salesTotal != null && salesPaid != null
     ? Number(salesTotal) - Number(salesPaid)
     : null;
+  const gsChargements = (accounting.data?.supplier_olive_purchases ?? []).filter((purchase) => purchase.purchase_kind !== "OIL");
+  const gsChargementCount = (status: string) => gsChargements.filter((purchase) => String(purchase.status ?? "").toUpperCase() === status).length;
   const loading = stats.isPending || accounting.isPending;
   const failed = stats.isError || accounting.isError;
   const money = (v: unknown) => fmtMoney(Number(v ?? 0));
@@ -164,6 +166,17 @@ export default function ManagerDashboard() {
         <div className="flex items-center gap-2 text-stone-700"><CalendarClock className="size-5 text-orange-700" /><h2 className="font-bold">{ar ? "حالة الحمولات" : "État des chargements"}</h2></div>
         <div className="mt-3 grid grid-cols-2 gap-3"><div><p className="text-2xl font-bold">{s ? fmtNum(s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "قيد المعالجة" : "En attente"}</p></div><div><p className="text-2xl font-bold">{s ? fmtNum(s.loads_total - s.pending) : "—"}</p><p className="text-xs text-stone-500">{ar ? "اكتملت" : "Terminés"}</p></div></div>
       </section></Link>
+      <Link to="/commercial?tab=chargement" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-emerald-950"><Boxes className="size-5 text-emerald-700" /><h2 className="font-bold">{ar ? "حالة الشحنات – التسيير التجاري" : "État des chargements – Gestion commerciale"}</h2></div>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            <div><p className="text-xl font-bold tabular-nums">{accounting.data ? gsChargements.length : "—"}</p><p className="text-xs text-stone-600">{ar ? "الإجمالي" : "Total"}</p></div>
+            <div><p className="text-xl font-bold text-amber-700 tabular-nums">{accounting.data ? gsChargementCount("DRAFT") : "—"}</p><p className="text-xs text-stone-600">{ar ? "مسودة" : "Brouillons"}</p></div>
+            <div><p className="text-xl font-bold text-emerald-700 tabular-nums">{accounting.data ? gsChargementCount("APPROVED") : "—"}</p><p className="text-xs text-stone-600">{ar ? "معتمد" : "Approuvés"}</p></div>
+            <div><p className="text-xl font-bold text-rose-700 tabular-nums">{accounting.data ? gsChargementCount("CANCELLED") : "—"}</p><p className="text-xs text-stone-600">{ar ? "ملغى" : "Annulés"}</p></div>
+          </div>
+        </section>
+      </Link>
       <Link to="/factures" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
         <section className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 text-stone-700"><ClipboardList className="size-5 text-indigo-700" /><h2 className="font-bold">{ar ? "فواتير العصر" : "Factures de pressage"}</h2></div>

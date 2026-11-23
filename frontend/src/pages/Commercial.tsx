@@ -185,12 +185,12 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "production", "movements", "transfers", "buyers", "sales", "accounting"];
-  const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "supplier-oil-purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab === "movements" ? "stock" : requestedTab as TabKey) : "procurement";
+  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "production", "movements", "transfers", "buyers", "sales", "accounting", "chargement"];
+  const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "supplier-oil-purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>(embeddedStockView ? "stock" : initialTab);
-  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" ? "movements" : "lots"));
+  const [stockView, setStockView] = useState<"lots" | "movements" | "chargement">(embeddedStockView ?? (requestedTab === "movements" ? "movements" : requestedTab === "chargement" ? "chargement" : "lots"));
   const [procurementView, setProcurementView] = useState<"suppliers" | "purchases" | "supplier-oil-purchases" | "customer-purchases">(requestedTab === "customer-purchases" ? "customer-purchases" : requestedTab === "supplier-oil-purchases" ? "supplier-oil-purchases" : requestedTab === "purchases" ? "purchases" : "suppliers");
   const [salesView, setSalesView] = useState<"buyers" | "sales">(requestedTab === "sales" ? "sales" : "buyers");
   const selectTab = (nextTab: TabKey) => {
@@ -233,7 +233,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     if (["suppliers", "purchases", "supplier-oil-purchases", "customer-purchases"].includes(nextTab)) {
       setProcurementView(nextTab as "suppliers" | "purchases" | "supplier-oil-purchases" | "customer-purchases");
     }
-    if (nextTab === "movements") setStockView("movements");
+    if (nextTab === "movements" || nextTab === "chargement") setStockView(nextTab);
     if (nextTab === "buyers" || nextTab === "sales") setSalesView(nextTab);
     setTab(targetTab);
   }, [requestedTab, embeddedStockView]);
