@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Beaker, CheckCircle2, ClipboardList, MapPin, ShoppingBasket, Warehouse } from "lucide-react";
 import { apiGet } from "@/lib/api";
@@ -45,6 +45,7 @@ function Metric({ label, value, icon: Icon, tone }: { label: string; value: Reac
 export default function CommercialOverviewPanel() {
   const { lang } = useI18n();
   const ar = lang === "ar";
+  const navigate = useNavigate();
   const [showTankLevels, setShowTankLevels] = useState(false);
   const [selectedTankId, setSelectedTankId] = useState("");
   const status = useQuery({
@@ -142,7 +143,7 @@ export default function CommercialOverviewPanel() {
       const fallbackPurchase = (purchases.data ?? []).find((purchase) => purchase.batch_code === run.batch_code || (purchase.batch_codes ?? []).includes(run.batch_code));
       const linkedPurchases = sourcePurchases.length ? sourcePurchases : (fallbackPurchase ? [fallbackPurchase] : []);
       return {
-        id: "production-" + run.id, date: run.production_date ?? run.created_at,
+        id: "production-" + run.id, targetTab: "production", date: run.production_date ?? run.created_at,
         type: ar ? "إنتاج" : "Production", reference: run.document_number ?? run.batch_code ?? "—",
         supplier: joinUnique(linkedPurchases.map(supplierName)), supplierPhone: joinUnique(linkedPurchases.map(supplierPhone)), buyer: "—",
         quantity: Number(run.output_quantity_liters ?? run.actual_oil_output_kg ?? run.output_quantity_kg ?? 0), status: run.status,
@@ -155,7 +156,7 @@ export default function CommercialOverviewPanel() {
       const sourcePurchases = (allocatedOilLots.length ? allocatedOilLots : (fallbackOilLot ? [fallbackOilLot] : [])).map(purchaseForOilLot).filter(Boolean) as Row[];
       const buyer = (buyers.data ?? []).find((item) => item.id === sale.buyer_id);
       return {
-        id: "sale-" + sale.id, date: sale.sale_date ?? sale.created_at, type: ar ? "بيع" : "Vente",
+        id: "sale-" + sale.id, targetTab: "sales", date: sale.sale_date ?? sale.created_at, type: ar ? "بيع" : "Vente",
         reference: sale.document_number ?? sale.batch_code ?? "—",
         supplier: joinUnique(sourcePurchases.map(supplierName)), supplierPhone: joinUnique(sourcePurchases.map(supplierPhone)),
         buyer: buyer?.name ?? sale.buyer_name ?? "—",
@@ -166,7 +167,7 @@ export default function CommercialOverviewPanel() {
       const lot = (lots.data ?? []).find((item) => item.id === move.lot_id);
       const purchase = purchaseForOilLot(lot);
       return {
-        id: "transfer-" + move.id, date: move.created_at, type: ar ? "تحويل" : "Transfert", reference: move.document_number ?? "—",
+        id: "transfer-" + move.id, targetTab: "transfers", date: move.created_at, type: ar ? "تحويل" : "Transfert", reference: move.document_number ?? "—",
         supplier: supplierName(purchase), supplierPhone: supplierPhone(purchase), buyer: "—",
         quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0),
         status: move.source_location_id === selectedTankId ? (ar ? "خروج" : "Sortie") : (ar ? "دخول" : "Entrée"),
@@ -176,7 +177,7 @@ export default function CommercialOverviewPanel() {
       const lot = (lots.data ?? []).find((item) => item.id === move.lot_id);
       const purchase = purchaseForOilLot(lot);
       return {
-        id: "movement-" + move.id, date: move.created_at, type: ar ? "حركة مخزون" : "Mouvement de stock", reference: move.document_number ?? "—",
+        id: "movement-" + move.id, targetTab: "movements", date: move.created_at, type: ar ? "حركة مخزون" : "Mouvement de stock", reference: move.document_number ?? "—",
         supplier: supplierName(purchase), supplierPhone: supplierPhone(purchase), buyer: "—",
         quantity: move.destination_location_id === selectedTankId ? Number(move.quantity_kg ?? 0) : -Number(move.quantity_kg ?? 0),
         status: move.movement_kind ?? "—",
@@ -297,7 +298,7 @@ export default function CommercialOverviewPanel() {
                     </tr></thead>
                     <tbody>
                       {historyRows.map((row) => (
-                        <tr key={row.id} className="border-t border-sky-100">
+                        <tr key={row.id} role="link" tabIndex={0} aria-label={`${ar ? "فتح مصدر العملية" : "Ouvrir la source de l’opération"} : ${row.type} — ${row.reference}`} onClick={() => navigate(`/commercial?tab=${row.targetTab}`)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); navigate(`/commercial?tab=${row.targetTab}`); } }} className="cursor-pointer border-t border-sky-100 transition-colors hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500">
                           <td className="whitespace-nowrap px-4 py-3 text-stone-700">{row.date ? new Date(row.date).toLocaleDateString(ar ? "ar-TN" : "fr-FR") : "—"}</td>
                           <td className="px-4 py-3 font-semibold text-stone-800">{row.type}</td>
                           <td className="px-4 py-3 font-mono font-semibold text-stone-800">{row.reference}</td>
