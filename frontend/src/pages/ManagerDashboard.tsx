@@ -39,6 +39,7 @@ type Stats = {
   pending: number;
   olive_kg_today: number;
   oil_kg_today: number;
+  oil_liters_today: number | null;
   olive_kg_total: number;
   oil_kg_total: number;
   revenue_today?: number;
@@ -136,28 +137,28 @@ export default function ManagerDashboard() {
 
     <section className="space-y-3">
       <div className="flex items-center gap-2 px-1"><Activity className="size-5 text-sky-700" /><h2 className="text-base font-bold text-slate-800">{ar ? "مؤشرات نشاط اليوم" : "Indicateurs du jour"}</h2></div>
-      <div className="grid gap-3 xl:grid-cols-[3fr_1fr]">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Link to="/loads" className="block rounded-2xl outline-none transition hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500">
           <section className="h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <Activity className="size-5 text-sky-700" />
               <h3 className="font-bold text-slate-800">{ar ? "نشاط اليوم" : "Activité d’aujourd’hui"}</h3>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="min-w-0 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-950">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="min-w-0 rounded-xl bg-sky-50 p-2 text-sky-950">
                 <div className="flex items-center gap-2"><Boxes className="size-5 shrink-0 text-sky-700" /><p className="text-sm font-semibold">{ar ? "الاستقبالات اليوم" : "Réceptions aujourd’hui"}</p></div>
                 <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? fmtNum(s.loads_today) : "—"}</p>
                 <p className="mt-1 text-xs opacity-70">{ar ? "عدد الحمولات المستقبلة" : "Nombre de réceptions"}</p>
               </div>
-              <div className="min-w-0 rounded-xl border border-lime-200 bg-lime-50 p-3 text-lime-950">
+              <div className="min-w-0 rounded-xl bg-lime-50 p-2 text-lime-950">
                 <div className="flex items-center gap-2"><Factory className="size-5 shrink-0 text-lime-700" /><p className="text-sm font-semibold">{ar ? "الزيتون المعالج اليوم" : "Olives traitées aujourd’hui"}</p></div>
                 <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? `${fmtNum(s.olive_kg_today)} kg` : "—"}</p>
                 <p className="mt-1 text-xs opacity-70">{ar ? "حسب سجل الحمولات" : "D’après les chargements"}</p>
               </div>
-              <div className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+              <div className="min-w-0 rounded-xl bg-amber-50 p-2 text-amber-950">
                 <div className="flex items-center gap-2"><Activity className="size-5 shrink-0 text-amber-700" /><p className="text-sm font-semibold">{ar ? "الزيت المستخرج اليوم" : "Huile extraite aujourd’hui"}</p></div>
-                <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s ? `${fmtNum(s.oil_kg_today)} kg` : "—"}</p>
-                <p className="mt-1 text-xs opacity-70">{ar ? "حسب وحدة سجل الإنتاج" : "Selon l’unité du registre de production"}</p>
+                <p className="mt-3 text-2xl font-bold tabular-nums" dir="ltr">{s?.oil_liters_today != null ? `${fmtNum(s.oil_liters_today)} L` : "—"}</p>
+                <p className="mt-1 text-xs opacity-70">{ar ? "اللترات المسجلة فعليًا" : "Litres réellement enregistrés"}</p>
               </div>
             </div>
           </section>
