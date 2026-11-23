@@ -227,10 +227,13 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       ? "procurement"
       : nextTab === "buyers"
         ? "sales"
-        : nextTab;
+        : nextTab === "movements"
+          ? "stock"
+          : nextTab;
     if (["suppliers", "purchases", "supplier-oil-purchases", "customer-purchases"].includes(nextTab)) {
       setProcurementView(nextTab as "suppliers" | "purchases" | "supplier-oil-purchases" | "customer-purchases");
     }
+    if (nextTab === "movements") setStockView("movements");
     if (nextTab === "buyers" || nextTab === "sales") setSalesView(nextTab);
     setTab(targetTab);
   }, [requestedTab, embeddedStockView]);
