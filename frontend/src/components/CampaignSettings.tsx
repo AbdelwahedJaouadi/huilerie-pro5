@@ -28,6 +28,63 @@ export default function CampaignSettings() {
     onError: (e) => toast.error(errMsg(e)),
   });
   const [ns, setNs] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const exportDatabasePdf = async () => {
+    if (exportingPdf) return;
+    setExportingPdf(true);
+    const loadingToast = toast.loading("Préparation du fichier PDF…");
+    try {
+      const response = await fetch(`${API_ORIGIN}/api/admin/export.pdf`, {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/pdf" },
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        let message = `Échec de l’export PDF (HTTP ${response.status}).`;
+        if (contentType.includes("application/json")) {
+          const body = await response.json().catch(() => null);
+          const detail = body && typeof body === "object" && "detail" in body
+            ? (body as { detail?: unknown }).detail
+            : null;
+          if (typeof detail === "string" && detail.trim()) message = detail;
+        } else {
+          const body = await response.text().catch(() => "");
+          if (body.trim() && body.length < 500) message = body.trim();
+        }
+        throw new Error(message);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.toLowerCase().includes("application/pdf")) {
+        throw new Error("Le serveur n’a pas renvoyé un fichier PDF valide. Vérifiez votre session administrateur puis réessayez.");
+      }
+
+      const blob = await response.blob();
+      if (blob.size === 0) throw new Error("Le fichier PDF généré est vide.");
+
+      const disposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = disposition.match(/filename\s*=\s*"?([^";]+)"?/i);
+      const filename = filenameMatch?.[1]?.trim() || "huilerie-export.pdf";
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      toast.success("Export PDF terminé.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Une erreur inattendue est survenue pendant l’export PDF.";
+      toast.error(message);
+    } finally {
+      toast.dismiss(loadingToast);
+      setExportingPdf(false);
+    }
+  };
   const nsValid = /^\d{4}-\d{4}$/.test(ns) && Number(ns.slice(5)) === Number(ns.slice(0, 4)) + 1;
   const createSeason = useMutation({
     mutationFn: (b: SeasonSet) => apiPost<SeasonInfo>("/seasons", b),
@@ -96,9 +153,9 @@ export default function CampaignSettings() {
             <a href={`${API_ORIGIN}/api/admin/export.zip`} download data-testid="admin-database-export-zip" className={cn(buttonVariants(), "h-11 rounded-xl border-sky-600 bg-sky-600 text-white hover:border-sky-700 hover:bg-sky-700")}>
               <FileArchive className="size-4" /> {t("db_export_btn")}
             </a>
-            <a href={`${API_ORIGIN}/api/admin/export.pdf`} download data-testid="admin-database-export-pdf" className={cn(buttonVariants(), "h-11 rounded-xl bg-rose-600 hover:bg-rose-700")}>
-              <FileText className="size-4" /> {t("db_export_pdf_btn")}
-            </a>
+            <Button type="button" onClick={exportDatabasePdf} disabled={exportingPdf} data-testid="admin-database-export-pdf" className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700">
+              <FileText className="size-4" /> {exportingPdf ? "Préparation du PDF…" : t("db_export_pdf_btn")}
+            </Button>
           </div>
         </div>
       </div>
