@@ -162,12 +162,12 @@ export default function ManagerDashboard() {
         {workers.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل قائمة العمال." : "Impossible de charger la liste des employés."}</p> :
           workers.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال…" : "Chargement des employés…"}</p> :
           workers.data.workers.length === 0
-            ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال نشطون." : "Aucun employé actif."}</p>
+            ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال مسجلون." : "Aucun employé enregistré."}</p>
             : <div className="flex flex-col gap-2">
                 {workers.data.workers.map((worker) => (
                   <div key={String(worker.id ?? worker._id ?? worker.username)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-3 py-3">
                     <span className="min-w-0 truncate font-medium text-stone-800">{worker.full_name || worker.username || "—"}</span>
-                    <span className="shrink-0 rounded-full {worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"} px-2 py-1 text-xs font-semibold">{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
                   </div>
                 ))}
               </div>}
