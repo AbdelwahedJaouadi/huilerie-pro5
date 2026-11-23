@@ -152,43 +152,88 @@ export default function Dashboard() {
 
       <OlivePurchaseTracking />
 
-      <section className="mt-12" aria-labelledby="accueil-gallery-title" data-testid="accueil-gallery">
-        <div className="mb-5">
-          <h2 id="accueil-gallery-title" className="font-heading text-2xl font-bold text-stone-900">{ar ? "صور من عالم زيت الزيتون" : "Au cœur de notre huilerie"}</h2>
-          <p className="mt-1 text-sm text-stone-500">{ar ? "مراحل الإنتاج والتجهيز والتخزين" : "Notre savoir-faire, de la production au stockage"}</p>
+      <section className="mt-12 space-y-10" aria-labelledby="accueil-gallery-title" data-testid="accueil-gallery">
+        <div>
+          <h2 id="accueil-gallery-title" className="font-heading text-2xl font-bold text-stone-900">{ar ? "مراحل إنتاج زيت الزيتون" : "Les étapes de production de l'huile d'olive"}</h2>
+          <p className="mt-1 text-sm text-stone-500">{ar ? "رحلة الزيتون من الاستقبال والفرز إلى الاستخراج والتحليل والتخزين والتعبئة" : "Du contrôle des olives à l'extraction, l'analyse, le stockage et la mise en bouteille"}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {[
-  "/images/accueil/IMG_8906.jpg",
-  "/images/accueil/IMG_8907.jpg",
-  "/images/accueil/IMG_8908.jpg",
-  "/images/accueil/IMG_8909.jpg",
-  "/images/accueil/IMG_8910.jpg",
-  "/images/accueil/IMG_8911.jpg",
-  "/images/accueil/IMG_8912.jpg",
-  "/images/accueil/IMG_8913.jpg",
-  "/images/accueil/IMG_8914.jpg",
-  "/images/accueil/IMG_8915.jpg",
-  "/images/accueil/IMG_8916.jpg",
-  "/images/accueil/IMG_8917.jpg",
-  "/images/accueil/IMG_8918.jpg",
-  "/images/accueil/IMG_8919.jpg",
-  "/images/accueil/IMG_8920.jpg",
-  "/images/accueil/IMG_8921.jpg",
-  "/images/accueil/IMG_8922.jpg",
-  "/images/accueil/IMG_8923.jpg",
-  "/images/accueil/IMG_8924.jpg",
-  "/images/accueil/IMG_8925.jpg",
-  "/images/accueil/IMG_8926.jpg",
-  "/images/accueil/IMG_8927.jpg",
-  "/images/accueil/IMG_8928.jpg",
-  "/images/accueil/IMG_8929.jpg",
-          ].map((src, index) => (
-            <div key={src} className="group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-              <img src={src} alt={ar ? `صورة من مراحل إنتاج زيت الزيتون ${index + 1}` : `Étape de production d'huile d'olive ${index + 1}`} loading="lazy" decoding="async" className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+        {[
+          {
+            title: ar ? "1. استقبال الزيتون وفرزه" : "1. Réception et tri des olives",
+            description: ar ? "الوزن والاستقبال والفرز والتغذية الأولية لخط الإنتاج" : "Pesée, réception, tri et alimentation de la ligne",
+            images: [
+              ["IMG_8910.jpg", ar ? "وزن الزيتون عند الاستقبال" : "Pesée des olives à la réception"],
+              ["IMG_8907.jpg", ar ? "فرز الزيتون على خط الاستقبال" : "Tri des olives sur convoyeur"],
+              ["IMG_8914.jpg", ar ? "الفرز والمراقبة اليدوية" : "Tri et contrôle manuel"],
+              ["IMG_8920.jpg", ar ? "نقل الزيتون إلى معدات المعالجة" : "Acheminement des olives vers le traitement"],
+            ],
+          },
+          {
+            title: ar ? "2. المعالجة والاستخراج" : "2. Préparation et extraction",
+            description: ar ? "معدات التحضير والفصل والاستخراج ومراقبة تشغيل الخط" : "Préparation, centrifugation, séparation et conduite de la ligne",
+            images: [
+              ["IMG_8926.jpg", ar ? "معدات خط استخراج الزيت" : "Équipements de la ligne d'extraction"],
+              ["IMG_8928.jpg", ar ? "تشغيل معدات المعالجة" : "Conduite des équipements de traitement"],
+              ["IMG_8923.jpg", ar ? "متابعة آلة الاستخراج" : "Surveillance d'une machine d'extraction"],
+              ["IMG_8924.jpg", ar ? "خط معالجة آلي" : "Ligne de traitement automatisée"],
+              ["IMG_8908.jpg", ar ? "معدات الفصل والمعالجة" : "Équipement de séparation et de traitement"],
+              ["IMG_8911.jpg", ar ? "فاصل بالطرد المركزي" : "Séparateur centrifuge"],
+              ["IMG_8913.jpg", ar ? "معدات صناعية لاستخراج الزيت" : "Équipement industriel d'extraction"],
+              ["IMG_8906.jpg", ar ? "منظومة صناعية متكاملة" : "Installation industrielle intégrée"],
+              ["IMG_8921.jpg", ar ? "مراقبة وضبط المعدات" : "Contrôle et réglage des équipements"],
+            ],
+          },
+          {
+            title: ar ? "3. التحليل ومراقبة الجودة" : "3. Analyses et contrôle qualité",
+            description: ar ? "أخذ العينات وفحص خصائص الزيت والتحقق من الجودة" : "Échantillonnage, analyses et vérification de la qualité de l'huile",
+            images: [
+              ["IMG_8916.jpg", ar ? "فحص عينة من الزيت" : "Examen d'un échantillon d'huile"],
+              ["IMG_8917.jpg", ar ? "تحليل الزيت في المختبر" : "Analyse de l'huile en laboratoire"],
+              ["IMG_8918.jpg", ar ? "اختبارات مخبرية للزيت" : "Essais de laboratoire sur l'huile"],
+              ["IMG_8919.jpg", ar ? "اختبارات وقياسات مخبرية" : "Tests et mesures en laboratoire"],
+            ],
+          },
+          {
+            title: ar ? "4. تخزين الزيت" : "4. Stockage de l'huile",
+            description: ar ? "حفظ الزيت في خزانات مخصصة قبل التوزيع أو التعبئة" : "Conservation de l'huile dans des cuves avant distribution ou conditionnement",
+            images: [
+              ["IMG_8909.jpg", ar ? "خزانات تخزين من الفولاذ المقاوم للصدأ" : "Cuves de stockage en acier inoxydable"],
+              ["IMG_8912.jpg", ar ? "خزانات صناعية كبيرة" : "Grandes cuves industrielles"],
+              ["IMG_8915.jpg", ar ? "منطقة تخزين الزيت" : "Espace de stockage de l'huile"],
+            ],
+          },
+          {
+            title: ar ? "5. التعبئة والتغليف" : "5. Mise en bouteille et conditionnement",
+            description: ar ? "ملء القوارير وإغلاقها وتجهيزها للتوزيع" : "Remplissage, fermeture et préparation des bouteilles pour la distribution",
+            images: [
+              ["IMG_8922.jpg", ar ? "خط ملء قوارير الزيت" : "Ligne de remplissage des bouteilles"],
+              ["IMG_8925.jpg", ar ? "تعبئة القوارير وإغلاقها" : "Remplissage et fermeture des bouteilles"],
+              ["IMG_8927.jpg", ar ? "خط التغليف النهائي" : "Ligne de conditionnement final"],
+            ],
+          },
+          {
+            title: ar ? "6. متابعة الإنتاج" : "6. Suivi de la production",
+            description: ar ? "متابعة مؤشرات الإنتاج والعمليات الصناعية" : "Suivi des indicateurs et des opérations de production",
+            images: [
+              ["IMG_8929.jpg", ar ? "لوحة متابعة الإنتاج" : "Tableau de suivi de la production"],
+            ],
+          },
+        ].map((stage) => (
+          <div key={stage.title}>
+            <div className="mb-4">
+              <h3 className="font-heading text-lg font-bold text-stone-800">{stage.title}</h3>
+              <p className="mt-1 text-sm text-stone-500">{stage.description}</p>
             </div>
-          ))}
-        </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {stage.images.map(([file, caption]) => (
+                <figure key={file} className="group overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+                  <img src={`/images/accueil/${file}`} alt={caption} loading="lazy" decoding="async" className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  <figcaption className="min-h-12 px-3 py-2 text-sm font-medium text-stone-700">{caption}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        ))}
       </section>
 
       <Sheet open={intakeOpen} onOpenChange={setIntakeOpen}>
