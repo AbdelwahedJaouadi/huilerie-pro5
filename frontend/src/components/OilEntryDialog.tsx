@@ -14,14 +14,16 @@ export default function OilEntryDialog({ load, onClose }: { load: Load | null; o
   const { t, errMsg } = useI18n();
   const qc = useQueryClient();
   const [oil, setOil] = useState("");
+  const [oilLiters, setOilLiters] = useState("");
   const [forId, setForId] = useState<string | null>(null);
   if (load && forId !== load.id) {
     setForId(load.id);
     setOil(load.oil_kg != null ? String(load.oil_kg) : "");
+    setOilLiters(load.oil_liters != null ? String(load.oil_liters) : "");
   }
 
   const m = useMutation({
-    mutationFn: (v: number) => apiPatch<Load>(`/loads/${load!.id}/oil`, { oil_kg: v }),
+    mutationFn: (v: { oilKg: number; oilLiters: number }) => apiPatch<Load>(`/loads/${load!.id}/oil`, { oil_kg: v.oilKg, oil_liters: v.oilLiters }),
     onSuccess: () => {
       toast.success(t("saved"));
       qc.invalidateQueries({ queryKey: ["loads"] });
@@ -37,6 +39,7 @@ export default function OilEntryDialog({ load, onClose }: { load: Load | null; o
 
   const oilLocked = !!load && (load.ownership_transferred || load.available_olive_kg <= 0 || load.status === "done" || load.status === "delivered" || load.status === "cancelled");
   const val = parseFloat(oil.replace(",", "."));
+  const litersVal = parseFloat(oilLiters.replace(",", "."));
   const preview = load && !isNaN(val) && load.olive_kg ? (val / load.olive_kg) * 100 : null;
 
   return (
@@ -55,7 +58,7 @@ export default function OilEntryDialog({ load, onClose }: { load: Load | null; o
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!isNaN(val) && val >= 0) m.mutate(val);
+            if (!isNaN(val) && val >= 0 && !isNaN(litersVal) && litersVal >= 0 && oilLiters.trim() !== "") m.mutate({ oilKg: val, oilLiters: litersVal });
           }}
           className="space-y-4"
         >
@@ -63,12 +66,16 @@ export default function OilEntryDialog({ load, onClose }: { load: Load | null; o
             <Label htmlFor="oil">{t("oil_kg")}</Label>
             <Input id="oil" data-testid="oil-entry-input" inputMode="decimal" value={oil} onChange={(e) => setOil(e.target.value)} autoFocus className="h-11 text-lg" />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="oil-liters">Quantité d’huile extraite (L)</Label>
+            <Input id="oil-liters" data-testid="oil-entry-liters-input" inputMode="decimal" value={oilLiters} onChange={(e) => setOilLiters(e.target.value)} className="h-11 text-lg" required />
+          </div>
           <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900" data-testid="oil-entry-yield-preview">
             {t("yield")}: <b dir="ltr">{preview != null ? `${fmtNum(preview, 2)} %` : "—"}</b>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose} data-testid="oil-entry-cancel-btn">{t("cancel")}</Button>
-            <Button type="submit" disabled={m.isPending || isNaN(val)} data-testid="oil-entry-submit-btn" className="bg-amber-600 hover:bg-amber-700">
+            <Button type="submit" disabled={m.isPending || isNaN(val) || val < 0 || isNaN(litersVal) || litersVal < 0 || oilLiters.trim() === ""} data-testid="oil-entry-submit-btn" className="bg-amber-600 hover:bg-amber-700">
               {t("save")}
             </Button>
           </DialogFooter>
