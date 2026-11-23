@@ -85,6 +85,7 @@ class Load(BaseModel):
     ownership_transferred: bool = False
     ownership_transferred_at: Optional[datetime] = None
     oil_kg: Optional[float] = None
+    oil_liters: Optional[float] = None
     yield_pct: Optional[float] = None
     status: Literal["pending", "pressing", "done", "delivered", "cancelled"]
     day: str
@@ -193,6 +194,7 @@ class CancelBody(BaseModel):
 
 class OilUpdate(BaseModel):
     oil_kg: float = Field(ge=0)
+    oil_liters: float = Field(ge=0)
 
 
 class DailyPoint(BaseModel):
@@ -211,6 +213,7 @@ class Stats(BaseModel):
     pending: int
     olive_kg_today: float
     oil_kg_today: float
+    oil_liters_today: Optional[float] = None
     olive_kg_total: float
     oil_kg_total: float
     avg_yield: Optional[float] = None
