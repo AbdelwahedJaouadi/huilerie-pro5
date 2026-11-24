@@ -386,22 +386,32 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         for row in rows
     )
     account_ids = [row["id"] for row in rows if row.get("id")]
-    opening_periods = [
-        {"account_id": row["id"], "movement_date": {"$gte": row["opening_balance_date"]}}
-        for row in rows
-        if row.get("id") and row.get("account_type") == "CASH"
-        and row.get("opening_balance_status") == "CONFIGURED"
-        and row.get("opening_balance_date")
-    ]
+    movement_scopes = []
+    for row in rows:
+        if not row.get("id"):
+            continue
+        if (
+            row.get("account_type") == "CASH"
+            and row.get("opening_balance_status") == "CONFIGURED"
+            and row.get("opening_balance_date")
+        ):
+            movement_scopes.append({
+                "account_id": row["id"],
+                "movement_date": {"$gte": row["opening_balance_date"]},
+            })
+        else:
+            # Preserve the existing movement-based balance for bank accounts
+            # and cash accounts that have not configured an opening balance.
+            movement_scopes.append({"account_id": row["id"]})
     totals = await db.accounting_treasury_movements.aggregate([
         {"$match": {"account_id": {"$in": account_ids}, "settlement_status": "CASH_RECORDED",
-                    "$or": opening_periods}},
+                    "$or": movement_scopes}},
         {"$group": {
             "_id": "$account_id",
             "incoming": {"$sum": {"$cond": [{"$eq": ["$direction", "IN"]}, "$amount_tnd", Decimal128("0.000")]}},
             "outgoing": {"$sum": {"$cond": [{"$eq": ["$direction", "OUT"]}, "$amount_tnd", Decimal128("0.000")]}},
         }},
-    ]).to_list(500) if opening_periods else []
+    ]).to_list(500) if movement_scopes else []
     totals_by_account = {row["_id"]: row for row in totals}
     for row in rows:
         movement_totals = totals_by_account.get(row.get("id"), {})
