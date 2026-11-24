@@ -13,6 +13,7 @@ import CommercialTanksSettings from "@/components/CommercialTanksSettings";
 import PumpSettings from "@/components/PumpSettings";
 import ScaleSettings from "@/components/ScaleSettings";
 import CommercialModuleStatus from "@/components/CommercialModuleStatus";
+import CommercialOpeningBalanceSettings from "@/components/accounting/CommercialOpeningBalanceSettings";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -744,7 +745,7 @@ export default function SettingsPage() {
           <div className="space-y-5"><NavigationRevealSettings /><UsersPanel /></div>
         </TabsContent>
         <TabsContent value="tariff"><div className="space-y-6"><PriceForm /><NumericConventionsPanel /></div></TabsContent>
-        <TabsContent value="commercial-status"><CommercialModuleStatus /></TabsContent>
+        <TabsContent value="commercial-status"><div className="space-y-5"><CommercialModuleStatus /><CommercialOpeningBalanceSettings /></div></TabsContent>
         <TabsContent value="tanks"><CommercialTanksSettings /></TabsContent>
         <TabsContent value="pumps"><PumpSettings /></TabsContent>
         <TabsContent value="scale"><ScaleSettings /></TabsContent>

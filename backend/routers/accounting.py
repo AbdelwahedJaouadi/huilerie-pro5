@@ -342,6 +342,13 @@ class TreasuryAccountInput(BaseModel):
     notes: str = Field(default="", max_length=500)
 
 
+class TreasuryOpeningBalanceInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+    opening_balance_amount_tnd: Decimal = Field(ge=Decimal("0"), max_digits=14, decimal_places=3)
+    opening_balance_date: date
+
+
 class TreasuryAccountStatusInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=1)
@@ -379,14 +386,22 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         for row in rows
     )
     account_ids = [row["id"] for row in rows if row.get("id")]
+    opening_periods = [
+        {"account_id": row["id"], "movement_date": {"$gte": row["opening_balance_date"]}}
+        for row in rows
+        if row.get("id") and row.get("account_type") == "CASH"
+        and row.get("opening_balance_status") == "CONFIGURED"
+        and row.get("opening_balance_date")
+    ]
     totals = await db.accounting_treasury_movements.aggregate([
-        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": "CASH_RECORDED"}},
+        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": "CASH_RECORDED",
+                    "$or": opening_periods}},
         {"$group": {
             "_id": "$account_id",
             "incoming": {"$sum": {"$cond": [{"$eq": ["$direction", "IN"]}, "$amount_tnd", Decimal128("0.000")]}},
             "outgoing": {"$sum": {"$cond": [{"$eq": ["$direction", "OUT"]}, "$amount_tnd", Decimal128("0.000")]}},
         }},
-    ]).to_list(500) if account_ids else []
+    ]).to_list(500) if opening_periods else []
     totals_by_account = {row["_id"]: row for row in totals}
     for row in rows:
         movement_totals = totals_by_account.get(row.get("id"), {})
@@ -443,6 +458,66 @@ async def create_treasury_account(payload: TreasuryAccountInput, user: dict = De
         if isinstance(exc, DuplicateKeyError):
             raise HTTPException(status_code=409, detail="Un compte de même type et de même nom existe déjà.") from exc
         raise
+
+
+@router.patch("/treasury/accounts/{account_id}/opening-balance")
+async def update_treasury_opening_balance(
+    account_id: str, payload: TreasuryOpeningBalanceInput,
+    user: dict = Depends(require_admin),
+):
+    """Set the administrator-defined cash opening balance and effective date."""
+    actor_id, now = _treasury_actor(user), datetime.now(timezone.utc)
+    amount = Decimal(payload.opening_balance_amount_tnd).quantize(Decimal("0.001"))
+    effective_date = payload.opening_balance_date.isoformat()
+
+    async def operation(session):
+        account = await db.accounting_treasury_accounts.find_one(
+            {"id": account_id}, {"_id": 0}, session=session
+        )
+        if not account:
+            raise HTTPException(status_code=404, detail="Compte de trésorerie introuvable.")
+        if account.get("account_type") != "CASH":
+            raise HTTPException(status_code=422, detail="Le solde d’ouverture est réservé aux comptes de caisse.")
+        if account.get("version", 1) != payload.expected_version:
+            raise HTTPException(status_code=409, detail="Le compte a été modifié. Actualisez la liste.")
+        previous = {
+            "status": account.get("opening_balance_status", "NOT_CONFIGURED"),
+            "amount_tnd": str(_accounting_decimal(account.get("opening_balance_amount_tnd"))),
+            "date": account.get("opening_balance_date"),
+        }
+        update = await db.accounting_treasury_accounts.update_one(
+            {"id": account_id, "version": payload.expected_version},
+            {"$set": {
+                "opening_balance_status": "CONFIGURED",
+                "opening_balance_amount_tnd": Decimal128(amount),
+                "opening_balance_date": effective_date,
+                "updated_at": now, "updated_by": actor_id,
+            }, "$inc": {"version": 1}},
+            session=session,
+        )
+        if update.matched_count != 1:
+            raise HTTPException(status_code=409, detail="Le compte a été modifié simultanément.")
+        await db.accounting_treasury_account_events.insert_one({
+            "id": str(uuid4()), "account_id": account_id,
+            "action": "OPENING_BALANCE_SET" if previous["status"] != "CONFIGURED" else "OPENING_BALANCE_UPDATED",
+            "actor_user_id": actor_id, "created_at": now,
+            "details": {
+                "previous": previous,
+                "new": {"status": "CONFIGURED", "amount_tnd": format(amount, ".3f"), "date": effective_date},
+                "previous_version": payload.expected_version,
+                "new_version": payload.expected_version + 1,
+            },
+        }, session=session)
+        account.update({
+            "opening_balance_status": "CONFIGURED",
+            "opening_balance_amount_tnd": Decimal128(amount),
+            "opening_balance_date": effective_date,
+            "version": payload.expected_version + 1,
+            "updated_at": now,
+        })
+        return account
+
+    return _safe(await run_transaction(operation))
 
 
 @router.patch("/treasury/accounts/{account_id}/status")
