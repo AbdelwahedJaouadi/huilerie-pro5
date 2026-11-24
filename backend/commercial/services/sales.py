@@ -18,6 +18,7 @@ from commercial.schemas.sales import (
 from commercial.services.numbering import reserve_document_number
 from commercial.services.payment_ledger import assert_invoice_receivable_fields_reconcile
 from commercial.services.stock_ledger import post_stock_movement
+from accounting_foundation.treasury_posting import record_source_payment_movement
 
 
 def _stable_id(namespace: str, value: str) -> str:
@@ -349,9 +350,20 @@ async def record_sale_payment(
     if invoice.get("payment_status") == "PAID" or invoice.get("version") != draft.expected_invoice_version:
         raise ValueError("Invoice is already paid or its version has changed")
     treasury_account = None
-    if draft.treasury_account_id:
+    selected_account_id = draft.treasury_account_id
+    if not selected_account_id and draft.method == "CASH":
+        cash_accounts = await db["accounting_treasury_accounts"].find(
+            {"active": True, "account_type": "CASH", "currency": "TND"},
+            {"_id": 0, "id": 1, "account_type": 1, "currency": 1},
+            session=session,
+        ).to_list(2)
+        if len(cash_accounts) == 1:
+            selected_account_id = cash_accounts[0]["id"]
+        elif len(cash_accounts) > 1:
+            raise ValueError("Select a cash treasury account; more than one active TND cash account exists")
+    if selected_account_id:
         treasury_account = await db["accounting_treasury_accounts"].find_one(
-            {"id": draft.treasury_account_id, "active": True},
+            {"id": selected_account_id, "active": True},
             {"_id": 0, "id": 1, "account_type": 1, "currency": 1}, session=session,
         )
         if not treasury_account:
@@ -403,6 +415,12 @@ async def record_sale_payment(
     )
     if update.matched_count != 1:
         raise ValueError("Invoice changed concurrently; payment was rolled back")
+    if treasury_account:
+        await record_source_payment_movement(
+            db, source_type="GS_SALE_PAYMENT", source_id=payment_id,
+            season_code=season_code, actor_user_id=actor_user_id,
+            recorded_at=now, session=session,
+        )
     await db["commercial_audit_events"].insert_one({
         "id": audit_event_id, "entity_type": "commercial_sales_invoice",
         "entity_id": invoice_id, "action": "PAYMENT_RECORDED",
