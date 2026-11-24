@@ -238,7 +238,7 @@ export default function Comptabilite() {
       <button type="button" onClick={() => setActiveTab("overview")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "overview" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{ar ? "نظرة عامة" : "Vue générale"}</button>
       <button type="button" onClick={() => setActiveTab("daily")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "daily" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{ar ? "الوضعية اليومية" : "Situation journalière"}</button>
       <button type="button" onClick={() => setActiveTab("reconciliation")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "reconciliation" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{ar ? "التسوية المحاسبية" : "Rapprochement"}</button>
-      <button type="button" onClick={() => setActiveTab("treasury")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "treasury" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{ar ? "الخزينة والبنوك" : "Trésorerie"}</button>
+      <button type="button" onClick={() => setActiveTab("treasury")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeTab === "treasury" ? "bg-emerald-700 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>{ar ? "الخزينة والبنوك" : "Trésorerie/Caisse"}</button>
     </div>
 
     {activeTab === "overview" && <>
