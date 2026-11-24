@@ -372,7 +372,14 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
     rows = await db.accounting_treasury_accounts.find({}, {"_id": 0}).sort(
         [("active", -1), ("account_type", 1), ("name", 1)]
     ).to_list(500)
-    return {"accounts": _safe(rows), "currency": "TND", "opening_balances_configured": False,
+    opening_configured = bool(rows) and all(
+        row.get("opening_balance_status") == "CONFIGURED"
+        and row.get("opening_balance_amount_tnd") is not None
+        and row.get("opening_balance_date")
+        for row in rows
+    )
+    return {"accounts": _safe(rows), "currency": "TND",
+            "opening_balances_configured": opening_configured,
             "ledger_enabled": True, "movement_recording_enabled": True, "read_only_balances": True}
 
 
