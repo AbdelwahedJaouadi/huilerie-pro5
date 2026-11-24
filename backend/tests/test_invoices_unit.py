@@ -423,3 +423,42 @@ async def test_initial_payment_rejects_wrong_or_inactive_account(fake_db):
     assert exc.value.detail == "treasury_account_invalid"
     assert fake_db.invoices.docs == []
     assert fake_db.accounting_treasury_movements.docs == []
+
+
+@pytest.mark.asyncio
+async def test_initial_cash_payment_auto_selects_the_only_active_cash_account(fake_db):
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "cash-1", "name": "Caisse", "account_type": "CASH",
+        "currency": "TND", "active": True,
+    })
+    result = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0.5, "payment_method": "CASH"},
+        {"id": "admin-1", "username": "admin"},
+    )
+    payment = result["payments"][0]
+    assert payment["treasury_account_id"] == "cash-1"
+    assert payment["treasury_allocation_status"] == "MAPPED"
+    assert len(fake_db.accounting_treasury_movements.docs) == 1
+    assert fake_db.accounting_treasury_movements.docs[0]["source_id"] == payment["id"]
+
+
+@pytest.mark.asyncio
+async def test_incremental_cash_payment_auto_selects_the_only_active_cash_account(fake_db):
+    fake_db.accounting_treasury_accounts.docs.append({
+        "id": "cash-1", "name": "Caisse", "account_type": "CASH",
+        "currency": "TND", "active": True,
+    })
+    created = await invoice_routes.create_invoice(
+        {"load_id": "load-test-1", "paid_amount": 0},
+        {"id": "admin-1", "username": "admin"},
+    )
+    updated = await invoice_routes.update_invoice(
+        created["id"],
+        {"payment_amount": 0.5, "payment_method": "CASH"},
+        {"id": "cashier-1", "username": "cashier"},
+    )
+    payment = updated["payments"][-1]
+    assert payment["treasury_account_id"] == "cash-1"
+    assert payment["treasury_allocation_status"] == "MAPPED"
+    assert len(fake_db.accounting_treasury_movements.docs) == 1
+    assert fake_db.accounting_treasury_movements.docs[0]["source_id"] == payment["id"]
