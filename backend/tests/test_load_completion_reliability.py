@@ -109,7 +109,7 @@ async def test_first_completion_updates_load_and_creates_invoice_in_same_session
     monkeypatch.setattr(load_routes, "send_load_sms", fail_sms)
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=None),
         {"username": "worker", "role": "employee"},
     )
 
@@ -137,7 +137,7 @@ async def test_same_oil_retry_repairs_missing_invoice_without_resending_sms(load
     monkeypatch.setattr(load_routes, "send_load_sms", send_sms)
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=None),
         {"username": "worker", "role": "employee"},
     )
 
@@ -161,7 +161,7 @@ async def test_same_oil_retry_skips_invoice_when_already_present(load_env, monke
     )
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=None),
         {"username": "worker", "role": "employee"},
     )
 
@@ -182,7 +182,7 @@ async def test_invoice_failure_propagates_from_completion_transaction(load_env, 
 
     with pytest.raises(RuntimeError, match="temporary database failure"):
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=15.0),
+            "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=None),
             {"username": "worker", "role": "employee"},
         )
 
@@ -198,7 +198,7 @@ async def test_different_oil_value_cannot_overwrite_completed_load(load_env, mon
 
     with pytest.raises(HTTPException) as exc:
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=16.0),
+            "load-retry-test", SimpleNamespace(oil_kg=16.0, oil_liters=None),
             {"username": "worker", "role": "employee"},
         )
 
@@ -211,7 +211,7 @@ async def test_completion_rejects_cancelled_or_delivered_load(load_env, monkeypa
     load_env.loads.doc["cancelled"] = True
     with pytest.raises(HTTPException) as exc:
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=15.0),
+            "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=None),
             {"username": "worker", "role": "employee"},
         )
     assert exc.value.status_code == 409
