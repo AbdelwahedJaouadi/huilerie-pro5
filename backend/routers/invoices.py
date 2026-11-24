@@ -33,6 +33,35 @@ def _number(value, error_code: str) -> Decimal:
     return number
 
 
+async def _resolve_traditional_treasury_account(method: str, account_id: str, session):
+    """Resolve a traditional receipt to one compatible active TND account."""
+    account_count = await db.accounting_treasury_accounts.count_documents({}, session=session)
+    if not account_id and method == "CASH" and account_count:
+        cash_filter = {"active": True, "account_type": "CASH", "currency": "TND"}
+        active_cash_count = await db.accounting_treasury_accounts.count_documents(cash_filter, session=session)
+        if active_cash_count == 1:
+            account = await db.accounting_treasury_accounts.find_one(cash_filter, {"_id": 0}, session=session)
+            account_id = str((account or {}).get("id") or "")
+        elif active_cash_count > 1:
+            raise HTTPException(422, "treasury_account_required")
+    if account_count and not account_id:
+        raise HTTPException(422, "treasury_account_required")
+    if not account_id:
+        return None, "UNALLOCATED"
+    account = await db.accounting_treasury_accounts.find_one(
+        {"id": account_id}, {"_id": 0}, session=session
+    )
+    expected_type = "CASH" if method == "CASH" else "BANK"
+    if (
+        not account
+        or account.get("active") is not True
+        or account.get("currency") != "TND"
+        or account.get("account_type") != expected_type
+    ):
+        raise HTTPException(422, "treasury_account_invalid")
+    return account, "MAPPED"
+
+
 def _public(value):
     if isinstance(value, dict):
         return {key: _public(item) for key, item in value.items() if key != "_id"}
@@ -150,23 +179,11 @@ async def _create_invoice_in_session(body: dict, user: dict, session):
             raise HTTPException(422, "payment_reference_required")
 
         account_id = str(body.get("treasury_account_id") or "").strip()
-        account_count = await db.accounting_treasury_accounts.count_documents({}, session=session)
-        allocation_status = "UNALLOCATED"
-        if account_count:
-            if not account_id:
-                raise HTTPException(422, "treasury_account_required")
-            treasury_account = await db.accounting_treasury_accounts.find_one(
-                {"id": account_id}, {"_id": 0}, session=session
-            )
-            expected_type = "CASH" if method == "CASH" else "BANK"
-            if (
-                not treasury_account
-                or treasury_account.get("active") is not True
-                or treasury_account.get("currency") != "TND"
-                or treasury_account.get("account_type") != expected_type
-            ):
-                raise HTTPException(422, "treasury_account_invalid")
-            allocation_status = "MAPPED"
+        treasury_account, allocation_status = await _resolve_traditional_treasury_account(
+            method, account_id, session
+        )
+        account_id = treasury_account["id"] if treasury_account else ""
+        if treasury_account:
             if load.get("season_id") is None:
                 raise HTTPException(409, "invoice_season_unavailable")
             payment_season_code = season_prefix(load["season_id"])
@@ -320,19 +337,10 @@ async def update_invoice(invoice_id: str, body: dict, user: dict = Depends(requi
             if method in {"BANK_TRANSFER", "CHEQUE"} and not reference:
                 raise HTTPException(422, "payment_reference_required")
             account_id = str(body.get("treasury_account_id") or "").strip()
-            account_count = await db.accounting_treasury_accounts.count_documents({}, session=session)
-            account = None
-            allocation_status = "UNALLOCATED"
-            if account_count:
-                if not account_id:
-                    raise HTTPException(422, "treasury_account_required")
-                account = await db.accounting_treasury_accounts.find_one(
-                    {"id": account_id}, {"_id": 0}, session=session
-                )
-                expected_type = "CASH" if method == "CASH" else "BANK"
-                if not account or account.get("active") is not True or account.get("currency") != "TND" or account.get("account_type") != expected_type:
-                    raise HTTPException(422, "treasury_account_invalid")
-                allocation_status = "MAPPED"
+            account, allocation_status = await _resolve_traditional_treasury_account(
+                method, account_id, session
+            )
+            account_id = account["id"] if account else ""
             payment_event = {
                 "id": str(uuid.uuid4()),
                 "at": now,
