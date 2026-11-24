@@ -66,6 +66,7 @@ def load_env(monkeypatch):
         "phone": "21600000000",
         "olive_kg": 100.0,
         "oil_kg": None,
+        "oil_liters": None,
         "day": "2026-11-01",
         "created_by": "worker",
         "created_at": datetime.now(timezone.utc),
@@ -109,7 +110,7 @@ async def test_first_completion_updates_load_and_creates_invoice_in_same_session
     monkeypatch.setattr(load_routes, "send_load_sms", fail_sms)
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=13.0),
         {"username": "worker", "role": "employee"},
     )
 
@@ -123,6 +124,7 @@ async def test_first_completion_updates_load_and_creates_invoice_in_same_session
 @pytest.mark.asyncio
 async def test_same_oil_retry_repairs_missing_invoice_without_resending_sms(load_env, monkeypatch):
     load_env.loads.doc["oil_kg"] = 15.0
+    load_env.loads.doc["oil_liters"] = 13.0
     calls = []
     sms_calls = []
 
@@ -137,7 +139,7 @@ async def test_same_oil_retry_repairs_missing_invoice_without_resending_sms(load
     monkeypatch.setattr(load_routes, "send_load_sms", send_sms)
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=13.0),
         {"username": "worker", "role": "employee"},
     )
 
@@ -149,6 +151,7 @@ async def test_same_oil_retry_repairs_missing_invoice_without_resending_sms(load
 @pytest.mark.asyncio
 async def test_same_oil_retry_skips_invoice_when_already_present(load_env, monkeypatch):
     load_env.loads.doc["oil_kg"] = 15.0
+    load_env.loads.doc["oil_liters"] = 13.0
     load_env.invoices.existing = True
 
     async def unexpected(*_args):
@@ -161,7 +164,7 @@ async def test_same_oil_retry_skips_invoice_when_already_present(load_env, monke
     )
 
     result = await load_routes.set_oil(
-        "load-retry-test", SimpleNamespace(oil_kg=15.0),
+        "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=13.0),
         {"username": "worker", "role": "employee"},
     )
 
@@ -182,7 +185,7 @@ async def test_invoice_failure_propagates_from_completion_transaction(load_env, 
 
     with pytest.raises(RuntimeError, match="temporary database failure"):
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=15.0),
+            "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=13.0),
             {"username": "worker", "role": "employee"},
         )
 
@@ -190,6 +193,7 @@ async def test_invoice_failure_propagates_from_completion_transaction(load_env, 
 @pytest.mark.asyncio
 async def test_different_oil_value_cannot_overwrite_completed_load(load_env, monkeypatch):
     load_env.loads.doc["oil_kg"] = 15.0
+    load_env.loads.doc["oil_liters"] = 13.0
 
     async def unexpected(*_args):
         pytest.fail("invoice must not be attempted for a conflicting oil value")
@@ -198,7 +202,7 @@ async def test_different_oil_value_cannot_overwrite_completed_load(load_env, mon
 
     with pytest.raises(HTTPException) as exc:
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=16.0),
+            "load-retry-test", SimpleNamespace(oil_kg=16.0, oil_liters=13.0),
             {"username": "worker", "role": "employee"},
         )
 
@@ -211,7 +215,7 @@ async def test_completion_rejects_cancelled_or_delivered_load(load_env, monkeypa
     load_env.loads.doc["cancelled"] = True
     with pytest.raises(HTTPException) as exc:
         await load_routes.set_oil(
-            "load-retry-test", SimpleNamespace(oil_kg=15.0),
+            "load-retry-test", SimpleNamespace(oil_kg=15.0, oil_liters=13.0),
             {"username": "worker", "role": "employee"},
         )
     assert exc.value.status_code == 409
