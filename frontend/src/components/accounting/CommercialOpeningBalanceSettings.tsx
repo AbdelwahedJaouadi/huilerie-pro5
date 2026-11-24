@@ -5,13 +5,13 @@ import { Banknote, Save, ShieldAlert } from "lucide-react";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-type CashAccount = {
+type TreasuryAccount = {
   id: string; name: string; account_type: "CASH" | "BANK"; active: boolean; version: number;
   opening_balance_status: "NOT_CONFIGURED" | "CONFIGURED";
   opening_balance_amount_tnd?: string | null; opening_balance_date?: string | null;
   current_balance_tnd?: string | null;
 };
-type AccountsResponse = { accounts: CashAccount[] };
+type AccountsResponse = { accounts: TreasuryAccount[] };
 
 export default function CommercialOpeningBalanceSettings() {
   const { lang } = useI18n();
@@ -21,7 +21,7 @@ export default function CommercialOpeningBalanceSettings() {
     queryKey: ["accounting-treasury-accounts"],
     queryFn: () => apiGet<AccountsResponse>("/accounting/treasury/accounts"),
   });
-  const accounts = (query.data?.accounts ?? []).filter((a) => a.account_type === "CASH");
+  const accounts = query.data?.accounts ?? [];
   const [accountId, setAccountId] = useState("");
   const account = accounts.find((a) => a.id === accountId) ?? accounts[0];
   const [amount, setAmount] = useState("");
@@ -34,7 +34,7 @@ export default function CommercialOpeningBalanceSettings() {
   }, [account?.id, account?.opening_balance_amount_tnd, account?.opening_balance_date]);
 
   const save = useMutation({
-    mutationFn: () => apiPatch<CashAccount>(
+    mutationFn: () => apiPatch<TreasuryAccount>(
       "/accounting/treasury/accounts/" + encodeURIComponent(account!.id) + "/opening-balance",
       { expected_version: account!.version, opening_balance_amount_tnd: amount.trim(), opening_balance_date: date },
     ),
@@ -48,18 +48,18 @@ export default function CommercialOpeningBalanceSettings() {
   return <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5" data-testid="commercial-opening-balance-settings">
     <div className="mb-4 flex items-start gap-3">
       <span className="grid size-10 place-items-center rounded-xl bg-amber-600 text-white"><Banknote className="size-5"/></span>
-      <div><h2 className="text-lg font-bold text-amber-950">{ar ? "الرصيد الافتتاحي للصندوق" : "Solde initial de la caisse"}</h2>
-        <p className="text-sm text-amber-900">{ar ? "حدد المبلغ النقدي الموجود فعلياً وتاريخ بداية المحاسبة." : "Définissez l’argent réellement présent et la date de début de comptabilité."}</p>
+      <div><h2 className="text-lg font-bold text-amber-950">{ar ? "الرصيد الافتتاحي للصندوق" : "Solde initial de caisse et banque"}</h2>
+        <p className="text-sm text-amber-900">{ar ? "حدد المبلغ النقدي الموجود فعلياً وتاريخ بداية المحاسبة." : "Définissez le solde réel de la caisse ou du compte bancaire à la date de début comptable."}</p>
       </div>
     </div>
-    <div className="mb-4 flex gap-3 rounded-xl border border-amber-200 bg-white p-3 text-sm text-amber-950"><ShieldAlert className="size-5 shrink-0"/><p>{ar ? "هذا رصيد افتتاحي وليس إيراداً أو حركة قبض. تُحتسب حركات الصندوق المسجلة ابتداءً من التاريخ المحدد فقط، ويُحفظ كل تغيير في سجل التدقيق." : "Ce solde n’est ni un revenu ni un encaissement. Seuls les mouvements de caisse datés à partir de la date choisie sont ajoutés; chaque modification est journalisée."}</p></div>
+    <div className="mb-4 flex gap-3 rounded-xl border border-amber-200 bg-white p-3 text-sm text-amber-950"><ShieldAlert className="size-5 shrink-0"/><p>{ar ? "هذا رصيد افتتاحي وليس إيراداً أو حركة قبض. تُحتسب حركات الصندوق المسجلة ابتداءً من التاريخ المحدد فقط، ويُحفظ كل تغيير في سجل التدقيق." : "Ce solde n’est ni un revenu ni un encaissement. Seuls les mouvements du compte datés à partir de la date choisie sont ajoutés; chaque modification est journalisée."}</p></div>
     {query.isPending ? <p className="text-sm text-stone-600">{ar ? "جارٍ تحميل الحسابات…" : "Chargement des comptes…"}</p> :
       query.isError ? <p className="text-sm text-red-700">{ar ? "تعذر تحميل الحسابات." : "Impossible de charger les comptes."}</p> :
-      accounts.length === 0 ? <p className="rounded-lg bg-white p-3 text-sm text-stone-600">{ar ? "أنشئ حساب صندوق نقدي أولاً في قسم الخزينة." : "Créez d’abord un compte de caisse dans la trésorerie."}</p> :
+      accounts.length === 0 ? <p className="rounded-lg bg-white p-3 text-sm text-stone-600">{ar ? "أنشئ حساب صندوق نقدي أولاً في قسم الخزينة." : "Créez d’abord un compte de caisse ou bancaire dans la trésorerie."}</p> :
       <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (account && validAmount && date) save.mutate(); }}>
-        <label className="grid gap-1 text-sm font-medium sm:col-span-2"><span>{ar ? "الصندوق" : "Caisse"}</span>
+        <label className="grid gap-1 text-sm font-medium sm:col-span-2"><span>{ar ? "الحساب" : "Compte de caisse ou bancaire"}</span>
           <select className="rounded-lg border bg-white px-3 py-2" value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.account_type === "BANK" ? (ar ? "بنك" : "Banque") : (ar ? "صندوق" : "Caisse")}</option>)}
           </select>
         </label>
         <label className="grid gap-1 text-sm font-medium"><span>{ar ? "المبلغ الافتتاحي (TND)" : "Montant initial (TND)"}</span>
