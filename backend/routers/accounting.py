@@ -401,7 +401,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
             "incoming": {"$sum": {"$cond": [{"$eq": ["$direction", "IN"]}, "$amount_tnd", Decimal128("0.000")]}},
             "outgoing": {"$sum": {"$cond": [{"$eq": ["$direction", "OUT"]}, "$amount_tnd", Decimal128("0.000")]}},
         }},
-    ]).to_list(500) if account_ids else []
+    ]).to_list(500) if opening_periods else []
     totals_by_account = {row["_id"]: row for row in totals}
     for row in rows:
         movement_totals = totals_by_account.get(row.get("id"), {})
