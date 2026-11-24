@@ -21,3 +21,9 @@ def test_cash_balance_only_includes_recorded_movements_on_or_after_opening_date(
     assert '"movement_date": {"$gte": row["opening_balance_date"]}' in source
     assert '"settlement_status": "CASH_RECORDED"' in source
     assert "opening + incoming - outgoing" in source
+
+
+def test_bank_and_unconfigured_cash_accounts_keep_movement_based_balances():
+    source = (Path(__file__).parents[1] / "routers" / "accounting.py").read_text(encoding="utf-8")
+    assert 'movement_scopes.append({"account_id": row["id"]})' in source
+    assert '"$or": movement_scopes' in source
