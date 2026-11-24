@@ -380,7 +380,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
     )
     account_ids = [row["id"] for row in rows if row.get("id")]
     totals = await db.accounting_treasury_movements.aggregate([
-        {"$match": {"account_id": {"$in": account_ids}}},
+        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": "CASH_RECORDED"}},
         {"$group": {
             "_id": "$account_id",
             "incoming": {"$sum": {"$cond": [{"$eq": ["$direction", "IN"]}, "$amount_tnd", Decimal128("0.000")]}},
@@ -393,7 +393,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         opening = _accounting_decimal(row.get("opening_balance_amount_tnd"))
         incoming = _accounting_decimal(movement_totals.get("incoming"))
         outgoing = _accounting_decimal(movement_totals.get("outgoing"))
-        row["current_balance_tnd"] = format(opening + incoming - outgoing, ".3f") if row.get("opening_balance_status") == "CONFIGURED" else None
+        row["current_balance_tnd"] = format(opening + incoming - outgoing, ".3f") if row.get("opening_balance_status") == "CONFIGURED" and row.get("account_type") == "CASH" else None
     return {"accounts": _safe(rows), "currency": "TND",
             "opening_balances_configured": opening_configured,
             "ledger_enabled": True, "movement_recording_enabled": True,
