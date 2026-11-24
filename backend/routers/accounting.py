@@ -391,7 +391,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         if not row.get("id"):
             continue
         if (
-            row.get("account_type") == "CASH"
+            row.get("account_type") in ("CASH", "BANK")
             and row.get("opening_balance_status") == "CONFIGURED"
             and row.get("opening_balance_date")
         ):
@@ -418,7 +418,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
         opening = _accounting_decimal(row.get("opening_balance_amount_tnd"))
         incoming = _accounting_decimal(movement_totals.get("incoming"))
         outgoing = _accounting_decimal(movement_totals.get("outgoing"))
-        row["current_balance_tnd"] = format(opening + incoming - outgoing, ".3f") if row.get("opening_balance_status") == "CONFIGURED" and row.get("account_type") == "CASH" else None
+        row["current_balance_tnd"] = format(opening + incoming - outgoing, ".3f") if row.get("opening_balance_status") == "CONFIGURED" and row.get("account_type") in ("CASH", "BANK") else None
     return {"accounts": _safe(rows), "currency": "TND",
             "opening_balances_configured": opening_configured,
             "ledger_enabled": True, "movement_recording_enabled": True,
@@ -475,7 +475,7 @@ async def update_treasury_opening_balance(
     account_id: str, payload: TreasuryOpeningBalanceInput,
     user: dict = Depends(require_admin),
 ):
-    """Set the administrator-defined cash opening balance and effective date."""
+    """Set the administrator-defined cash or bank opening balance and effective date."""
     actor_id, now = _treasury_actor(user), datetime.now(timezone.utc)
     amount = Decimal(payload.opening_balance_amount_tnd).quantize(Decimal("0.001"))
     effective_date = payload.opening_balance_date.isoformat()
@@ -486,8 +486,8 @@ async def update_treasury_opening_balance(
         )
         if not account:
             raise HTTPException(status_code=404, detail="Compte de trésorerie introuvable.")
-        if account.get("account_type") != "CASH":
-            raise HTTPException(status_code=422, detail="Le solde d’ouverture est réservé aux comptes de caisse.")
+        if account.get("account_type") not in ("CASH", "BANK"):
+            raise HTTPException(status_code=422, detail="Le solde d’ouverture est réservé aux comptes de caisse ou bancaires.")
         if account.get("version", 1) != payload.expected_version:
             raise HTTPException(status_code=409, detail="Le compte a été modifié. Actualisez la liste.")
         previous = {
