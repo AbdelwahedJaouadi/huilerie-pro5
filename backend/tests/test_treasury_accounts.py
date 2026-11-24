@@ -20,3 +20,10 @@ def test_treasury_directory_has_unique_account_names_and_immutable_event_indexes
     assert '"accounting_treasury_accounts"' in source
     assert '"type_name_unique"' in source
     assert '"accounting_treasury_account_events"' in source
+
+
+def test_treasury_current_balance_uses_only_recorded_cash_movements_and_opening_balance():
+    source = (Path(__file__).parents[1] / "routers" / "accounting.py").read_text(encoding="utf-8")
+    assert '"settlement_status": "CASH_RECORDED"' in source
+    assert "opening + incoming - outgoing" in source
+    assert 'row.get("account_type") == "CASH"' in source
