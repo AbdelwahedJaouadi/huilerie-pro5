@@ -561,7 +561,7 @@ export default function Workforce() {
               </tr>;
             })}</tbody>
           </table></div>}
-          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب الأجر اليومي بنسبة ساعات العمل من 8 ساعات، والأجر بالساعة حسب الساعات الفعلية. لا يُحسب الأجر الشهري لعدم تحديد طريقة تحويله إلى أجر يومي. الوردية المفتوحة أو ذات التوقيت غير الصحيح لا يظهر لها مبلغ حتى تصحيح الانصراف. لا يُخصم وقت الاستراحة. لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Le salaire journalier est proratisé sur une base de 8 heures; le salaire horaire suit les heures réellement travaillées. Le salaire mensuel n’est pas calculé faute de règle de conversion journalière. Les quarts ouverts ou invalides restent sans montant jusqu’à correction. Aucune pause n’est déduite."}</p>
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب الأجر اليومي بنسبة ساعات العمل من 8 ساعات، والأجر بالساعة حسب الساعات الفعلية. لا يُحسب الأجر الشهري لعدم تحديد طريقة تحويله إلى أجر يومي. الوردية المفتوحة أو ذات التوقيت غير الصحيح لا يظهر لها مبلغ حتى تصحيح الانصراف. لا يُخصم وقت الاستراحة. لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Le salaire journalier est proratisé sur une base de 8 heures; le salaire horaire suit les heures réellement travaillées. Le salaire mensuel n’est pas calculé faute de règle de conversion journalière. Les quarts ouverts ou invalides restent sans montant jusqu’à correction. Seules les pauses enregistrées manuellement sont déduites."}</p>
         </section>
       <Dialog open={!!deletingEmployee} onOpenChange={(open) => !open && !removeEmployee.isPending && setDeletingEmployee(null)}>
         <DialogContent data-testid="delete-employee-confirmation">
