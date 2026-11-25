@@ -74,7 +74,7 @@ def test_workforce_ui_has_date_range_and_daily_weekly_monthly_summaries():
     assert "weekStart(record.day)" in page
     assert 'record.day.slice(0, 7)' in page
     assert "elapsed > 24 * 60 * 60 * 1000" in page
-    assert "Aucune pause n’est déduite." in page
+    assert "Seules les pauses enregistrées manuellement sont déduites." in page
     assert "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." in page
 
 
