@@ -109,11 +109,11 @@ async def confirm_traditional_cheque_encashment(
     )
     if not movement:
         raise LookupError("Treasury movement not found in the active season")
-    if (movement.get("source_type") != "TRADITIONAL_RECEIPT"
+    if (movement.get("source_type") not in {"TRADITIONAL_RECEIPT", "GS_SALE_PAYMENT"}
             or movement.get("payment_method") != "CHEQUE"
             or movement.get("direction") != "IN"
             or movement.get("account_type") != "BANK"):
-        raise ValueError("Only a traditional cheque receipt linked to a bank account can be confirmed")
+        raise ValueError("Only an incoming traditional or GS sale cheque linked to a bank account can be confirmed")
     if movement.get("settlement_status") != "PENDING_CHEQUE_CLEARANCE":
         if (movement.get("settlement_status") == "CHEQUE_CLEARED"
                 and movement.get("bank_statement_reference") == reference
@@ -123,8 +123,8 @@ async def confirm_traditional_cheque_encashment(
 
     update = await db.accounting_treasury_movements.update_one(
         {"id": movement_id, "season_code": season_code,
-         "source_type": "TRADITIONAL_RECEIPT", "payment_method": "CHEQUE",
-         "settlement_status": "PENDING_CHEQUE_CLEARANCE"},
+         "source_type": movement.get("source_type"), "payment_method": "CHEQUE",
+         "direction": "IN", "settlement_status": "PENDING_CHEQUE_CLEARANCE"},
         {"$set": {
             "settlement_status": "CHEQUE_CLEARED",
             "reconciliation_status": "RECONCILED",
@@ -141,7 +141,7 @@ async def confirm_traditional_cheque_encashment(
 
     await db.accounting_treasury_movement_events.insert_one({
         "id": str(uuid4()), "movement_id": movement_id,
-        "source_type": "TRADITIONAL_RECEIPT", "source_id": movement.get("source_id"),
+        "source_type": movement.get("source_type"), "source_id": movement.get("source_id"),
         "account_id": movement.get("account_id"),
         "action": "CHEQUE_ENCASHMENT_CONFIRMED",
         "actor_user_id": actor_user_id, "created_at": confirmed_at,
