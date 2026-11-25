@@ -601,7 +601,7 @@ async def get_worker_payroll(period: str, worker_id: str | None = None,
 
 @router.post("/payments")
 async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(require_workforce_admin)):
-    """Post a real worker payment and treasury outflow atomically; worker cheque reconciliation is administrative."""
+    """Post a real worker payment atomically; serialize month payments and reconcile worker cheques administratively."""
     now = datetime.now(timezone.utc)
     today = now.astimezone(ZoneInfo("Africa/Tunis")).date()
     start_day, end_day = _worker_period_bounds(body.period)
