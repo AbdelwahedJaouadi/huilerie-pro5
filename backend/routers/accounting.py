@@ -412,7 +412,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
             # and cash accounts that have not configured an opening balance.
             movement_scopes.append({"account_id": row["id"]})
     totals = await db.accounting_treasury_movements.aggregate([
-        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED"]},
+        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED", "BANK_TRANSFER_RECORDED"]},
                     "$or": movement_scopes}},
         {"$group": {
             "_id": "$account_id",
