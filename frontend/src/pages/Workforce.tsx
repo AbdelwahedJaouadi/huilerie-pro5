@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock, Coffee } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -15,13 +15,15 @@ type Attendance = {
   id: string; worker_id: string; worker_name: string; day: string;
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
   marked_absent_at?: string | null;
+  breaks?: Array<{ start_at: string; end_at: string }>;
+  break_started_at?: string | null;
 };
 type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
 type EmployeeDraft = { first_name: string; last_name: string; phone: string; address: string; salary_amount: string; salary_type: "monthly" | "daily" | "hourly" };
 type WorkersResponse = { workers: Worker[]; total: number };
 type PayrollRow = { worker: Worker; period: string; worked_minutes: number; incomplete_shifts: number; montant_du_travail: string; total_paid: string; total_advances: string; reste_a_payer: string; supported: boolean; final_paid: boolean };
 type PayrollResponse = { period: string; workers: PayrollRow[]; payments: Array<{ id: string; worker_name_snapshot: string; payment_kind: string; amount_tnd: string | number; payment_method: string; account_name_snapshot: string; paid_at: string }>; accounts: Array<{ id: string; name: string; account_type: "CASH" | "BANK" }> };
-type Action = "check-in" | "check-out" | "mark-absent";
+type Action = "check-in" | "check-out" | "break-start" | "break-end" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
 function tunisParts(value: Date) {
@@ -70,7 +72,13 @@ function workedMinutes(record: Attendance): number {
   const elapsed = new Date(record.check_out_at).getTime() - new Date(record.check_in_at).getTime();
   // Invalid, reversed, or over-24-hour shifts are excluded pending manager review.
   if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 24 * 60 * 60 * 1000) return 0;
-  return Math.floor(elapsed / 60000);
+  const recordedBreakMinutes = (record.breaks ?? []).reduce((total, interval) => {
+    const start = new Date(interval.start_at).getTime();
+    const end = new Date(interval.end_at).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && end > start
+      ? total + Math.floor((end - start) / 60000) : total;
+  }, 0);
+  return Math.max(0, Math.floor(elapsed / 60000) - recordedBreakMinutes);
 }
 function workedAmount(worker: Worker, record: Attendance): number | null {
   if (worker.salary_amount == null || !Number.isFinite(worker.salary_amount) || worker.salary_amount < 0) return null;
@@ -420,12 +428,15 @@ export default function Workforce() {
               const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
               const checkedOut = !!record?.check_out_at;
+              const onBreak = !!record?.break_started_at;
               return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.salary_amount == null ? (ar ? "الأجر غير محدد" : "Salaire non renseigné") : `${worker.salary_amount} — ${worker.salary_type === "hourly" ? (ar ? "بالساعة" : "par heure") : worker.salary_type === "daily" ? (ar ? "باليوم" : "par jour") : (ar ? "شهري" : "mensuel")}`}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
-                <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
+                <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : onBreak ? (ar ? "في راحة" : "En pause") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
                 <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
                 <td className="px-3 py-3"><div className="flex justify-end gap-2">
                   {worker.active !== false && !checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
-                  {checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
+                  {checkedIn && !checkedOut && !onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "break-start", worker_id: worker.id })} className="bg-amber-600 hover:bg-amber-700"><Coffee className="me-1 size-4" />{ar ? "راحة" : "Pause"}</Button>}
+                  {checkedIn && !checkedOut && onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "break-end", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "عودة للعمل" : "Reprendre le travail"}</Button>}
+                  {checkedIn && !checkedOut && !onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
                   {worker.active !== false && !record && <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
                   {record && <Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
                 </div></td></tr>;
