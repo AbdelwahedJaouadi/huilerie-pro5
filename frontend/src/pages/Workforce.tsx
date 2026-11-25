@@ -211,7 +211,8 @@ export default function Workforce() {
       toast.success(ar ? "تم تسجيل الدفعة وربطها بالخزينة" : "Paiement enregistré et lié à la trésorerie");
       setPayrollAmount(""); setPayrollReference(""); setPayrollRequestId(crypto.randomUUID());
       await qc.invalidateQueries({ queryKey: ["workforce", "payroll"] });
-      await qc.invalidateQueries({ queryKey: ["accounting", "treasury"] });
+      await qc.invalidateQueries({ queryKey: ["accounting-treasury-movement-register"] });
+      await qc.invalidateQueries({ queryKey: ["accounting-treasury-accounts"] });
     },
     onError: (error) => toast.error(errMsg(error)),
   });
