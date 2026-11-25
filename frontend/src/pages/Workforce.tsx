@@ -53,6 +53,18 @@ function tunisInputToIso(value: string) {
 function displayTime(value: string | null | undefined, locale: string) {
   return value ? new Date(value).toLocaleTimeString(locale, { timeZone: "Africa/Tunis", hour: "2-digit", minute: "2-digit" }) : "—";
 }
+function displayShiftRange(record: Attendance, locale: string) {
+  const checkIn = record.check_in_at ? new Date(record.check_in_at) : null;
+  const checkOut = record.check_out_at ? new Date(record.check_out_at) : null;
+  if (!checkIn) return "—";
+  const checkInDay = tunisParts(checkIn).year + "-" + tunisParts(checkIn).month + "-" + tunisParts(checkIn).day;
+  const checkOutParts = checkOut ? tunisParts(checkOut) : null;
+  const checkOutDay = checkOutParts ? checkOutParts.year + "-" + checkOutParts.month + "-" + checkOutParts.day : "";
+  const nextDayLabel = checkOut && checkOutDay !== checkInDay
+    ? new Intl.DateTimeFormat(locale, { timeZone: "Africa/Tunis", day: "2-digit", month: "2-digit" }).format(checkOut) + " "
+    : "";
+  return displayTime(record.check_in_at, locale) + " – " + (checkOut ? nextDayLabel + displayTime(record.check_out_at, locale) : "—");
+}
 function workedMinutes(record: Attendance): number {
   if (record.status !== "PRESENT" || !record.check_in_at || !record.check_out_at) return 0;
   const elapsed = new Date(record.check_out_at).getTime() - new Date(record.check_in_at).getTime();
@@ -155,7 +167,7 @@ function printWorkforceReport({ records, workers, startDate, endDate, ar, locale
     const entries = grouped.get(worker.id) || new Map<string, Attendance>(); const values = Array.from(entries.values());
     const workedDays = values.filter((r) => r.status === "PRESENT").length;
     const minutes = values.reduce((sum, r) => sum + workedMinutes(r), 0);
-    const cells = days.map((day) => { const r = entries.get(day); if (!r) return "<td class=\"empty\">—</td>"; if (r.status === "ABSENT") return "<td class=\"absent\">" + labels.absent + "</td>"; return "<td class=\"present\"><b>" + displayTime(r.check_in_at, locale) + "</b><br>" + displayTime(r.check_out_at, locale) + "</td>"; }).join("");
+    const cells = days.map((day) => { const r = entries.get(day); if (!r) return "<td class=\"empty\">—</td>"; if (r.status === "ABSENT") return "<td class=\"absent\">" + labels.absent + "</td>"; return "<td class=\"present\"><b>" + displayShiftRange(r, locale) + "</b></td>"; }).join("");
     return "<tr><th class=\"worker\">" + escapeReportHtml(worker.full_name) + "</th>" + cells + "<td class=\"total\"><b>" + workedDays + "</b> " + labels.days + "<br><b>" + durationLabel(minutes) + "</b> " + labels.hours + "</td></tr>";
   }).join("");
   const html = "<!doctype html><html lang=\"" + (ar ? "ar" : "fr") + "\" dir=\"" + (ar ? "rtl" : "ltr") + "\"><meta charset=\"utf-8\"><title>" + labels.title + "</title>" +
@@ -495,7 +507,7 @@ export default function Workforce() {
           </form>
         </DialogContent>
       </Dialog>
-      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. يمكن أن ينتهي العمل في اليوم التالي؛ تُحسب الساعات بين تاريخي الدخول والخروج وتُسجل على يوم الدخول. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart peut se terminer le lendemain : les heures sont calculées entre les deux dates et rattachées au jour d’arrivée. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
         <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm" data-testid="workforce-monthly-history">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold text-stone-900">{ar ? "سجل الحضور والانصراف حسب الأيام" : "Historique des arrivées et départs — vue par jour"}</h3>
@@ -528,7 +540,7 @@ export default function Workforce() {
                   const open = !!record.check_in_at && !record.check_out_at;
                   const invalid = !!record.check_in_at && !!record.check_out_at && workedMinutes(record) === 0;
                   return <td key={day} className="px-2 py-2 text-center">
-                    <div className={"rounded-md px-1 py-1 font-mono font-semibold " + (open ? "bg-amber-50 text-amber-800" : invalid ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800")} dir="ltr">{displayTime(record.check_in_at, locale)} – {displayTime(record.check_out_at, locale)}</div>
+                    <div className={"rounded-md px-1 py-1 font-mono font-semibold " + (open ? "bg-amber-50 text-amber-800" : invalid ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800")} dir="ltr">{displayShiftRange(record, locale)}</div>
                     <div className="mt-1 text-[11px] font-semibold text-emerald-800" dir="ltr">{workedAmount(worker, record) == null ? "—" : formatWorkAmount(workedAmount(worker, record)!, locale)}</div>
                     <Button size="sm" variant="ghost" className="mt-1 h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button>
                   </td>;
