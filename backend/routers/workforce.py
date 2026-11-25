@@ -13,6 +13,7 @@ from pymongo.errors import DuplicateKeyError
 from lib.workforce_auth import require_workforce_admin
 from lib.db import db, run_transaction
 from lib.season import active_season
+from accounting_foundation.treasury_posting import build_movement_document
 
 router = APIRouter(prefix="/workforce", tags=["workforce"])
 
@@ -667,22 +668,33 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD",
             "remaining_after": format(remaining - amount, ".3f"),
         }
-        movement = {
-            "id": str(uuid.uuid4()), "season_code": (await active_season()),
-            "source_type": "WORKER_PAYMENT", "source_id": payment_id,
-            "source_document_number": f"Paie {body.period}", "source_party_id": body.worker_id,
-            "source_party_name_snapshot": payment["worker_name_snapshot"],
-            "source_document_id": payment_id, "movement_kind": "WORKER_PAYMENT",
-            "direction": "OUT", "movement_type": "DISBURSEMENT",
-            "account_id": account["id"], "account_name_snapshot": account["name"],
-            "account_type": account["account_type"], "amount_tnd": Decimal128(amount),
-            "currency": "TND", "movement_date": today.isoformat(),
-            "payment_method": body.payment_method, "external_reference": payment["reference"],
-            "settlement_status": "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED",
-            "reconciliation_status": "RECONCILED", "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD",
-            "opening_balance_applied": False, "gl_posting_status": "NOT_POSTED",
-            "recorded_by": actor_id, "recorded_at": now,
+        season_code = await active_season()
+        candidate = {
+            "eligibility": "ELIGIBLE_FOR_REVIEW",
+            "payment_method": body.payment_method,
+            "direction": "OUT",
+            "source_type": "WORKER_PAYMENT",
+            "source_id": payment_id,
+            "source_document_number": f"Paie {body.period}",
+            "party_id": body.worker_id,
+            "account_id": account["id"],
+            "account_name": account["name"],
+            "account_type": account["account_type"],
+            "amount": amount,
+            "business_date": today.isoformat(),
+            "reference": payment["reference"],
         }
+        movement = build_movement_document(
+            candidate, season_code=season_code, actor_user_id=actor_id,
+            movement_id=str(uuid.uuid4()), recorded_at=now,
+        )
+        # Worker payments are the explicitly approved exception: reconcile
+        # immediately at recording, without changing cheque rules elsewhere.
+        movement["settlement_status"] = "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED"
+        movement["reconciliation_status"] = "RECONCILED"
+        movement["reconciliation_basis"] = "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"
+        movement["source_party_name_snapshot"] = payment["worker_name_snapshot"]
+        movement["source_document_id"] = payment_id
         payment["movement_id"] = movement["id"]
         await db["workforce_worker_payments"].insert_one(payment, session=session)
         await db["accounting_treasury_movements"].insert_one(movement, session=session)
@@ -692,8 +704,11 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             "account_id": account["id"], "action": "WORKER_PAYMENT_RECORDED",
             "actor_user_id": actor_id, "created_at": now,
             "details": {"worker_id": body.worker_id, "period": body.period,
-                        "payment_kind": body.payment_kind, "amount_tnd": Decimal128(amount),
+                        "payment_kind": body.payment_kind, "direction": movement["direction"],
+                        "amount_tnd": movement["amount_tnd"], "currency": "TND",
                         "payment_method": body.payment_method,
+                        "settlement_status": movement["settlement_status"],
+                        "reconciliation_status": movement["reconciliation_status"],
                         "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"},
         }, session=session)
         return {"payment": {**payment, "amount_tnd": format(amount, ".3f")},
