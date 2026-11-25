@@ -90,6 +90,8 @@ def test_cheque_stays_pending_until_confirmed_then_updates_same_movement_once():
         assert cleared["settlement_status"] == "CHEQUE_CLEARED"
         assert cleared["reconciliation_status"] == "RECONCILED"
         assert cleared["bank_statement_reference"] == "BNA-CREDIT-9981"
+        assert cleared["cheque_received_date"] == "2026-11-24"
+        assert cleared["movement_date"] == "2026-11-24"
         assert len(db.accounting_treasury_movements.rows) == 1
         assert len(db.accounting_treasury_movement_events.rows) == 2
         assert db.accounting_treasury_movement_events.rows[-1]["action"] == "CHEQUE_ENCASHMENT_CONFIRMED"
