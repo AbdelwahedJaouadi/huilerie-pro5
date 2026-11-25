@@ -110,8 +110,8 @@ def test_cheque_stays_pending_until_confirmed_then_updates_same_movement_once():
 
 def test_cheque_confirmation_rejects_wrong_source_or_non_pending_status():
     async def run():
-        wrong = {"id": "movement-1", "season_code": "2627", "source_type": "GS_SALE_PAYMENT",
-                 "payment_method": "CHEQUE", "direction": "IN", "account_type": "BANK",
+        wrong = {"id": "movement-1", "season_code": "2627", "source_type": "GS_SUPPLIER_PAYMENT",
+                 "payment_method": "CHEQUE", "direction": "OUT", "account_type": "BANK",
                  "settlement_status": "PENDING_CHEQUE_CLEARANCE"}
         db = FakeDB({"accounting_treasury_movements": [wrong]})
         try:
