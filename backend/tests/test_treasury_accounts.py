@@ -24,6 +24,6 @@ def test_treasury_directory_has_unique_account_names_and_immutable_event_indexes
 
 def test_treasury_current_balance_uses_only_recorded_cash_movements_and_opening_balance():
     source = (Path(__file__).parents[1] / "routers" / "accounting.py").read_text(encoding="utf-8")
-    assert '"settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED"]}' in source
+    assert '"settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED", "BANK_TRANSFER_RECORDED"]}' in source
     assert "opening + incoming - outgoing" in source
     assert 'row.get("account_type") in ("CASH", "BANK")' in source

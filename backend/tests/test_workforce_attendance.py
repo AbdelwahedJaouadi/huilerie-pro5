@@ -181,10 +181,12 @@ def test_worker_payments_are_reconciled_administratively_without_changing_other_
     assert '"source_type": "WORKER_PAYMENT"' in source
     assert '"reconciliation_status": "RECONCILED"' in source
     assert '"reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"' in source
-    assert '"settlement_status": "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED"' in source
+    assert '"BANK_TRANSFER_RECORDED" if body.payment_method == "BANK_TRANSFER"' in source
+    assert "build_movement_document(" in source
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     assert '"workforce_worker_payments"' in indexes
     assert '"idempotency_key_unique"' in indexes
+    assert '"worker_period_final_unique"' in indexes
 
 
 def test_worker_with_payment_history_cannot_be_permanently_deleted():
@@ -216,3 +218,8 @@ def test_payroll_month_snapshots_wage_rate_and_prevents_paid_wage_reduction():
     assert '"attendance_correction_would_reduce_paid_wages"' in correction_source
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     assert '"worker_period_unique"' in indexes
+
+
+def test_completed_worker_bank_transfers_are_included_in_account_balances():
+    accounting = (ROOT / "routers" / "accounting.py").read_text(encoding="utf-8")
+    assert '"BANK_TRANSFER_RECORDED"' in accounting
