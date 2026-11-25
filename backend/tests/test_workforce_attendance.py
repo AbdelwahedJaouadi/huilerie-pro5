@@ -241,3 +241,27 @@ def test_overnight_shift_from_2300_to_0500_is_counted_as_six_hours():
     assert "displayShiftRange(record, locale)" in page
     assert "displayShiftRange(r, locale)" in page
     assert "تُحسب الساعات بين تاريخي الدخول والخروج وتُسجل على يوم الدخول" in page
+
+
+def test_workforce_break_buttons_start_pause_and_resume_and_only_recorded_breaks_are_deducted():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    routes = {node.name: node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)}
+    assert {"start_break", "end_break"} <= routes.keys()
+    start_source = ast.get_source_segment(source, routes["start_break"])
+    end_source = ast.get_source_segment(source, routes["end_break"])
+    assert '"BREAK_START"' in start_source
+    assert '"BREAK_END_RESUME_WORK"' in end_source
+    checkout = ast.get_source_segment(source, routes["check_out"])
+    assert '"worker_must_resume_before_check_out"' in checkout
+    shift = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_worker_shift_minutes")
+    shift_source = ast.get_source_segment(source, shift)
+    assert 'record.get("breaks")' in shift_source
+    assert 'break_seconds += (break_end - break_start).total_seconds()' in shift_source
+    assert "elapsed - break_seconds" in shift_source
+    assert 'type: "break-start"' in page
+    assert 'type: "break-end"' in page
+    assert 'ar ? "في راحة" : "En pause"' in page
+    assert 'ar ? "عودة للعمل" : "Reprendre le travail"' in page
+    assert "record.breaks ?? []" in page
