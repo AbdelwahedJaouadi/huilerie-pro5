@@ -1,9 +1,11 @@
+import re
 import uuid
 from datetime import date as Date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
+from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
