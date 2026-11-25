@@ -640,6 +640,13 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
                 "salary_type": snapshot["salary_type"], "salary_amount": Decimal128(Decimal(str(snapshot["salary_amount"]))),
                 "created_at": now, "created_by": actor_id,
             }, session=session)
+        # Serialize all payments for this worker/month. Concurrent advances must
+        # re-read the ledger after a transaction conflict before checking the remainder.
+        await db["workforce_worker_payroll_periods"].update_one(
+            {"worker_id": body.worker_id, "period": body.period},
+            {"$inc": {"payment_sequence": 1}},
+            session=session,
+        )
         existing_payments = await db["workforce_worker_payments"].find(
             {"worker_id": body.worker_id, "period": body.period}, {"_id": 0}, session=session
         ).to_list(10000)
