@@ -172,6 +172,8 @@ async def delete_worker(worker_id: str, admin: dict = Depends(require_workforce_
         )
         if not worker:
             raise HTTPException(404, "worker_not_found")
+        if await db["workforce_worker_payments"].find_one({"worker_id": worker_id}, {"_id": 1}, session=session):
+            raise HTTPException(409, "worker_has_payment_history_archive_instead")
 
         attendance = await db["workforce_attendance"].find(
             {"worker_id": worker_id}, {"_id": 0, "id": 1}, session=session
@@ -565,7 +567,7 @@ async def get_worker_payroll(period: str, worker_id: str | None = None,
         {"_id": 0, "id": 1, "name": 1, "account_type": 1, "currency": 1},
     ).sort([("account_type", 1), ("name", 1)]).to_list(500)
     return {"period": period, "start_date": start_day, "end_date": end_day,
-            "workers": rows, "payments": payments, "accounts": accounts, "currency": "TND"}
+            "workers": rows, "payments": [{**p, "amount_tnd": str(p.get("amount_tnd"))} for p in payments], "accounts": accounts, "currency": "TND"}
 
 
 @router.post("/payments")
