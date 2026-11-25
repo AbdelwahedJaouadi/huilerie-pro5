@@ -162,7 +162,7 @@ def test_worker_payroll_uses_closed_shifts_and_daily_salary_eight_hour_basis():
     snapshot_source = ast.get_source_segment(source, snapshot)
     assert "Decimal(480)" in snapshot_source
     assert "Decimal(60)" in snapshot_source
-    assert 'worker.get("salary_type") not in {"daily", "hourly"}' in snapshot_source
+    assert 'salary_type not in {"daily", "hourly"}' in snapshot_source
 
 
 def test_worker_payments_enforce_account_type_and_accrued_wage_limit():
