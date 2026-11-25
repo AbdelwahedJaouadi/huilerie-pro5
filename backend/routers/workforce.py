@@ -604,9 +604,6 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
     """Post a real worker payment atomically; serialize month payments and reconcile worker cheques administratively."""
     now = datetime.now(timezone.utc)
     today = now.astimezone(ZoneInfo("Africa/Tunis")).date()
-    start_day, end_day = _worker_period_bounds(body.period)
-    if body.payment_kind == "FINAL" and Date.fromisoformat(end_day) > today:
-        raise HTTPException(409, "final_payment_only_after_period_end")
     if body.payment_kind == "ADVANCE" and body.amount_tnd is None:
         raise HTTPException(422, "advance_amount_required")
     actor_id = str(admin.get("id") or admin.get("username") or "")
@@ -650,8 +647,6 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
         existing_payments = await db["workforce_worker_payments"].find(
             {"worker_id": body.worker_id, "period": body.period}, {"_id": 0}, session=session
         ).to_list(10000)
-        if any(p.get("payment_kind") == "FINAL" for p in existing_payments):
-            raise HTTPException(409, "final_payment_already_recorded")
         already_paid = sum((Decimal(str(p["amount_tnd"])) for p in existing_payments), Decimal("0.000"))
         remaining = _worker_money(snapshot["earned"] - already_paid)
         if remaining <= 0:
