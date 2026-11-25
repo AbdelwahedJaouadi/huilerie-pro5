@@ -538,7 +538,7 @@ async def _worker_payroll_snapshot(worker_id: str, period: str, session=None):
     salary_type = period_snapshot.get("salary_type") if period_snapshot else worker.get("salary_type")
     salary_amount = period_snapshot.get("salary_amount") if period_snapshot else worker.get("salary_amount")
     if salary_type not in {"daily", "hourly"} or salary_amount is None:
-        return {"worker": worker, "earned": Decimal("0.000"), "minutes": 0, "supported": False,
+        return {"worker": worker, "earned": Decimal("0.000"), "minutes": 0, "incomplete_shifts": 0, "supported": False,
                 "salary_type": salary_type, "salary_amount": salary_amount}
     start_day, end_day = _worker_period_bounds(period)
     records = await db["workforce_attendance"].find(
@@ -546,9 +546,11 @@ async def _worker_payroll_snapshot(worker_id: str, period: str, session=None):
         {"_id": 0}, session=session,
     ).to_list(10000)
     minutes = sum(_worker_shift_minutes(row) for row in records)
+    incomplete_shifts = sum(1 for row in records if row.get("status") == "PRESENT" and _worker_shift_minutes(row) == 0)
     rate = Decimal(str(salary_amount))
     earned = rate * Decimal(minutes) / (Decimal(480) if salary_type == "daily" else Decimal(60))
-    return {"worker": worker, "earned": _worker_money(earned), "minutes": minutes, "supported": True,
+    return {"worker": worker, "earned": _worker_money(earned), "minutes": minutes,
+            "incomplete_shifts": incomplete_shifts, "supported": True,
             "salary_type": salary_type, "salary_amount": salary_amount, "period_snapshot": period_snapshot}
 
 
@@ -574,6 +576,7 @@ async def get_worker_payroll(period: str, worker_id: str | None = None,
         paid = _worker_money(paid_by_worker.get(worker["id"], Decimal("0.000")))
         rows.append({
             "worker": worker, "period": period, "worked_minutes": snapshot["minutes"],
+            "incomplete_shifts": snapshot.get("incomplete_shifts", 0),
             "montant_du_travail": format(earned, ".3f"),
             "total_paid": format(paid, ".3f"),
             "total_advances": format(_worker_money(sum((Decimal(str(p["amount_tnd"])) for p in payments if p["worker_id"] == worker["id"] and p["payment_kind"] == "ADVANCE"), Decimal("0.000"))), ".3f"),
@@ -616,6 +619,8 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             raise HTTPException(409, "worker_not_active")
         if not snapshot["supported"]:
             raise HTTPException(422, "monthly_or_missing_salary_not_supported")
+        if snapshot.get("incomplete_shifts", 0):
+            raise HTTPException(409, "payroll_has_incomplete_shifts")
         account = await db["accounting_treasury_accounts"].find_one(
             {"id": body.account_id, "active": True}, {"_id": 0}, session=session
         )
