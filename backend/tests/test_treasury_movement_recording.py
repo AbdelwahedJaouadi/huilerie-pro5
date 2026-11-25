@@ -38,6 +38,17 @@ def test_cash_receipt_is_recorded_without_balance_or_gl_posting():
     assert "balance" not in row
 
 
+def test_cash_supplier_disbursement_is_also_reconciled():
+    row = build_movement_document(
+        candidate(method="CASH", direction="OUT"), season_code="2627",
+        actor_user_id="admin-1", movement_id="movement-cash-out",
+        recorded_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
+    )
+    assert row["movement_type"] == "DISBURSEMENT"
+    assert row["settlement_status"] == "CASH_RECORDED"
+    assert row["reconciliation_status"] == "RECONCILED"
+
+
 def test_supplier_payment_is_disbursement_and_bank_payment_stays_pending():
     row = build_movement_document(
         candidate(method="BANK_TRANSFER", direction="OUT"), season_code="2627",
