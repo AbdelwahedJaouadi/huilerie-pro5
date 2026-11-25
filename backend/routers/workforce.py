@@ -690,7 +690,11 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
         )
         # Worker payments are the explicitly approved exception: reconcile
         # immediately at recording, without changing cheque rules elsewhere.
-        movement["settlement_status"] = "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED"
+        movement["settlement_status"] = (
+            "CHEQUE_CLEARED" if body.payment_method == "CHEQUE"
+            else "BANK_TRANSFER_RECORDED" if body.payment_method == "BANK_TRANSFER"
+            else "CASH_RECORDED"
+        )
         movement["reconciliation_status"] = "RECONCILED"
         movement["reconciliation_basis"] = "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"
         movement["source_party_name_snapshot"] = payment["worker_name_snapshot"]
