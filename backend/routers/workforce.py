@@ -428,6 +428,12 @@ async def correct_attendance(
         )
     check_in = changes.get("check_in_at", record.get("check_in_at"))
     check_out = changes.get("check_out_at", record.get("check_out_at"))
+    # MongoDB may return UTC datetimes as naive values; normalize before comparing
+    # them with timezone-aware values supplied by the correction form.
+    if isinstance(check_in, datetime) and check_in.tzinfo is None:
+        check_in = check_in.replace(tzinfo=timezone.utc)
+    if isinstance(check_out, datetime) and check_out.tzinfo is None:
+        check_out = check_out.replace(tzinfo=timezone.utc)
     status = changes.get("status", record.get("status"))
     if status == "PRESENT" and check_in is None:
         raise HTTPException(400, "present_requires_check_in")
