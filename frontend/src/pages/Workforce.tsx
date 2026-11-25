@@ -19,6 +19,8 @@ type Attendance = {
 type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
 type EmployeeDraft = { first_name: string; last_name: string; phone: string; address: string; salary_amount: string; salary_type: "monthly" | "daily" | "hourly" };
 type WorkersResponse = { workers: Worker[]; total: number };
+type PayrollRow = { worker: Worker; period: string; worked_minutes: number; incomplete_shifts: number; montant_du_travail: string; total_paid: string; total_advances: string; reste_a_payer: string; supported: boolean; final_paid: boolean };
+type PayrollResponse = { period: string; workers: PayrollRow[]; payments: Array<{ id: string; worker_name_snapshot: string; payment_kind: string; amount_tnd: string | number; payment_method: string; account_name_snapshot: string; paid_at: string }>; accounts: Array<{ id: string; name: string; account_type: "CASH" | "BANK" }> };
 type Action = "check-in" | "check-out" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
@@ -169,6 +171,14 @@ export default function Workforce() {
   const locale = ar ? "ar-TN" : "fr-FR";
   const qc = useQueryClient();
   const today = localDay();
+  const [payrollPeriod, setPayrollPeriod] = useState(today.slice(0, 7));
+  const [payrollWorkerId, setPayrollWorkerId] = useState("");
+  const [payrollKind, setPayrollKind] = useState<"ADVANCE" | "FINAL">("ADVANCE");
+  const [payrollAmount, setPayrollAmount] = useState("");
+  const [payrollMethod, setPayrollMethod] = useState<"CASH" | "CHEQUE" | "BANK_TRANSFER">("CASH");
+  const [payrollAccountId, setPayrollAccountId] = useState("");
+  const [payrollReference, setPayrollReference] = useState("");
+  const [payrollRequestId, setPayrollRequestId] = useState(() => crypto.randomUUID());
   const [startDate, setStartDate] = useState(firstDayOfMonth(today));
   const [endDate, setEndDate] = useState(lastDayOfMonth(today));
   const [selectedWorkerId, setSelectedWorkerId] = useState("all");
@@ -185,6 +195,26 @@ export default function Workforce() {
   const employeesQuery = useQuery({
     queryKey: ["workforce", "employees"],
     queryFn: () => apiGet<WorkersResponse>("/workforce/workers"),
+  });
+  const payrollQuery = useQuery({
+    queryKey: ["workforce", "payroll", payrollPeriod, payrollWorkerId],
+    enabled: !!payrollPeriod && !!payrollWorkerId,
+    queryFn: () => apiGet<PayrollResponse>(`/workforce/payroll?period=${encodeURIComponent(payrollPeriod)}&worker_id=${encodeURIComponent(payrollWorkerId)}`),
+  });
+  const workerPayment = useMutation({
+    mutationFn: () => apiPost<{ payment: unknown; reste_a_payer: string }>("/workforce/payments", {
+      worker_id: payrollWorkerId, idempotency_key: payrollRequestId, period: payrollPeriod, payment_kind: payrollKind,
+      amount_tnd: payrollKind === "ADVANCE" ? Number(payrollAmount) : null,
+      payment_method: payrollMethod, account_id: payrollAccountId, reference: payrollReference,
+    }),
+    onSuccess: async () => {
+      toast.success(ar ? "تم تسجيل الدفعة وربطها بالخزينة" : "Paiement enregistré et lié à la trésorerie");
+      setPayrollAmount(""); setPayrollReference(""); setPayrollRequestId(crypto.randomUUID());
+      await qc.invalidateQueries({ queryKey: ["workforce", "payroll"] });
+      await qc.invalidateQueries({ queryKey: ["accounting-treasury-movement-register"] });
+      await qc.invalidateQueries({ queryKey: ["accounting-treasury-accounts"] });
+    },
+    onError: (error) => toast.error(errMsg(error)),
   });
   const saveEmployee = useMutation({
     mutationFn: () => {
@@ -385,7 +415,46 @@ export default function Workforce() {
         </div>
         {employeesQuery.isLoading ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل سجل العمال..." : "Chargement du registre…"}</p> : employeesQuery.isError ? <p className="text-sm text-red-700">{ar ? "تعذر تحميل سجل العمال" : "Impossible de charger le registre"}</p> :
           <div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b bg-stone-50 text-stone-600"><th className="p-2 text-start">{ar ? "العامل" : "Employé"}</th><th className="p-2 text-start">{ar ? "الهاتف" : "Téléphone"}</th><th className="p-2 text-start">{ar ? "العنوان" : "Adresse"}</th><th className="p-2 text-end">{ar ? "الأجر" : "Salaire"}</th><th className="p-2 text-start">{ar ? "نوع الأجر" : "Type"}</th><th className="p-2 text-start">{ar ? "الحالة" : "Statut"}</th><th className="p-2 text-end">{ar ? "إجراءات" : "Actions"}</th></tr></thead><tbody>{(employeesQuery.data?.workers ?? []).map(worker=><tr key={worker.id} className="border-b"><td className="p-2 font-semibold">{worker.full_name}</td><td className="p-2">{worker.phone || "—"}</td><td className="p-2">{worker.address || "—"}</td><td className="p-2 text-end tabular-nums">{worker.salary_amount ?? "—"}</td><td className="p-2">{worker.salary_type === "hourly" ? (ar ? "بالساعة" : "Horaire") : worker.salary_type === "daily" ? (ar ? "يومي" : "Journalier") : (ar ? "شهري" : "Mensuel")}</td><td className="p-2">{worker.active === false ? (ar ? "مؤرشف" : "Archivé") : (ar ? "نشط" : "Actif")}</td><td className="p-2"><div className="flex justify-end gap-2">{worker.active === false && <Button type="button" size="sm" variant="outline" disabled={restoreEmployee.isPending} onClick={()=>{if(window.confirm(ar ? "إعادة تنشيط هذا العامل؟" : "Réactiver cet employé ?")) restoreEmployee.mutate(worker.id);}} className="text-emerald-700">{ar ? "إعادة تنشيط" : "Réactiver"}</Button>}<Button type="button" size="sm" variant="outline" onClick={()=>{setEditingEmployee(worker.id);setEmployeeDraft({first_name:worker.first_name || worker.full_name,last_name:worker.last_name || "",phone:worker.phone || "",address:worker.address || "",salary_amount:worker.salary_amount == null ? "" : String(worker.salary_amount),salary_type:worker.salary_type || "monthly"});setEmployeeDialogOpen(true);}}><Pencil className="me-1 size-3" />{ar ? "تعديل" : "Modifier"}</Button><Button type="button" size="sm" variant="outline" disabled={removeEmployee.isPending} onClick={()=>setDeletingEmployee(worker)} className="text-rose-700">{ar ? "حذف" : "Supprimer"}</Button></div></td></tr>)}</tbody></table></div>}
-        <p className="text-xs text-stone-500">{ar ? "الراتب ونوعه بيانات تعريفية فقط؛ لا يتم حساب المستحقات تلقائياً. الحذف النهائي يمسح أيضاً سجلات الحضور والانصراف وسجل تصحيحاتها." : "Le salaire et sa périodicité sont informatifs. La suppression définitive efface aussi les pointages et leur historique de corrections."}</p>
+        <p className="text-xs text-stone-500">{ar ? "يُحسب أجر العامل اليومي أو بالساعة من الورديات المغلقة. لا يُحسب الأجر الشهري لعدم تحديد قاعدة تحويله. العامل الذي لديه دفعات مسجلة لا يمكن حذفه نهائياً؛ يجب أرشفته للحفاظ على سجل الأجر والخزينة." : "Les salaires journaliers et horaires sont calculés à partir des quarts clôturés; le salaire mensuel reste non calculé faute de règle définie. Un employé ayant des paiements ne peut plus être supprimé définitivement : archivez-le pour préserver l’historique de paie et de trésorerie."}</p>
+      </section>
+      <section className="space-y-4 rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm" data-testid="workforce-advances-payments">
+        <div>
+          <h3 className="font-semibold text-stone-900">{ar ? "التسبيقات واستخلاص الأجور" : "Avances et paiements"}</h3>
+          <p className="text-sm text-stone-500">{ar ? "لا تُسجّل الدفعة في الخزينة إلا عند دفعها فعلياً. الحساب مبني على الورديات المغلقة." : "Seuls les paiements réellement effectués sont inscrits en trésorerie. Le calcul repose sur les quarts clôturés."}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1"><Label>{ar ? "الشهر" : "Mois"}</Label><Input type="month" value={payrollPeriod} onChange={e=>setPayrollPeriod(e.target.value)} /></div>
+          <div className="space-y-1"><Label>{ar ? "العامل" : "Employé"}</Label><select value={payrollWorkerId} onChange={e=>{setPayrollWorkerId(e.target.value);setPayrollAccountId("");}} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{ar ? "اختر العامل" : "Choisir un employé"}</option>{(employeesQuery.data?.workers ?? []).map(w=><option key={w.id} value={w.id}>{w.full_name}</option>)}</select></div>
+          <div className="space-y-1"><Label>{ar ? "نوع الدفعة" : "Type de paiement"}</Label><select value={payrollKind} onChange={e=>setPayrollKind(e.target.value as "ADVANCE" | "FINAL")} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="ADVANCE">{ar ? "تسبيق / دفعة" : "Avance"}</option><option value="FINAL">{ar ? "الاستخلاص النهائي" : "Solde final"}</option></select></div>
+        </div>
+        {payrollWorkerId && payrollQuery.data?.workers?.[0] && (() => {
+          const row = payrollQuery.data.workers[0];
+          const endDay = new Date(Date.UTC(Number(payrollPeriod.slice(0,4)), Number(payrollPeriod.slice(5,7)), 0)).toISOString().slice(0,10);
+          const periodEnded = endDay <= today;
+          const accounts = (payrollQuery.data.accounts ?? []).filter(a => a.account_type === (payrollMethod === "CASH" ? "CASH" : "BANK"));
+          return <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-3"><div className="text-xs text-sky-800">{ar ? "مبلغ العمل المستحق" : "Montant du travail"}</div><div className="mt-1 text-xl font-bold text-sky-950" dir="ltr">{row.supported ? row.montant_du_travail + " TND" : "—"}</div></div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-xs text-amber-800">{ar ? "مجموع التسبيقات" : "Total des avances"}</div><div className="mt-1 text-xl font-bold text-amber-950" dir="ltr">{row.total_advances} TND</div></div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><div className="text-xs text-emerald-800">{ar ? "الباقي للاستخلاص" : "Reste à payer"}</div><div className="mt-1 text-xl font-bold text-emerald-950" dir="ltr">{row.reste_a_payer} TND</div></div>
+            </div>
+            {row.incomplete_shifts > 0 ? <p className="text-sm text-rose-700">{ar ? "يوجد حضور دون انصراف أو وردية بتوقيت غير صالح. أكمل التصحيح قبل تسجيل أي دفعة." : "Un pointage est ouvert ou invalide. Clôturez ou corrigez les quarts avant tout paiement."}</p> : null}
+            {!row.supported ? <p className="text-sm text-amber-800">{ar ? "لا يمكن احتساب الأجر الشهري: طريقة تحويله إلى أجر يومي أو ساعي غير محددة." : "Salaire mensuel non payable : aucune règle de conversion en taux journalier ou horaire n’est définie."}</p> :
+            <form className="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();workerPayment.mutate();}}>
+              {payrollKind === "ADVANCE" && <div className="space-y-1"><Label>{ar ? "مبلغ التسبيق (TND)" : "Montant de l’avance (TND)"}</Label><Input required type="number" min="0.001" max={row.reste_a_payer} step="0.001" value={payrollAmount} onChange={e=>setPayrollAmount(e.target.value)} /></div>}
+              <div className="space-y-1"><Label>{ar ? "طريقة الدفع" : "Mode de paiement"}</Label><select value={payrollMethod} onChange={e=>{setPayrollMethod(e.target.value as typeof payrollMethod);setPayrollAccountId("");}} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH">Espèces</option><option value="CHEQUE">Chèque</option><option value="BANK_TRANSFER">Virement</option></select></div>
+              <div className="space-y-1"><Label>{ar ? (payrollMethod === "CASH" ? "حساب الصندوق" : "الحساب البنكي") : (payrollMethod === "CASH" ? "Compte de caisse" : "Compte bancaire")}</Label><select required value={payrollAccountId} onChange={e=>setPayrollAccountId(e.target.value)} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{ar ? "اختر الحساب" : "Choisir le compte"}</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{accounts.length===0 && <p className="text-xs text-rose-700">{ar ? "لا يوجد حساب نشط مناسب لهذه الطريقة." : "Aucun compte actif compatible."}</p>}</div>
+              <div className="space-y-1"><Label>{ar ? "مرجع الشيك / التحويل (اختياري)" : "Référence chèque / virement (facultatif)"}</Label><Input value={payrollReference} onChange={e=>setPayrollReference(e.target.value)} maxLength={120} /></div>
+              <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-stone-500">{payrollKind === "FINAL" ? (ar ? (periodEnded ? "سيتم دفع كامل الباقي فقط." : "الاستخلاص النهائي متاح بعد نهاية الشهر.") : (periodEnded ? "Le solde restant sera payé, sans dépasser le dû." : "Le solde final est disponible après la fin du mois.")) : (ar ? "لا يمكن أن يتجاوز التسبيق الأجر المكتسب وغير المدفوع حتى الآن." : "L’avance ne peut pas dépasser les salaires acquis et non encore payés.")}</p>
+                <Button type="submit" disabled={workerPayment.isPending || row.incomplete_shifts>0 || !payrollAccountId || Number(row.reste_a_payer)<=0 || (payrollKind==="ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))) || (payrollKind==="FINAL" && (!periodEnded || row.final_paid))}>{payrollKind==="FINAL" ? (ar ? "دفع الباقي النهائي" : "Payer le solde final") : (ar ? "تسجيل التسبيق" : "Enregistrer l’avance")}</Button>
+              </div>
+            </form>}
+            <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b bg-stone-50"><th className="p-2 text-start">{ar ? "التاريخ" : "Date"}</th><th className="p-2 text-start">{ar ? "النوع" : "Type"}</th><th className="p-2 text-start">{ar ? "الطريقة / الحساب" : "Mode / compte"}</th><th className="p-2 text-end">{ar ? "المبلغ" : "Montant"}</th><th className="p-2 text-start">{ar ? "المطابقة" : "Rapprochement"}</th></tr></thead><tbody>{(payrollQuery.data?.payments ?? []).map(p=><tr key={p.id} className="border-b"><td className="p-2" dir="ltr">{new Date(p.paid_at).toLocaleDateString(locale)}</td><td className="p-2">{p.payment_kind==="FINAL" ? (ar ? "نهائي" : "Solde final") : (ar ? "تسبيق" : "Avance")}</td><td className="p-2">{p.payment_method} — {p.account_name_snapshot}</td><td className="p-2 text-end font-semibold" dir="ltr">{Number(p.amount_tnd).toFixed(3)} TND</td><td className="p-2 text-emerald-700">{ar ? "مطابق إدارياً" : "Rapproché (administratif)"}</td></tr>)}</tbody></table></div>
+          </div>;
+        })()}
+        {payrollWorkerId && payrollQuery.isLoading && <p className="text-sm text-stone-500">{ar ? "جارٍ حساب المستحقات..." : "Calcul des montants…"}</p>}
+        {payrollWorkerId && payrollQuery.isError && <p className="text-sm text-rose-700">{ar ? "تعذر تحميل مستحقات العامل." : "Impossible de charger la paie."}</p>}
       </section>
       <Dialog open={employeeDialogOpen} onOpenChange={(open) => { setEmployeeDialogOpen(open); if (!open && !saveEmployee.isPending) { setEditingEmployee(null); setEmployeeDraft(emptyEmployee); } }}>
         <DialogContent data-testid="employee-form-dialog" className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

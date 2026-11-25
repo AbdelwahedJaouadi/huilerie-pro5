@@ -1,14 +1,18 @@
+import re
 import uuid
 from datetime import date as Date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
+from bson.decimal128 import Decimal128
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
 from lib.workforce_auth import require_workforce_admin
 from lib.db import db, run_transaction
+from lib.season import active_season
 
 router = APIRouter(prefix="/workforce", tags=["workforce"])
 
@@ -161,12 +165,17 @@ async def update_worker(worker_id: str, body: EmployeeUpdate, admin: dict = Depe
 async def delete_worker(worker_id: str, admin: dict = Depends(require_workforce_admin)):
     await _ensure_legacy_employee_records()
 
+    if await db["workforce_worker_payments"].find_one({"worker_id": worker_id}, {"_id": 1}):
+        raise HTTPException(409, "worker_has_payment_history_archive_instead")
+
     async def permanently_delete_worker(session):
         worker = await db.employees.find_one(
             {"id": worker_id}, {"_id": 0, "id": 1}, session=session
         )
         if not worker:
             raise HTTPException(404, "worker_not_found")
+        if await db["workforce_worker_payments"].find_one({"worker_id": worker_id}, {"_id": 1}, session=session):
+            raise HTTPException(409, "worker_has_payment_history_archive_instead")
 
         attendance = await db["workforce_attendance"].find(
             {"worker_id": worker_id}, {"_id": 0, "id": 1}, session=session
@@ -419,6 +428,12 @@ async def correct_attendance(
         )
     check_in = changes.get("check_in_at", record.get("check_in_at"))
     check_out = changes.get("check_out_at", record.get("check_out_at"))
+    # MongoDB may return UTC datetimes as naive values; normalize before comparing
+    # them with timezone-aware values supplied by the correction form.
+    if isinstance(check_in, datetime) and check_in.tzinfo is None:
+        check_in = check_in.replace(tzinfo=timezone.utc)
+    if isinstance(check_out, datetime) and check_out.tzinfo is None:
+        check_out = check_out.replace(tzinfo=timezone.utc)
     status = changes.get("status", record.get("status"))
     if status == "PRESENT" and check_in is None:
         raise HTTPException(400, "present_requires_check_in")
@@ -454,6 +469,15 @@ async def correct_attendance(
         updated = await db["workforce_attendance"].find_one(
             {"id": attendance_id}, {"_id": 0}, session=session
         )
+        payroll_period = record["day"][:7]
+        prior_payments = await db["workforce_worker_payments"].find(
+            {"worker_id": record["worker_id"], "period": payroll_period}, {"_id": 0}, session=session
+        ).to_list(10000)
+        if prior_payments:
+            revised_payroll = await _worker_payroll_snapshot(record["worker_id"], payroll_period, session=session)
+            paid_total = sum((Decimal(str(item["amount_tnd"])) for item in prior_payments), Decimal("0.000"))
+            if not revised_payroll["supported"] or paid_total > revised_payroll["earned"]:
+                raise HTTPException(409, "attendance_correction_would_reduce_paid_wages")
         await _audit(updated, "CORRECT", admin, {
             "reason": body.reason,
             "before": {
@@ -469,3 +493,212 @@ async def correct_attendance(
         }, session=session)
         return updated
     return await run_transaction(apply_correction)
+
+
+class WorkerPaymentInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    worker_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=16, max_length=100)
+    period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    payment_kind: Literal["ADVANCE", "FINAL"]
+    amount_tnd: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
+    payment_method: Literal["CASH", "CHEQUE", "BANK_TRANSFER"]
+    account_id: str = Field(min_length=1, max_length=100)
+    reference: str = Field(default="", max_length=120)
+
+
+def _worker_period_bounds(period: str):
+    year, month = (int(part) for part in period.split("-"))
+    start = Date(year, month, 1)
+    end = Date(year + (month == 12), 1 if month == 12 else month + 1, 1) - timedelta(days=1)
+    return start.isoformat(), end.isoformat()
+
+
+def _worker_shift_minutes(record: dict) -> int:
+    if record.get("status") != "PRESENT":
+        return 0
+    start, end = record.get("check_in_at"), record.get("check_out_at")
+    if not isinstance(start, datetime) or not isinstance(end, datetime):
+        return 0
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    elapsed = (end - start).total_seconds()
+    if elapsed <= 0 or elapsed > 24 * 60 * 60:
+        return 0
+    return int(elapsed // 60)
+
+
+def _worker_money(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.001"))
+
+
+async def _worker_payroll_snapshot(worker_id: str, period: str, session=None):
+    worker = await db.employees.find_one({"id": worker_id}, {"_id": 0}, session=session)
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
+    period_snapshot = await db["workforce_worker_payroll_periods"].find_one(
+        {"worker_id": worker_id, "period": period}, {"_id": 0}, session=session
+    )
+    salary_type = period_snapshot.get("salary_type") if period_snapshot else worker.get("salary_type")
+    salary_amount = period_snapshot.get("salary_amount") if period_snapshot else worker.get("salary_amount")
+    if salary_type not in {"daily", "hourly"} or salary_amount is None:
+        return {"worker": worker, "earned": Decimal("0.000"), "minutes": 0, "incomplete_shifts": 0, "supported": False,
+                "salary_type": salary_type, "salary_amount": salary_amount}
+    start_day, end_day = _worker_period_bounds(period)
+    records = await db["workforce_attendance"].find(
+        {"worker_id": worker_id, "day": {"$gte": start_day, "$lte": end_day}},
+        {"_id": 0}, session=session,
+    ).to_list(10000)
+    minutes = sum(_worker_shift_minutes(row) for row in records)
+    incomplete_shifts = sum(1 for row in records if row.get("status") == "PRESENT" and _worker_shift_minutes(row) == 0)
+    rate = Decimal(str(salary_amount))
+    earned = rate * Decimal(minutes) / (Decimal(480) if salary_type == "daily" else Decimal(60))
+    return {"worker": worker, "earned": _worker_money(earned), "minutes": minutes,
+            "incomplete_shifts": incomplete_shifts, "supported": True,
+            "salary_type": salary_type, "salary_amount": salary_amount, "period_snapshot": period_snapshot}
+
+
+@router.get("/payroll")
+async def get_worker_payroll(period: str, worker_id: str | None = None,
+                             _: dict = Depends(require_workforce_admin)):
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", period or ""):
+        raise HTTPException(422, "invalid_payroll_period")
+    start_day, end_day = _worker_period_bounds(period)
+    worker_filter = {"id": worker_id} if worker_id else {}
+    workers = await db.employees.find(worker_filter, {"_id": 0}).sort("full_name", 1).to_list(2000)
+    payments = await db["workforce_worker_payments"].find(
+        {"period": period, **({"worker_id": worker_id} if worker_id else {})},
+        {"_id": 0},
+    ).sort([("paid_at", 1), ("id", 1)]).to_list(10000)
+    paid_by_worker = {}
+    for payment in payments:
+        paid_by_worker[payment["worker_id"]] = paid_by_worker.get(payment["worker_id"], Decimal("0.000")) + Decimal(str(payment["amount_tnd"]))
+    rows = []
+    for worker in workers:
+        snapshot = await _worker_payroll_snapshot(worker["id"], period)
+        earned = snapshot["earned"]
+        paid = _worker_money(paid_by_worker.get(worker["id"], Decimal("0.000")))
+        rows.append({
+            "worker": worker, "period": period, "worked_minutes": snapshot["minutes"],
+            "incomplete_shifts": snapshot.get("incomplete_shifts", 0),
+            "montant_du_travail": format(earned, ".3f"),
+            "total_paid": format(paid, ".3f"),
+            "total_advances": format(_worker_money(sum((Decimal(str(p["amount_tnd"])) for p in payments if p["worker_id"] == worker["id"] and p["payment_kind"] == "ADVANCE"), Decimal("0.000"))), ".3f"),
+            "reste_a_payer": format(max(Decimal("0.000"), earned - paid), ".3f"),
+            "supported": snapshot["supported"],
+            "final_paid": any(p["worker_id"] == worker["id"] and p["payment_kind"] == "FINAL" for p in payments),
+        })
+    accounts = await db["accounting_treasury_accounts"].find(
+        {"active": True, "account_type": {"$in": ["CASH", "BANK"]}},
+        {"_id": 0, "id": 1, "name": 1, "account_type": 1, "currency": 1},
+    ).sort([("account_type", 1), ("name", 1)]).to_list(500)
+    return {"period": period, "start_date": start_day, "end_date": end_day,
+            "workers": rows, "payments": [{**p, "amount_tnd": str(p.get("amount_tnd"))} for p in payments], "accounts": accounts, "currency": "TND"}
+
+
+@router.post("/payments")
+async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(require_workforce_admin)):
+    """Post a real worker payment and treasury outflow atomically; worker cheque reconciliation is administrative."""
+    now = datetime.now(timezone.utc)
+    today = now.astimezone(ZoneInfo("Africa/Tunis")).date()
+    start_day, end_day = _worker_period_bounds(body.period)
+    if body.payment_kind == "FINAL" and Date.fromisoformat(end_day) > today:
+        raise HTTPException(409, "final_payment_only_after_period_end")
+    if body.payment_kind == "ADVANCE" and body.amount_tnd is None:
+        raise HTTPException(422, "advance_amount_required")
+    actor_id = str(admin.get("id") or admin.get("username") or "")
+    if not actor_id:
+        raise HTTPException(403, "admin_identity_missing")
+    payment_id = str(uuid.uuid4())
+
+    async def operation(session):
+        previous_request = await db["workforce_worker_payments"].find_one({"idempotency_key": body.idempotency_key}, {"_id": 0}, session=session)
+        if previous_request:
+            return {"payment": {**previous_request, "amount_tnd": str(previous_request["amount_tnd"])},
+                    "movement_id": previous_request.get("movement_id"),
+                    "reste_a_payer": previous_request.get("remaining_after", "0.000")}
+        snapshot = await _worker_payroll_snapshot(body.worker_id, body.period, session=session)
+        worker = snapshot["worker"]
+        if worker.get("active") is False or worker.get("archived") is True:
+            raise HTTPException(409, "worker_not_active")
+        if not snapshot["supported"]:
+            raise HTTPException(422, "monthly_or_missing_salary_not_supported")
+        if snapshot.get("incomplete_shifts", 0):
+            raise HTTPException(409, "payroll_has_incomplete_shifts")
+        account = await db["accounting_treasury_accounts"].find_one(
+            {"id": body.account_id, "active": True}, {"_id": 0}, session=session
+        )
+        expected_type = "CASH" if body.payment_method == "CASH" else "BANK"
+        if not account or account.get("account_type") != expected_type:
+            raise HTTPException(422, "payment_account_type_mismatch")
+        if not snapshot.get("period_snapshot"):
+            await db["workforce_worker_payroll_periods"].insert_one({
+                "worker_id": body.worker_id, "period": body.period,
+                "salary_type": snapshot["salary_type"], "salary_amount": Decimal128(Decimal(str(snapshot["salary_amount"]))),
+                "created_at": now, "created_by": actor_id,
+            }, session=session)
+        existing_payments = await db["workforce_worker_payments"].find(
+            {"worker_id": body.worker_id, "period": body.period}, {"_id": 0}, session=session
+        ).to_list(10000)
+        if any(p.get("payment_kind") == "FINAL" for p in existing_payments):
+            raise HTTPException(409, "final_payment_already_recorded")
+        already_paid = sum((Decimal(str(p["amount_tnd"])) for p in existing_payments), Decimal("0.000"))
+        remaining = _worker_money(snapshot["earned"] - already_paid)
+        if remaining <= 0:
+            raise HTTPException(409, "no_unpaid_earned_wages")
+        if body.payment_kind == "FINAL":
+            amount = remaining
+        else:
+            amount = _worker_money(body.amount_tnd)
+            if amount <= 0 or amount > remaining:
+                raise HTTPException(409, "advance_exceeds_accrued_unpaid_wages")
+        payment = {
+            "id": payment_id, "idempotency_key": body.idempotency_key, "worker_id": body.worker_id,
+            "worker_name_snapshot": worker.get("full_name") or _employee_name(worker.get("first_name", ""), worker.get("last_name", "")),
+            "period": body.period, "payment_kind": body.payment_kind,
+            "amount_tnd": Decimal128(amount), "currency": "TND",
+            "payment_method": body.payment_method, "account_id": account["id"],
+            "account_name_snapshot": account["name"], "account_type": account["account_type"],
+            "reference": body.reference.strip() or None, "paid_at": now,
+            "business_date": today.isoformat(), "recorded_by": actor_id,
+            "reconciliation_status": "RECONCILED",
+            "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD",
+            "remaining_after": format(remaining - amount, ".3f"),
+        }
+        movement = {
+            "id": str(uuid.uuid4()), "season_code": (await active_season()),
+            "source_type": "WORKER_PAYMENT", "source_id": payment_id,
+            "source_document_number": f"Paie {body.period}", "source_party_id": body.worker_id,
+            "source_party_name_snapshot": payment["worker_name_snapshot"],
+            "source_document_id": payment_id, "movement_kind": "WORKER_PAYMENT",
+            "direction": "OUT", "movement_type": "DISBURSEMENT",
+            "account_id": account["id"], "account_name_snapshot": account["name"],
+            "account_type": account["account_type"], "amount_tnd": Decimal128(amount),
+            "currency": "TND", "movement_date": today.isoformat(),
+            "payment_method": body.payment_method, "external_reference": payment["reference"],
+            "settlement_status": "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED",
+            "reconciliation_status": "RECONCILED", "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD",
+            "opening_balance_applied": False, "gl_posting_status": "NOT_POSTED",
+            "recorded_by": actor_id, "recorded_at": now,
+        }
+        payment["movement_id"] = movement["id"]
+        await db["workforce_worker_payments"].insert_one(payment, session=session)
+        await db["accounting_treasury_movements"].insert_one(movement, session=session)
+        await db["accounting_treasury_movement_events"].insert_one({
+            "id": str(uuid.uuid4()), "movement_id": movement["id"],
+            "source_type": "WORKER_PAYMENT", "source_id": payment_id,
+            "account_id": account["id"], "action": "WORKER_PAYMENT_RECORDED",
+            "actor_user_id": actor_id, "created_at": now,
+            "details": {"worker_id": body.worker_id, "period": body.period,
+                        "payment_kind": body.payment_kind, "amount_tnd": Decimal128(amount),
+                        "payment_method": body.payment_method,
+                        "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"},
+        }, session=session)
+        return {"payment": {**payment, "amount_tnd": format(amount, ".3f")},
+                "movement_id": movement["id"], "reste_a_payer": format(remaining - amount, ".3f")}
+    try:
+        return await run_transaction(operation)
+    except DuplicateKeyError:
+        raise HTTPException(409, "worker_payment_already_recorded")
