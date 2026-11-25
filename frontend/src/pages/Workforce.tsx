@@ -421,7 +421,8 @@ export default function Workforce() {
               const workedDays = values.filter((record) => record.status === "PRESENT").length;
               const minutes = values.reduce((sum, record) => sum + workedMinutes(record), 0);
               const hasIncompleteShift = values.some((record) => record.status === "PRESENT" && workedMinutes(record) === 0);
-              const totalWorkAmount = worker.salary_type === "monthly" || worker.salary_amount == null || hasIncompleteShift
+              const hasSupportedSalaryType = worker.salary_type === "daily" || worker.salary_type === "hourly";
+              const totalWorkAmount = !hasSupportedSalaryType || worker.salary_amount == null || values.length === 0 || hasIncompleteShift
                 ? null
                 : values.reduce((sum, record) => sum + (workedAmount(worker, record) ?? 0), 0);
               return <tr key={worker.id} className="border-b last:border-0 hover:bg-stone-50/70">
