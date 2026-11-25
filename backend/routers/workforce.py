@@ -481,7 +481,7 @@ async def correct_attendance(
 class WorkerPaymentInput(BaseModel):
     model_config = {"extra": "forbid"}
     worker_id: str = Field(min_length=1, max_length=100)
-    period: str = Field(pattern=r"^\\d{4}-(0[1-9]|1[0-2])$")
+    period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     payment_kind: Literal["ADVANCE", "FINAL"]
     amount_tnd: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
     payment_method: Literal["CASH", "CHEQUE", "BANK_TRANSFER"]
