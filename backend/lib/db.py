@@ -39,6 +39,7 @@ INDEXES: dict[str, list[IndexModel]] = {
     ],
     "workforce_worker_payments": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("idempotency_key", ASCENDING)], name="idempotency_key_unique", unique=True),
         IndexModel([("worker_id", ASCENDING), ("period", ASCENDING), ("paid_at", ASCENDING)], name="worker_period_paid"),
         IndexModel([("period", ASCENDING), ("worker_id", ASCENDING)], name="period_worker"),
     ],
