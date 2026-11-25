@@ -721,12 +721,12 @@ async def list_treasury_movements(
     }
 
 
-@router.post("/treasury/traditional-receipts/{movement_id}/confirm-encashment")
-async def confirm_traditional_receipt_cheque_encashment(
+@router.post("/treasury/movements/{movement_id}/confirm-encashment")
+async def confirm_treasury_cheque_encashment(
     movement_id: str, payload: TraditionalChequeEncashmentInput,
     user: dict = Depends(require_admin),
 ):
-    """Confirm a traditional cheque only after the administrator verifies its final bank-statement credit."""
+    """Confirm an incoming traditional or GS sale cheque after bank-statement verification."""
     season = await active_season()
     season_code = season_prefix(season)
     actor_id = _treasury_actor(user)

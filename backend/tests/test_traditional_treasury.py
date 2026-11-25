@@ -110,8 +110,8 @@ def test_cheque_stays_pending_until_confirmed_then_updates_same_movement_once():
 
 def test_cheque_confirmation_rejects_wrong_source_or_non_pending_status():
     async def run():
-        wrong = {"id": "movement-1", "season_code": "2627", "source_type": "GS_SALE_PAYMENT",
-                 "payment_method": "CHEQUE", "direction": "IN", "account_type": "BANK",
+        wrong = {"id": "movement-1", "season_code": "2627", "source_type": "GS_SUPPLIER_PAYMENT",
+                 "payment_method": "CHEQUE", "direction": "OUT", "account_type": "BANK",
                  "settlement_status": "PENDING_CHEQUE_CLEARANCE"}
         db = FakeDB({"accounting_treasury_movements": [wrong]})
         try:
@@ -121,9 +121,35 @@ def test_cheque_confirmation_rejects_wrong_source_or_non_pending_status():
                 confirmed_at=datetime.now(timezone.utc), session=object(),
             )
         except ValueError as exc:
-            assert "traditional cheque" in str(exc)
+            assert "traditional or GS sale cheque" in str(exc)
         else:
             raise AssertionError("Non-traditional source must not be confirmed")
         assert len(db.accounting_treasury_movement_events.rows) == 0
+
+    asyncio.run(run())
+
+
+def test_gs_sale_cheque_can_be_confirmed_without_creating_a_second_movement():
+    async def run():
+        now = datetime(2026, 11, 25, tzinfo=timezone.utc)
+        movement = {
+            "id": "gs-cheque-1", "season_code": "2627",
+            "source_type": "GS_SALE_PAYMENT", "source_id": "2627PAY0002",
+            "direction": "IN", "account_type": "BANK", "account_id": "bank-1",
+            "payment_method": "CHEQUE", "settlement_status": "PENDING_CHEQUE_CLEARANCE",
+            "reconciliation_status": "UNRECONCILED", "movement_date": "2026-11-25",
+        }
+        db = FakeDB({"accounting_treasury_movements": [movement]})
+        confirmed = await confirm_traditional_cheque_encashment(
+            db, movement_id="gs-cheque-1", season_code="2627",
+            encashment_date="2026-11-26", bank_reference="BNA-CREDIT-150",
+            actor_user_id="admin-1", confirmed_at=now, session=object(),
+        )
+        assert confirmed["source_type"] == "GS_SALE_PAYMENT"
+        assert confirmed["settlement_status"] == "CHEQUE_CLEARED"
+        assert confirmed["reconciliation_status"] == "RECONCILED"
+        assert len(db.accounting_treasury_movements.rows) == 1
+        assert len(db.accounting_treasury_movement_events.rows) == 1
+        assert db.accounting_treasury_movement_events.rows[0]["source_type"] == "GS_SALE_PAYMENT"
 
     asyncio.run(run())

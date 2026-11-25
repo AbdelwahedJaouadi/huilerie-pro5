@@ -51,7 +51,7 @@ def build_movement_document(
         "payment_method": method,
         "external_reference": candidate.get("reference"),
         "settlement_status": status,
-        "reconciliation_status": "UNRECONCILED",
+        "reconciliation_status": "RECONCILED" if method == "CASH" else "UNRECONCILED",
         "opening_balance_applied": False,
         "gl_posting_status": "NOT_POSTED",
         "recorded_by": actor_user_id,
@@ -132,6 +132,7 @@ async def record_source_payment_movement(
             "currency": "TND",
             "payment_method": movement["payment_method"],
             "settlement_status": movement["settlement_status"],
+            "reconciliation_status": movement["reconciliation_status"],
         },
     }, session=session)
     return movement
