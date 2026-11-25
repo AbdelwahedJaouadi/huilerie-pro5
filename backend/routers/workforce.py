@@ -463,6 +463,15 @@ async def correct_attendance(
         updated = await db["workforce_attendance"].find_one(
             {"id": attendance_id}, {"_id": 0}, session=session
         )
+        payroll_period = record["day"][:7]
+        prior_payments = await db["workforce_worker_payments"].find(
+            {"worker_id": record["worker_id"], "period": payroll_period}, {"_id": 0}, session=session
+        ).to_list(10000)
+        if prior_payments:
+            revised_payroll = await _worker_payroll_snapshot(record["worker_id"], payroll_period, session=session)
+            paid_total = sum((Decimal(str(item["amount_tnd"])) for item in prior_payments), Decimal("0.000"))
+            if not revised_payroll["supported"] or paid_total > revised_payroll["earned"]:
+                raise HTTPException(409, "attendance_correction_would_reduce_paid_wages")
         await _audit(updated, "CORRECT", admin, {
             "reason": body.reason,
             "before": {
@@ -523,17 +532,24 @@ async def _worker_payroll_snapshot(worker_id: str, period: str, session=None):
     worker = await db.employees.find_one({"id": worker_id}, {"_id": 0}, session=session)
     if not worker:
         raise HTTPException(404, "worker_not_found")
-    if worker.get("salary_type") not in {"daily", "hourly"} or worker.get("salary_amount") is None:
-        return {"worker": worker, "earned": Decimal("0.000"), "minutes": 0, "supported": False}
+    period_snapshot = await db["workforce_worker_payroll_periods"].find_one(
+        {"worker_id": worker_id, "period": period}, {"_id": 0}, session=session
+    )
+    salary_type = period_snapshot.get("salary_type") if period_snapshot else worker.get("salary_type")
+    salary_amount = period_snapshot.get("salary_amount") if period_snapshot else worker.get("salary_amount")
+    if salary_type not in {"daily", "hourly"} or salary_amount is None:
+        return {"worker": worker, "earned": Decimal("0.000"), "minutes": 0, "supported": False,
+                "salary_type": salary_type, "salary_amount": salary_amount}
     start_day, end_day = _worker_period_bounds(period)
     records = await db["workforce_attendance"].find(
         {"worker_id": worker_id, "day": {"$gte": start_day, "$lte": end_day}},
         {"_id": 0}, session=session,
     ).to_list(10000)
     minutes = sum(_worker_shift_minutes(row) for row in records)
-    rate = Decimal(str(worker["salary_amount"]))
-    earned = rate * Decimal(minutes) / (Decimal(480) if worker["salary_type"] == "daily" else Decimal(60))
-    return {"worker": worker, "earned": _worker_money(earned), "minutes": minutes, "supported": True}
+    rate = Decimal(str(salary_amount))
+    earned = rate * Decimal(minutes) / (Decimal(480) if salary_type == "daily" else Decimal(60))
+    return {"worker": worker, "earned": _worker_money(earned), "minutes": minutes, "supported": True,
+            "salary_type": salary_type, "salary_amount": salary_amount, "period_snapshot": period_snapshot}
 
 
 @router.get("/payroll")
@@ -605,6 +621,12 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
         expected_type = "CASH" if body.payment_method == "CASH" else "BANK"
         if not account or account.get("account_type") != expected_type:
             raise HTTPException(422, "payment_account_type_mismatch")
+        if not snapshot.get("period_snapshot"):
+            await db["workforce_worker_payroll_periods"].insert_one({
+                "worker_id": body.worker_id, "period": body.period,
+                "salary_type": snapshot["salary_type"], "salary_amount": Decimal128(Decimal(str(snapshot["salary_amount"]))),
+                "created_at": now, "created_by": actor_id,
+            }, session=session)
         existing_payments = await db["workforce_worker_payments"].find(
             {"worker_id": body.worker_id, "period": body.period}, {"_id": 0}, session=session
         ).to_list(10000)
