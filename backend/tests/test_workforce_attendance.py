@@ -186,6 +186,7 @@ def test_worker_payments_are_reconciled_administratively_without_changing_other_
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     assert '"workforce_worker_payments"' in indexes
     assert '"idempotency_key_unique"' in indexes
+    assert '"worker_period_final_unique"' in indexes
 
 
 def test_worker_with_payment_history_cannot_be_permanently_deleted():
