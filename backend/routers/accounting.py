@@ -23,6 +23,7 @@ from lib.season import active_season, season_prefix
 from accounting_foundation.preview import build_reconciliation_preview
 from accounting_foundation.treasury_preview import build_treasury_movement_preview
 from accounting_foundation.treasury_posting import record_source_payment_movement
+from accounting_foundation.traditional_treasury import confirm_traditional_cheque_encashment
 from accounting_foundation.treasury_register import build_movement_register_filter
 from accounting_foundation.bank_statement_preview import (
     classify_statement_line, movement_date_window, parse_bank_statement_csv,
@@ -362,6 +363,13 @@ class TreasuryMovementCreateInput(BaseModel):
     confirm: Literal[True]
 
 
+class TraditionalChequeEncashmentInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    encashment_date: date
+    bank_reference: str = Field(min_length=1, max_length=120)
+    confirm_bank_statement_verified: Literal[True]
+
+
 def _treasury_name_key(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip()).casefold()
 
@@ -404,7 +412,7 @@ async def list_treasury_accounts(_: dict = Depends(require_admin)):
             # and cash accounts that have not configured an opening balance.
             movement_scopes.append({"account_id": row["id"]})
     totals = await db.accounting_treasury_movements.aggregate([
-        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": "CASH_RECORDED",
+        {"$match": {"account_id": {"$in": account_ids}, "settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED"]},
                     "$or": movement_scopes}},
         {"$group": {
             "_id": "$account_id",
@@ -674,7 +682,7 @@ async def list_treasury_movements(
     account_id: str | None = None,
     direction: Literal["IN", "OUT"] | None = None,
     settlement_status: Literal[
-        "CASH_RECORDED", "PENDING_BANK_CONFIRMATION", "PENDING_CHEQUE_CLEARANCE"
+        "CASH_RECORDED", "PENDING_BANK_CONFIRMATION", "PENDING_CHEQUE_CLEARANCE", "CHEQUE_CLEARED"
     ] | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -711,6 +719,33 @@ async def list_treasury_movements(
         "balances_calculated": False,
         "currency": "TND",
     }
+
+
+@router.post("/treasury/traditional-receipts/{movement_id}/confirm-encashment")
+async def confirm_traditional_receipt_cheque_encashment(
+    movement_id: str, payload: TraditionalChequeEncashmentInput,
+    user: dict = Depends(require_admin),
+):
+    """Confirm a traditional cheque only after the administrator verifies its final bank-statement credit."""
+    season = await active_season()
+    season_code = season_prefix(season)
+    actor_id = _treasury_actor(user)
+    now = datetime.now(timezone.utc)
+
+    async def operation(session):
+        return await confirm_traditional_cheque_encashment(
+            db, movement_id=movement_id, season_code=season_code,
+            encashment_date=payload.encashment_date.isoformat(),
+            bank_reference=payload.bank_reference, actor_user_id=actor_id,
+            confirmed_at=now, session=session,
+        )
+
+    try:
+        return _safe(await run_transaction(operation))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/treasury/movement-preview")
