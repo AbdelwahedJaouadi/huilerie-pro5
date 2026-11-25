@@ -303,7 +303,7 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
                 {"id": existing["id"], "status": "ABSENT", "check_in_at": None},
                 {"$set": {
                     "status": "PRESENT", "check_in_at": now, "check_out_at": None,
-                    "marked_absent_at": None, "updated_at": now,
+                    "marked_absent_at": None, "breaks": [], "break_started_at": None, "updated_at": now,
                 }},
                 session=session,
             )
