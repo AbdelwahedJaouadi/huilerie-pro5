@@ -37,6 +37,11 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("worker_id", ASCENDING), ("day", ASCENDING)], name="worker_day_unique", unique=True),
         IndexModel([("day", ASCENDING), ("worker_name", ASCENDING)], name="day_worker_name"),
     ],
+    "workforce_worker_payments": [
+        IndexModel([("id", ASCENDING)], name="id", unique=True),
+        IndexModel([("worker_id", ASCENDING), ("period", ASCENDING), ("paid_at", ASCENDING)], name="worker_period_paid"),
+        IndexModel([("period", ASCENDING), ("worker_id", ASCENDING)], name="period_worker"),
+    ],
     "workforce_attendance_events": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("attendance_id", ASCENDING), ("created_at", DESCENDING)], name="attendance_created_desc"),
@@ -112,6 +117,7 @@ REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
     "commercial_olive_reception_idempotency",
     "accounting_treasury_movements",
     "workforce_attendance",
+    "workforce_worker_payments",
 })
 
 
