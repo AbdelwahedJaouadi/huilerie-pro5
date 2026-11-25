@@ -134,3 +134,73 @@ def test_employee_delete_requires_a_second_explicit_confirmation_in_ui():
     assert 'Confirmer la suppression définitive' in page
     assert 'Les données de l’employé, tous ses pointages et leur historique de corrections seront effacés.' in page
     assert 'onClick={()=>setDeletingEmployee(worker)}' in page
+
+
+def test_worker_payroll_routes_are_admin_only_and_atomic_with_treasury():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    routes = {node.name: node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)}
+    assert {"get_worker_payroll", "create_worker_payment"} <= routes.keys()
+    create_source = ast.get_source_segment(source, routes["create_worker_payment"])
+    assert "Depends(require_workforce_admin)" in create_source
+    assert "run_transaction(operation)" in create_source
+    assert 'db["workforce_worker_payments"].insert_one(payment, session=session)' in create_source
+    assert 'db["accounting_treasury_movements"].insert_one(movement, session=session)' in create_source
+    assert 'db["accounting_treasury_movement_events"].insert_one' in create_source
+    assert '"idempotency_key": body.idempotency_key' in create_source
+
+
+def test_worker_payroll_uses_closed_shifts_and_daily_salary_eight_hour_basis():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    shift = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_worker_shift_minutes")
+    shift_source = ast.get_source_segment(source, shift)
+    assert 'record.get("status") != "PRESENT"' in shift_source
+    assert 'record.get("check_out_at")' in shift_source
+    assert "elapsed > 24 * 60 * 60" in shift_source
+    snapshot = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_worker_payroll_snapshot")
+    snapshot_source = ast.get_source_segment(source, snapshot)
+    assert "Decimal(480)" in snapshot_source
+    assert "Decimal(60)" in snapshot_source
+    assert 'worker.get("salary_type") not in {"daily", "hourly"}' in snapshot_source
+
+
+def test_worker_payments_enforce_account_type_and_accrued_wage_limit():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    route = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "create_worker_payment")
+    route_source = ast.get_source_segment(source, route)
+    assert 'expected_type = "CASH" if body.payment_method == "CASH" else "BANK"' in route_source
+    assert '"payment_account_type_mismatch"' in route_source
+    assert '"advance_exceeds_accrued_unpaid_wages"' in route_source
+    assert '"final_payment_only_after_period_end"' in route_source
+    assert '"final_payment_already_recorded"' in route_source
+
+
+def test_worker_payments_are_reconciled_administratively_without_changing_other_sources():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    assert '"source_type": "WORKER_PAYMENT"' in source
+    assert '"reconciliation_status": "RECONCILED"' in source
+    assert '"reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD"' in source
+    assert '"settlement_status": "CHEQUE_CLEARED" if body.payment_method == "CHEQUE" else "CASH_RECORDED"' in source
+    indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
+    assert '"workforce_worker_payments"' in indexes
+    assert '"idempotency_key_unique"' in indexes
+
+
+def test_worker_with_payment_history_cannot_be_permanently_deleted():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    route = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "delete_worker")
+    route_source = ast.get_source_segment(source, route)
+    assert '"worker_has_payment_history_archive_instead"' in route_source
+    assert 'db["workforce_worker_payments"].find_one' in route_source
+
+
+def test_worker_payroll_ui_exposes_advance_final_payment_and_three_methods():
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    treasury = (ROOT.parent / "frontend" / "src" / "components" / "accounting" / "TreasuryMovementRegister.tsx").read_text(encoding="utf-8")
+    assert 'data-testid="workforce-advances-payments"' in page
+    assert 'value="ADVANCE"' in page and 'value="FINAL"' in page
+    assert 'Espèces' in page and 'Chèque' in page and 'Virement' in page
+    assert "Reste à payer" in page and "Total des avances" in page
+    assert 'type==="WORKER_PAYMENT"' in treasury
+    assert "rapprochement administratif" in treasury
