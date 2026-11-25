@@ -204,3 +204,15 @@ def test_worker_payroll_ui_exposes_advance_final_payment_and_three_methods():
     assert "Reste à payer" in page and "Total des avances" in page
     assert 'type==="WORKER_PAYMENT"' in treasury
     assert "rapprochement administratif" in treasury
+
+
+def test_payroll_month_snapshots_wage_rate_and_prevents_paid_wage_reduction():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    snapshot = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "_worker_payroll_snapshot")
+    snapshot_source = ast.get_source_segment(source, snapshot)
+    assert '"workforce_worker_payroll_periods"' in snapshot_source
+    correction = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "correct_attendance")
+    correction_source = ast.get_source_segment(source, correction)
+    assert '"attendance_correction_would_reduce_paid_wages"' in correction_source
+    indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
+    assert '"worker_period_unique"' in indexes
