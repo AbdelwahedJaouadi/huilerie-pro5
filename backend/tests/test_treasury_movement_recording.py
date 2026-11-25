@@ -32,6 +32,7 @@ def test_cash_receipt_is_recorded_without_balance_or_gl_posting():
     assert row["direction"] == "IN"
     assert row["amount_tnd"].to_decimal() == Decimal("25.500")
     assert row["settlement_status"] == "CASH_RECORDED"
+    assert row["reconciliation_status"] == "RECONCILED"
     assert row["opening_balance_applied"] is False
     assert row["gl_posting_status"] == "NOT_POSTED"
     assert "balance" not in row
@@ -45,6 +46,7 @@ def test_supplier_payment_is_disbursement_and_bank_payment_stays_pending():
     )
     assert row["movement_type"] == "DISBURSEMENT"
     assert row["settlement_status"] == "PENDING_BANK_CONFIRMATION"
+    assert row["reconciliation_status"] == "UNRECONCILED"
     assert row["external_reference"] == "REF-123"
 
 
@@ -54,6 +56,7 @@ def test_cheque_is_not_treated_as_cleared():
         movement_id="movement-3", recorded_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
     assert row["settlement_status"] == "PENDING_CHEQUE_CLEARANCE"
+    assert row["reconciliation_status"] == "UNRECONCILED"
 
 
 def test_blocked_candidate_cannot_be_recorded():
@@ -120,6 +123,8 @@ def test_source_payment_recording_is_idempotent_and_audited():
         assert len(db["accounting_treasury_movements"].rows) == 1
         assert len(db["accounting_treasury_movement_events"].rows) == 1
         assert first["source_document_id"] == "invoice-1"
+        assert first["reconciliation_status"] == "RECONCILED"
+        assert db["accounting_treasury_movement_events"].rows[0]["details"]["reconciliation_status"] == "RECONCILED"
 
     asyncio.run(run())
 
