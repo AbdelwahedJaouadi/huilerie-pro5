@@ -58,6 +58,20 @@ function workedMinutes(record: Attendance): number {
   if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 24 * 60 * 60 * 1000) return 0;
   return Math.floor(elapsed / 60000);
 }
+function workedAmount(worker: Worker, record: Attendance): number | null {
+  if (worker.salary_amount == null || !Number.isFinite(worker.salary_amount) || worker.salary_amount < 0) return null;
+  if (worker.salary_type !== "daily" && worker.salary_type !== "hourly") return null;
+  if (record.status === "ABSENT") return 0;
+  const minutes = workedMinutes(record);
+  if (minutes <= 0) return null;
+  const amount = worker.salary_type === "daily"
+    ? worker.salary_amount * (minutes / (8 * 60))
+    : worker.salary_amount * (minutes / 60);
+  return Math.round((amount + Number.EPSILON) * 1000) / 1000;
+}
+function formatWorkAmount(amount: number, locale: string): string {
+  return `${new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(amount)} TND`;
+}
 function weekStart(day: string) {
   const date = new Date(`${day}T00:00:00Z`);
   const offset = (date.getUTCDay() + 6) % 7;
@@ -399,12 +413,17 @@ export default function Workforce() {
               <th className="sticky start-0 z-10 min-w-44 border-b px-3 py-3 text-start">{ar ? "العامل" : "Employé"}</th>
               {historyDays.map((day) => <th key={day} title={day} className="min-w-[92px] border-b px-2 py-3 text-center"><span dir="ltr">{Number(day.slice(8, 10))}</span></th>)}
               <th className="min-w-40 border-b bg-emerald-50 px-3 py-3 text-center">{ar ? "الإجمالي" : "Total"}</th>
+              <th className="min-w-36 border-b bg-amber-50 px-3 py-3 text-center">{ar ? "مبلغ العمل" : "Montant du travail"}</th>
             </tr></thead>
             <tbody>{visibleWorkers.map((worker) => {
               const entries = historyByWorker.get(worker.id);
               const values = entries ? Array.from(entries.values()) : [];
               const workedDays = values.filter((record) => record.status === "PRESENT").length;
               const minutes = values.reduce((sum, record) => sum + workedMinutes(record), 0);
+              const hasIncompleteShift = values.some((record) => record.status === "PRESENT" && workedMinutes(record) === 0);
+              const totalWorkAmount = worker.salary_type === "monthly" || worker.salary_amount == null || hasIncompleteShift
+                ? null
+                : values.reduce((sum, record) => sum + (workedAmount(worker, record) ?? 0), 0);
               return <tr key={worker.id} className="border-b last:border-0 hover:bg-stone-50/70">
                 <th className="sticky start-0 z-[1] bg-white px-3 py-3 text-start font-semibold">{worker.full_name}</th>
                 {historyDays.map((day) => {
@@ -415,14 +434,16 @@ export default function Workforce() {
                   const invalid = !!record.check_in_at && !!record.check_out_at && workedMinutes(record) === 0;
                   return <td key={day} className="px-2 py-2 text-center">
                     <div className={"rounded-md px-1 py-1 font-mono font-semibold " + (open ? "bg-amber-50 text-amber-800" : invalid ? "bg-orange-50 text-orange-800" : "bg-emerald-50 text-emerald-800")} dir="ltr">{displayTime(record.check_in_at, locale)} – {displayTime(record.check_out_at, locale)}</div>
+                    <div className="mt-1 text-[11px] font-semibold text-emerald-800" dir="ltr">{workedAmount(worker, record) == null ? "—" : formatWorkAmount(workedAmount(worker, record)!, locale)}</div>
                     <Button size="sm" variant="ghost" className="mt-1 h-6 px-1 text-[10px]" onClick={() => beginEdit(record)}><Pencil className="me-1 size-3" />{ar ? "تصحيح" : "Corriger"}</Button>
                   </td>;
                 })}
                 <td className="bg-emerald-50/60 px-3 py-2 text-center font-semibold text-emerald-900"><div>{workedDays} {ar ? "أيام" : "jours"}</div><div className="mt-1 font-mono" dir="ltr">{durationLabel(minutes)}</div></td>
+                <td className="bg-amber-50/70 px-3 py-2 text-center font-semibold text-amber-900" dir="ltr">{totalWorkAmount == null ? "—" : formatWorkAmount(totalWorkAmount, locale)}</td>
               </tr>;
             })}</tbody>
           </table></div>}
-          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب يوم العمل عند وجود تسجيل حضور، حتى إن كانت الوردية مفتوحة. تُحتسب الساعات للورديات المكتملة فقط دون خصم الاستراحة. إذا لم توجد سجلات: لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. « — » signifie aucun pointage, pas une absence."}</p>
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب الأجر اليومي بنسبة ساعات العمل من 8 ساعات، والأجر بالساعة حسب الساعات الفعلية. لا يُحسب الأجر الشهري لعدم تحديد طريقة تحويله إلى أجر يومي. الوردية المفتوحة أو ذات التوقيت غير الصحيح لا يظهر لها مبلغ حتى تصحيح الانصراف. لا يُخصم وقت الاستراحة." : "Le salaire journalier est proratisé sur une base de 8 heures; le salaire horaire suit les heures réellement travaillées. Le salaire mensuel n’est pas calculé faute de règle de conversion journalière. Les quarts ouverts ou invalides restent sans montant jusqu’à correction. Aucune pause n’est déduite."}</p>
         </section>
       <Dialog open={!!deletingEmployee} onOpenChange={(open) => !open && !removeEmployee.isPending && setDeletingEmployee(null)}>
         <DialogContent data-testid="delete-employee-confirmation">
