@@ -26,4 +26,4 @@ def test_treasury_current_balance_uses_only_recorded_cash_movements_and_opening_
     source = (Path(__file__).parents[1] / "routers" / "accounting.py").read_text(encoding="utf-8")
     assert '"settlement_status": {"$in": ["CASH_RECORDED", "CHEQUE_CLEARED"]}' in source
     assert "opening + incoming - outgoing" in source
-    assert 'row.get("account_type") == "CASH"' in source
+    assert 'row.get("account_type") in ("CASH", "BANK")' in source
