@@ -658,7 +658,8 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
         movement = {
             "id": str(uuid.uuid4()), "season_code": (await active_season()),
             "source_type": "WORKER_PAYMENT", "source_id": payment_id,
-            "source_document_number": payment_id, "source_party_id": body.worker_id,
+            "source_document_number": f"Paie {body.period}", "source_party_id": body.worker_id,
+            "source_party_name_snapshot": payment["worker_name_snapshot"],
             "source_document_id": payment_id, "movement_kind": "WORKER_PAYMENT",
             "direction": "OUT", "movement_type": "DISBURSEMENT",
             "account_id": account["id"], "account_name_snapshot": account["name"],
