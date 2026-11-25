@@ -1,3 +1,4 @@
+import asyncio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -218,6 +219,10 @@ async def test_worker_advances_final_payment_and_treasury_posting_are_atomic(mon
     await test_db["employees"].create_index("id", unique=True)
     await test_db["workforce_worker_payments"].create_index("id", unique=True)
     await test_db["workforce_worker_payments"].create_index("idempotency_key", unique=True)
+    await test_db["workforce_worker_payments"].create_index(
+        [("worker_id", 1), ("period", 1)], unique=True,
+        partialFilterExpression={"payment_kind": "FINAL"},
+    )
     await test_db["workforce_worker_payroll_periods"].create_index(
         [("worker_id", 1), ("period", 1)], unique=True
     )
@@ -322,6 +327,43 @@ async def test_worker_advances_final_payment_and_treasury_posting_are_atomic(mon
         assert cheque_movement["settlement_status"] == "CHEQUE_CLEARED"
         assert cheque_movement["reconciliation_status"] == "RECONCILED"
         assert cheque_movement["source_party_id"] == worker["id"]
+
+        race_worker = await workforce.create_worker(
+            workforce.EmployeeCreate(
+                first_name="Concurrent", last_name="Payments",
+                salary_amount=10, salary_type="hourly",
+            ),
+            admin,
+        )
+        await test_db["workforce_attendance"].insert_one({
+            "id": str(uuid.uuid4()), "worker_id": race_worker["id"],
+            "worker_name": race_worker["full_name"], "day": attendance_day,
+            "status": "PRESENT", "check_in_at": shift_start,
+            "check_out_at": shift_start + timedelta(hours=1),
+        })
+
+        async def concurrent_advance(key):
+            try:
+                return await workforce.create_worker_payment(
+                    workforce.WorkerPaymentInput(
+                        worker_id=race_worker["id"], idempotency_key=key,
+                        period=period, payment_kind="ADVANCE", amount_tnd="7.000",
+                        payment_method="CASH", account_id="cash-test",
+                    ),
+                    admin,
+                )
+            except HTTPException as exc:
+                return exc
+
+        concurrent_results = await asyncio.gather(
+            concurrent_advance("concurrent-advance-key-001"),
+            concurrent_advance("concurrent-advance-key-002"),
+        )
+        assert sum(isinstance(result, dict) for result in concurrent_results) == 1
+        assert sum(isinstance(result, HTTPException) and result.status_code == 409 for result in concurrent_results) == 1
+        assert await test_db["workforce_worker_payments"].count_documents({
+            "worker_id": race_worker["id"], "period": period,
+        }) == 1
 
         payroll = await workforce.get_worker_payroll(period, worker["id"], admin)
         assert payroll["workers"][0]["montant_du_travail"] == "40.000"
