@@ -8,7 +8,7 @@ import CommercialReports from "@/components/CommercialReports";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiGet } from "@/lib/api";
+import { API_ORIGIN, apiGet } from "@/lib/api";
 import type { Load, RevenueReport, User, WorkerReport } from "@/lib/types";
 import { fmtDate, fmtMoney, fmtNum, useI18n } from "@/lib/i18n";
 import { useMe } from "@/lib/useMe";
@@ -115,10 +115,10 @@ export default function Reports() {
         accent="bg-violet-500"
         right={activeReportTab === "normal" ? (
           <div className="flex gap-2">
-            <a href={`https://huilerie-pro3.onrender.com/api/reports/revenue.xlsx?${qs}`} download data-testid="report-export-excel" className={cn(buttonVariants(), "rounded-xl bg-green-700 hover:bg-green-800")}>
+            <a href={`${API_ORIGIN}/api/reports/revenue.xlsx?${qs}`} download data-testid="report-export-excel" className={cn(buttonVariants(), "rounded-xl bg-green-700 hover:bg-green-800")}>
               <FileSpreadsheet className="size-4" /> {t("export_excel")}
             </a>
-            <a href={`https://huilerie-pro3.onrender.com/api/reports/revenue.pdf?${qs}`} download data-testid="report-export-pdf" className={cn(buttonVariants(), "rounded-xl bg-rose-600 hover:bg-rose-700")}>
+            <a href={`${API_ORIGIN}/api/reports/revenue.pdf?${qs}`} download data-testid="report-export-pdf" className={cn(buttonVariants(), "rounded-xl bg-rose-600 hover:bg-rose-700")}>
               <FileText className="size-4" /> {t("export_pdf")}
             </a>
           </div>
