@@ -824,7 +824,7 @@ async def treasury_movement_preview(limit: int = 100, _: dict = Depends(require_
         movement = recorded.get((candidate["source_type"], candidate["source_id"]))
         candidate["recorded_movement_id"] = movement.get("id") if movement else None
         candidate["settlement_status"] = movement.get("settlement_status") if movement else None
-        candidate["recorded_at"] = movement.get("recorded_at").isoformat() if movement and movement.get("recorded_at") else None
+        candidate["recorded_at"] = _safe(movement.get("recorded_at")) if movement and movement.get("recorded_at") is not None else None
     return _safe({
         **preview, "active_season": season, "season_code": season_code,
         "limit_per_source": limit, "has_more": has_more,
