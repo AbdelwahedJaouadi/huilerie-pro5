@@ -10,6 +10,7 @@ from pymongo.errors import DuplicateKeyError
 
 from lib.workforce_auth import require_workforce_admin
 from lib.db import db, run_transaction
+from lib.season import active_season
 
 router = APIRouter(prefix="/workforce", tags=["workforce"])
 
