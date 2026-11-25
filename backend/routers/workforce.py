@@ -536,7 +536,7 @@ async def _worker_payroll_snapshot(worker_id: str, period: str, session=None):
 @router.get("/payroll")
 async def get_worker_payroll(period: str, worker_id: str | None = None,
                              _: dict = Depends(require_workforce_admin)):
-    if not re.fullmatch(r"\\d{4}-(0[1-9]|1[0-2])", period or ""):
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", period or ""):
         raise HTTPException(422, "invalid_payroll_period")
     start_day, end_day = _worker_period_bounds(period)
     worker_filter = {"id": worker_id} if worker_id else {}
