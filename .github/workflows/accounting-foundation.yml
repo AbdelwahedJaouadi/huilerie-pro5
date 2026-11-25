@@ -11,6 +11,7 @@ on:
       - "backend/tests/test_traditional_treasury.py"
       - "backend/tests/test_treasury_register.py"
       - "backend/tests/test_treasury_movement_recording.py"
+      - "backend/tests/test_treasury_accounts.py"
       - ".github/workflows/accounting-foundation.yml"
   push:
     branches:
@@ -52,4 +53,5 @@ jobs:
           tests/test_traditional_treasury.py
           tests/test_treasury_register.py
           tests/test_treasury_movement_recording.py
+          tests/test_treasury_accounts.py
           -q
