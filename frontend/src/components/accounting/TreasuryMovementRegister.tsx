@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 type Movement = {
   id:string; season_code:string; source_type:string; source_id:string;
   source_document_id?:string|null; source_document_number?:string|null;
-  source_party_id?:string|null; movement_kind:string; direction:"IN"|"OUT";
+  source_party_id?:string|null; source_party_name_snapshot?:string|null; movement_kind:string; direction:"IN"|"OUT";
   movement_type:"RECEIPT"|"DISBURSEMENT"; account_id:string;
   account_name_snapshot?:string|null; account_type?:string|null;
   amount_tnd:string; currency:"TND"; movement_date:string; payment_method:string;
@@ -84,7 +84,7 @@ export default function TreasuryMovementRegister(){
         <th className="px-2 py-2">{ar?"التاريخ":"Date"}</th><th className="px-2 py-2">{ar?"المصدر / الوثيقة":"Source / document"}</th><th className="px-2 py-2">{ar?"الحساب":"Compte"}</th><th className="px-2 py-2">{ar?"الاتجاه":"Sens"}</th><th className="px-2 py-2">{ar?"طريقة الدفع":"Mode"}</th><th className="px-2 py-2 text-right">{ar?"المبلغ":"Montant"}</th><th className="px-2 py-2">{ar?"الحالة":"État"}</th>
       </tr></thead><tbody>{data.rows.map(row=><tr key={row.id} className="border-b last:border-0 align-top">
         <td className="px-2 py-3 tabular-nums">{row.movement_date}</td>
-        <td className="px-2 py-3"><div className="font-medium">{sourceLabel(row.source_type,ar)}</div><div className="text-xs text-stone-500">{row.source_document_number||row.source_id}</div>{row.external_reference&&<div className="text-xs text-stone-500">{ar?"مرجع الدفع":"Réf. paiement"}: {row.external_reference}</div>}</td>
+        <td className="px-2 py-3"><div className="font-medium">{sourceLabel(row.source_type,ar)}</div><div className="text-xs text-stone-500">{row.source_type==="WORKER_PAYMENT"?(row.source_party_name_snapshot||row.source_document_number||row.source_id):(row.source_document_number||row.source_id)}</div>{row.external_reference&&<div className="text-xs text-stone-500">{ar?"مرجع الدفع":"Réf. paiement"}: {row.external_reference}</div>}</td>
         <td className="px-2 py-3">{row.account_name_snapshot||row.account_id}</td>
         <td className="px-2 py-3"><span className={row.direction==="IN"?"inline-flex items-center gap-1 font-semibold text-emerald-700":"inline-flex items-center gap-1 font-semibold text-rose-700"}>{row.direction==="IN"?<ArrowDownLeft className="size-4"/>:<ArrowUpRight className="size-4"/>}{row.direction==="IN"?(ar?"قبض":"Entrée"):(ar?"صرف":"Sortie")}</span></td>
         <td className="px-2 py-3">{methodLabel(row.payment_method,ar)}</td>
