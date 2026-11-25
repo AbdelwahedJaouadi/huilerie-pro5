@@ -483,6 +483,7 @@ async def correct_attendance(
 class WorkerPaymentInput(BaseModel):
     model_config = {"extra": "forbid"}
     worker_id: str = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=16, max_length=100)
     period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     payment_kind: Literal["ADVANCE", "FINAL"]
     amount_tnd: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
@@ -587,6 +588,11 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
     payment_id = str(uuid.uuid4())
 
     async def operation(session):
+        previous_request = await db["workforce_worker_payments"].find_one({"idempotency_key": body.idempotency_key}, {"_id": 0}, session=session)
+        if previous_request:
+            return {"payment": {**previous_request, "amount_tnd": str(previous_request["amount_tnd"])},
+                    "movement_id": previous_request.get("movement_id"),
+                    "reste_a_payer": previous_request.get("remaining_after", "0.000")}
         snapshot = await _worker_payroll_snapshot(body.worker_id, body.period, session=session)
         worker = snapshot["worker"]
         if worker.get("active") is False or worker.get("archived") is True:
@@ -615,7 +621,7 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             if amount <= 0 or amount > remaining:
                 raise HTTPException(409, "advance_exceeds_accrued_unpaid_wages")
         payment = {
-            "id": payment_id, "worker_id": body.worker_id,
+            "id": payment_id, "idempotency_key": body.idempotency_key, "worker_id": body.worker_id,
             "worker_name_snapshot": worker.get("full_name") or _employee_name(worker.get("first_name", ""), worker.get("last_name", "")),
             "period": body.period, "payment_kind": body.payment_kind,
             "amount_tnd": Decimal128(amount), "currency": "TND",
@@ -625,6 +631,7 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             "business_date": today.isoformat(), "recorded_by": actor_id,
             "reconciliation_status": "RECONCILED",
             "reconciliation_basis": "ADMINISTRATIVE_WORKER_PAYMENT_RECORD",
+            "remaining_after": format(remaining - amount, ".3f"),
         }
         movement = {
             "id": str(uuid.uuid4()), "season_code": (await active_season()),
@@ -641,6 +648,7 @@ async def create_worker_payment(body: WorkerPaymentInput, admin: dict = Depends(
             "opening_balance_applied": False, "gl_posting_status": "NOT_POSTED",
             "recorded_by": actor_id, "recorded_at": now,
         }
+        payment["movement_id"] = movement["id"]
         await db["workforce_worker_payments"].insert_one(payment, session=session)
         await db["accounting_treasury_movements"].insert_one(movement, session=session)
         await db["accounting_treasury_movement_events"].insert_one({
