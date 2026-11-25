@@ -178,6 +178,7 @@ export default function Workforce() {
   const [payrollMethod, setPayrollMethod] = useState<"CASH" | "CHEQUE" | "BANK_TRANSFER">("CASH");
   const [payrollAccountId, setPayrollAccountId] = useState("");
   const [payrollReference, setPayrollReference] = useState("");
+  const [payrollRequestId, setPayrollRequestId] = useState(() => crypto.randomUUID());
   const [startDate, setStartDate] = useState(firstDayOfMonth(today));
   const [endDate, setEndDate] = useState(lastDayOfMonth(today));
   const [selectedWorkerId, setSelectedWorkerId] = useState("all");
@@ -202,13 +203,13 @@ export default function Workforce() {
   });
   const workerPayment = useMutation({
     mutationFn: () => apiPost<{ payment: unknown; reste_a_payer: string }>("/workforce/payments", {
-      worker_id: payrollWorkerId, period: payrollPeriod, payment_kind: payrollKind,
+      worker_id: payrollWorkerId, idempotency_key: payrollRequestId, period: payrollPeriod, payment_kind: payrollKind,
       amount_tnd: payrollKind === "ADVANCE" ? Number(payrollAmount) : null,
       payment_method: payrollMethod, account_id: payrollAccountId, reference: payrollReference,
     }),
     onSuccess: async () => {
       toast.success(ar ? "تم تسجيل الدفعة وربطها بالخزينة" : "Paiement enregistré et lié à la trésorerie");
-      setPayrollAmount(""); setPayrollReference("");
+      setPayrollAmount(""); setPayrollReference(""); setPayrollRequestId(crypto.randomUUID());
       await qc.invalidateQueries({ queryKey: ["workforce", "payroll"] });
       await qc.invalidateQueries({ queryKey: ["accounting", "treasury"] });
     },
