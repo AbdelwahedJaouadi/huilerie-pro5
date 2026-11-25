@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
@@ -201,6 +201,14 @@ export default function Workforce() {
     enabled: !!payrollPeriod && !!payrollWorkerId,
     queryFn: () => apiGet<PayrollResponse>(`/workforce/payroll?period=${encodeURIComponent(payrollPeriod)}&worker_id=${encodeURIComponent(payrollWorkerId)}`),
   });
+  useEffect(() => {
+    if (payrollMethod !== "CASH" || !payrollWorkerId) return;
+    const cashAccounts = (payrollQuery.data?.accounts ?? []).filter(account => account.account_type === "CASH");
+    const principal = cashAccounts.find(account =>
+      account.name.trim().toLocaleLowerCase("fr-FR") === "caisse principale"
+    );
+    setPayrollAccountId(principal?.id ?? "");
+  }, [payrollMethod, payrollWorkerId, payrollPeriod, payrollQuery.data?.accounts]);
   const workerPayment = useMutation({
     mutationFn: () => apiPost<{ payment: unknown; reste_a_payer: string }>("/workforce/payments", {
       worker_id: payrollWorkerId, idempotency_key: payrollRequestId, period: payrollPeriod, payment_kind: payrollKind,
@@ -442,13 +450,31 @@ export default function Workforce() {
             {!row.supported ? <p className="text-sm text-amber-800">{ar ? "لا يمكن احتساب الأجر الشهري: طريقة تحويله إلى أجر يومي أو ساعي غير محددة." : "Salaire mensuel non payable : aucune règle de conversion en taux journalier ou horaire n’est définie."}</p> :
             <form className="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3 sm:grid-cols-2" onSubmit={e=>{e.preventDefault();workerPayment.mutate();}}>
               {payrollKind === "ADVANCE" && <div className="space-y-1"><Label>{ar ? "مبلغ التسبيق (TND)" : "Montant de l’avance (TND)"}</Label><Input required type="number" min="0.001" max={row.reste_a_payer} step="0.001" value={payrollAmount} onChange={e=>setPayrollAmount(e.target.value)} /></div>}
-              <div className="space-y-1"><Label>{ar ? "طريقة الدفع" : "Mode de paiement"}</Label><select value={payrollMethod} onChange={e=>{setPayrollMethod(e.target.value as typeof payrollMethod);setPayrollAccountId("");}} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH">Espèces</option><option value="CHEQUE">Chèque</option><option value="BANK_TRANSFER">Virement</option></select></div>
-              <div className="space-y-1"><Label>{ar ? (payrollMethod === "CASH" ? "حساب الصندوق" : "الحساب البنكي") : (payrollMethod === "CASH" ? "Compte de caisse" : "Compte bancaire")}</Label><select required value={payrollAccountId} onChange={e=>setPayrollAccountId(e.target.value)} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{ar ? "اختر الحساب" : "Choisir le compte"}</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{accounts.length===0 && <p className="text-xs text-rose-700">{ar ? "لا يوجد حساب نشط مناسب لهذه الطريقة." : "Aucun compte actif compatible."}</p>}</div>
-              <div className="space-y-1"><Label>{ar ? "مرجع الشيك / التحويل (اختياري)" : "Référence chèque / virement (facultatif)"}</Label><Input value={payrollReference} onChange={e=>setPayrollReference(e.target.value)} maxLength={120} /></div>
+              <div className="space-y-1"><Label>{ar ? "طريقة الدفع" : "Mode de paiement"}</Label><select value={payrollMethod} onChange={e=>{setPayrollMethod(e.target.value as typeof payrollMethod);setPayrollAccountId("");setPayrollReference("");}} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="CASH">Espèces</option><option value="CHEQUE">Chèque</option><option value="BANK_TRANSFER">Virement</option></select></div>
+              <div className="space-y-1"><Label>{ar ? (payrollMethod === "CASH" ? "حساب الصندوق" : "الحساب البنكي") : (payrollMethod === "CASH" ? "Compte de caisse" : "Compte bancaire")}</Label><select required value={payrollAccountId} onChange={e=>setPayrollAccountId(e.target.value)} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{ar ? "اختر الحساب" : "Choisir le compte"}</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{accounts.length===0 && <p className="text-xs text-rose-700">{ar ? "لا يوجد حساب نشط مناسب لهذه الطريقة." : "Aucun compte actif compatible."}</p>}{payrollMethod === "CASH" && !accounts.some(a => a.id === payrollAccountId) && accounts.length>0 && <p className="text-xs text-rose-700">{ar ? "لم يتم العثور على حساب Caisse principale. تحقق من اسم الحساب أو حالته." : "Le compte « Caisse principale » est introuvable parmi les caisses actives."}</p>}</div>
+              {payrollMethod !== "CASH" && <div className="space-y-1"><Label>{ar ? (payrollMethod === "CHEQUE" ? "مرجع الشيك (اختياري)" : "مرجع التحويل (اختياري)") : (payrollMethod === "CHEQUE" ? "Référence chèque (facultatif)" : "Référence virement (facultatif)")}</Label><Input value={payrollReference} onChange={e=>setPayrollReference(e.target.value)} maxLength={120} /></div>}
               <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs text-stone-500">{payrollKind === "FINAL" ? (ar ? (periodEnded ? "سيتم دفع كامل الباقي فقط." : "الاستخلاص النهائي متاح بعد نهاية الشهر.") : (periodEnded ? "Le solde restant sera payé, sans dépasser le dû." : "Le solde final est disponible après la fin du mois.")) : (ar ? "لا يمكن أن يتجاوز التسبيق الأجر المكتسب وغير المدفوع حتى الآن." : "L’avance ne peut pas dépasser les salaires acquis et non encore payés.")}</p>
-                <Button type="submit" disabled={workerPayment.isPending || row.incomplete_shifts>0 || !payrollAccountId || Number(row.reste_a_payer)<=0 || (payrollKind==="ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))) || (payrollKind==="FINAL" && (!periodEnded || row.final_paid))}>{payrollKind==="FINAL" ? (ar ? "دفع الباقي النهائي" : "Payer le solde final") : (ar ? "تسجيل التسبيق" : "Enregistrer l’avance")}</Button>
+                <Button type="submit" disabled={workerPayment.isPending || row.incomplete_shifts>0 || !accounts.some(a=>a.id===payrollAccountId) || Number(row.reste_a_payer)<=0 || (payrollKind==="ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))) || (payrollKind==="FINAL" && (!periodEnded || row.final_paid))}>{payrollKind==="FINAL" ? (ar ? "دفع الباقي النهائي" : "Payer le solde final") : (ar ? "تسجيل التسبيق" : "Enregistrer l’avance")}</Button>
               </div>
+              {(() => {
+                const reason = workerPayment.isPending
+                  ? (ar ? "جارٍ تسجيل الدفعة..." : "Enregistrement du paiement en cours…")
+                  : row.incomplete_shifts > 0
+                    ? (ar ? "أكمل أو صحح الورديات المفتوحة أولاً." : "Clôturez ou corrigez les pointages ouverts.")
+                    : !accounts.some(a=>a.id===payrollAccountId)
+                      ? (ar ? (payrollMethod === "CASH" ? "تعذر تحديد Caisse principale تلقائياً." : "اختر حساب الدفع المناسب.") : (payrollMethod === "CASH" ? "Le compte Caisse principale n’est pas sélectionné." : "Sélectionnez un compte de paiement."))
+                      : Number(row.reste_a_payer) <= 0
+                        ? (ar ? "لا يوجد أجر متبقٍ غير مدفوع." : "Aucun salaire restant à payer.")
+                        : payrollKind === "FINAL" && !periodEnded
+                          ? (ar ? "لا يمكن دفع الرصيد النهائي قبل نهاية الشهر المختار." : "Le solde final ne peut être payé qu’après la fin du mois sélectionné.")
+                          : payrollKind === "FINAL" && row.final_paid
+                            ? (ar ? "تم تسجيل الاستخلاص النهائي لهذا الشهر." : "Le solde final de ce mois est déjà enregistré.")
+                            : payrollKind === "ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))
+                              ? (ar ? "أدخل تسبيقًا صحيحًا لا يتجاوز الباقي." : "Saisissez une avance valide ne dépassant pas le solde.")
+                              : "";
+                return reason ? <p className="sm:col-span-2 text-xs text-amber-800" role="status">{reason}</p> : null;
+              })()}
             </form>}
             <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-sm"><thead><tr className="border-b bg-stone-50"><th className="p-2 text-start">{ar ? "التاريخ" : "Date"}</th><th className="p-2 text-start">{ar ? "النوع" : "Type"}</th><th className="p-2 text-start">{ar ? "الطريقة / الحساب" : "Mode / compte"}</th><th className="p-2 text-end">{ar ? "المبلغ" : "Montant"}</th><th className="p-2 text-start">{ar ? "المطابقة" : "Rapprochement"}</th></tr></thead><tbody>{(payrollQuery.data?.payments ?? []).map(p=><tr key={p.id} className="border-b"><td className="p-2" dir="ltr">{new Date(p.paid_at).toLocaleDateString(locale)}</td><td className="p-2">{p.payment_kind==="FINAL" ? (ar ? "نهائي" : "Solde final") : (ar ? "تسبيق" : "Avance")}</td><td className="p-2">{p.payment_method} — {p.account_name_snapshot}</td><td className="p-2 text-end font-semibold" dir="ltr">{Number(p.amount_tnd).toFixed(3)} TND</td><td className="p-2 text-emerald-700">{ar ? "مطابق إدارياً" : "Rapproché (administratif)"}</td></tr>)}</tbody></table></div>
           </div>;
