@@ -40,7 +40,7 @@ class FakeDB:
 
 def receipt(method):
     return {
-        "id": f"payment-{method.lower()}", "at": datetime(2026, 11, 24, tzinfo=timezone.utc),
+        "id": f"payment-{method.lower()}", "at": datetime(2026, 11, 20, tzinfo=timezone.utc),
         "amount": Decimal("369.000"), "method": method, "currency": "TND",
         "reference": "CHEQUE-2355" if method == "CHEQUE" else None,
     }
@@ -90,7 +90,7 @@ def test_cheque_stays_pending_until_confirmed_then_updates_same_movement_once():
         assert cleared["settlement_status"] == "CHEQUE_CLEARED"
         assert cleared["reconciliation_status"] == "RECONCILED"
         assert cleared["bank_statement_reference"] == "BNA-CREDIT-9981"
-        assert cleared["cheque_received_date"] == "2026-11-24"
+        assert cleared["cheque_received_date"] == "2026-11-20"
         assert cleared["movement_date"] == "2026-11-24"
         assert len(db.accounting_treasury_movements.rows) == 1
         assert len(db.accounting_treasury_movement_events.rows) == 2
