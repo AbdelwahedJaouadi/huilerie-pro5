@@ -24,7 +24,7 @@ type RegisterResponse = {
 };
 type Account = {id:string;name:string;account_type:"CASH"|"BANK";active:boolean};
 const money=(value:string)=>fmtMoney(value);
-const sourceLabel=(type:string,ar:boolean)=>type==="GS_SALE_PAYMENT"?(ar?"قبض مبيعات GS":"Encaissement vente GS"):type==="GS_SUPPLIER_PAYMENT"?(ar?"دفع لمزوّد":"Paiement fournisseur"):type;
+const sourceLabel=(type:string,ar:boolean)=>type==="TRADITIONAL_RECEIPT"?(ar?"قبض فاتورة العصر":"Encaissement facture de trituration"):type==="GS_SALE_PAYMENT"?(ar?"قبض مبيعات GS":"Encaissement vente GS"):type==="GS_SUPPLIER_PAYMENT"?(ar?"دفع لمزوّد":"Paiement fournisseur"):type;
 const methodLabel=(method:string,ar:boolean)=>method==="CASH"?(ar?"نقداً":"Espèces"):method==="BANK_TRANSFER"?(ar?"تحويل بنكي":"Virement bancaire"):method==="CHEQUE"?(ar?"شيك":"Chèque"):method;
 const statusLabel=(status:string,ar:boolean)=>status==="CASH_RECORDED"?(ar?"نقداً مسجّل":"Espèces enregistrées"):status==="PENDING_BANK_CONFIRMATION"?(ar?"بانتظار تأكيد البنك":"Confirmation bancaire en attente"):status==="PENDING_CHEQUE_CLEARANCE"?(ar?"بانتظار خلاص الشيك":"Compensation du chèque en attente"):status==="CHEQUE_CLEARED"?(ar?"تم تحصيل الشيك":"Chèque encaissé"):status;
 
