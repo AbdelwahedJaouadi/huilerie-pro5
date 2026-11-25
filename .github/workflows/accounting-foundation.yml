@@ -8,6 +8,9 @@ on:
       - "backend/tests/test_traditional_accounting_adapter.py"
       - "backend/tests/test_commercial_accounting_adapter.py"
       - "backend/tests/test_accounting_reconciliation_preview.py"
+      - "backend/tests/test_traditional_treasury.py"
+      - "backend/tests/test_treasury_register.py"
+      - "backend/tests/test_treasury_movement_recording.py"
       - ".github/workflows/accounting-foundation.yml"
   push:
     branches:
@@ -46,4 +49,7 @@ jobs:
           tests/test_traditional_accounting_adapter.py
           tests/test_commercial_accounting_adapter.py
           tests/test_accounting_reconciliation_preview.py
+          tests/test_traditional_treasury.py
+          tests/test_treasury_register.py
+          tests/test_treasury_movement_recording.py
           -q
