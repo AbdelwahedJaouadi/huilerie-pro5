@@ -233,7 +233,7 @@ def test_overnight_shift_from_2300_to_0500_is_counted_as_six_hours():
     shift_source = ast.get_source_segment(source, shift)
     assert "(end - start).total_seconds()" in shift_source
     assert "elapsed <= 0 or elapsed > 24 * 60 * 60" in shift_source
-    assert "return int(elapsed // 60)" in shift_source
+    assert "elapsed - break_seconds" in shift_source
     checkout = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "check_out")
     checkout_source = ast.get_source_segment(source, checkout)
     assert '"check_out_at": None' in checkout_source
