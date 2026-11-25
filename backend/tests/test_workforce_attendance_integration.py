@@ -203,3 +203,125 @@ async def test_employee_without_app_login_can_be_managed_and_pointed(monkeypatch
         assert await test_db["workforce_attendance_events"].count_documents({"worker_id": other_employee["id"]}) == 1
     finally:
         await db_module.client.drop_database(test_db.name)
+
+
+@pytest.mark.asyncio(loop_scope="module")
+async def test_worker_advances_final_payment_and_treasury_posting_are_atomic(monkeypatch):
+    test_db = db_module.client[
+        f"{os.environ['DB_NAME'][:18]}_pay_{uuid.uuid4().hex[:12]}"
+    ]
+    monkeypatch.setattr(workforce, "db", test_db)
+    async def test_season():
+        return "2026-2027"
+    monkeypatch.setattr(workforce, "active_season", test_season)
+
+    await test_db["employees"].create_index("id", unique=True)
+    await test_db["workforce_worker_payments"].create_index("id", unique=True)
+    await test_db["workforce_worker_payments"].create_index("idempotency_key", unique=True)
+    await test_db["workforce_worker_payroll_periods"].create_index(
+        [("worker_id", 1), ("period", 1)], unique=True
+    )
+    await test_db["accounting_treasury_movements"].create_index(
+        [("season_code", 1), ("source_type", 1), ("source_id", 1)], unique=True
+    )
+    await test_db["accounting_treasury_movement_events"].create_index("id", unique=True)
+
+    admin = {"id": "admin-payroll-test", "username": "admin"}
+    today = workforce._today_tunis()
+    previous_month_last_day = today.replace(day=1) - timedelta(days=1)
+    period = previous_month_last_day.strftime("%Y-%m")
+    attendance_day = f"{period}-01"
+    shift_start = datetime.combine(
+        previous_month_last_day.replace(day=1), datetime.min.time(),
+        tzinfo=timezone.utc,
+    ).replace(hour=8)
+    shift_end = shift_start + timedelta(hours=4)
+    try:
+        worker = await workforce.create_worker(
+            workforce.EmployeeCreate(
+                first_name="Payroll", last_name="Test",
+                salary_amount=80, salary_type="daily",
+            ),
+            admin,
+        )
+        await test_db["workforce_attendance"].insert_one({
+            "id": str(uuid.uuid4()), "worker_id": worker["id"],
+            "worker_name": worker["full_name"], "day": attendance_day,
+            "status": "PRESENT", "check_in_at": shift_start,
+            "check_out_at": shift_end,
+        })
+        await test_db["accounting_treasury_accounts"].insert_many([
+            {"id": "cash-test", "name": "Caisse test", "account_type": "CASH", "active": True},
+            {"id": "bank-test", "name": "Banque test", "account_type": "BANK", "active": True},
+        ])
+
+        advance = await workforce.create_worker_payment(
+            workforce.WorkerPaymentInput(
+                worker_id=worker["id"], idempotency_key="advance-test-key-0001",
+                period=period, payment_kind="ADVANCE", amount_tnd="15.000",
+                payment_method="CASH", account_id="cash-test",
+            ),
+            admin,
+        )
+        assert advance["payment"]["amount_tnd"] == "15.000"
+        assert advance["reste_a_payer"] == "25.000"
+
+        # Retrying the same request must return the original payment, not post a second one.
+        retry = await workforce.create_worker_payment(
+            workforce.WorkerPaymentInput(
+                worker_id=worker["id"], idempotency_key="advance-test-key-0001",
+                period=period, payment_kind="ADVANCE", amount_tnd="15.000",
+                payment_method="CASH", account_id="cash-test",
+            ),
+            admin,
+        )
+        assert retry["payment"]["id"] == advance["payment"]["id"]
+
+        final = await workforce.create_worker_payment(
+            workforce.WorkerPaymentInput(
+                worker_id=worker["id"], idempotency_key="final-test-key-000001",
+                period=period, payment_kind="FINAL", payment_method="CHEQUE",
+                account_id="bank-test",
+            ),
+            admin,
+        )
+        assert final["payment"]["amount_tnd"] == "25.000"
+        assert final["reste_a_payer"] == "0.000"
+
+        movements = await test_db["accounting_treasury_movements"].find(
+            {"source_type": "WORKER_PAYMENT"}, {"_id": 0}
+        ).to_list(10)
+        assert len(movements) == 2
+        cheque_movement = next(row for row in movements if row["payment_method"] == "CHEQUE")
+        assert cheque_movement["settlement_status"] == "CHEQUE_CLEARED"
+        assert cheque_movement["reconciliation_status"] == "RECONCILED"
+        assert cheque_movement["source_party_id"] == worker["id"]
+
+        payroll = await workforce.get_worker_payroll(period, worker["id"], admin)
+        assert payroll["workers"][0]["montant_du_travail"] == "40.000"
+        assert payroll["workers"][0]["total_advances"] == "15.000"
+        assert payroll["workers"][0]["reste_a_payer"] == "0.000"
+
+        # Wage changes apply to future periods; the paid month's rate remains snapshotted.
+        await workforce.update_worker(
+            worker["id"], workforce.EmployeeUpdate(salary_amount=100), admin
+        )
+        payroll_after_rate_change = await workforce.get_worker_payroll(period, worker["id"], admin)
+        assert payroll_after_rate_change["workers"][0]["montant_du_travail"] == "40.000"
+
+        with pytest.raises(HTTPException) as paid_shift_correction:
+            await workforce.correct_attendance(
+                (await test_db["workforce_attendance"].find_one({"worker_id": worker["id"]}))["id"],
+                workforce.AttendanceCorrection(
+                    check_out_at=shift_start + timedelta(hours=1),
+                    reason="Attempt to reduce paid hours",
+                ),
+                admin,
+            )
+        assert paid_shift_correction.value.status_code == 409
+
+        with pytest.raises(HTTPException) as delete_paid_worker:
+            await workforce.delete_worker(worker["id"], admin)
+        assert delete_paid_worker.value.status_code == 409
+    finally:
+        await db_module.client.drop_database(test_db.name)
