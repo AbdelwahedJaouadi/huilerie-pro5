@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock } from "lucide-react";
+import { CalendarDays, Clock3, LogIn, LogOut, Pencil, Printer, UserX, Timer, CheckCircle2, Hourglass, CalendarCheck2, CalendarRange, CalendarClock, Coffee } from "lucide-react";
 import { toast } from "sonner";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -15,13 +15,15 @@ type Attendance = {
   id: string; worker_id: string; worker_name: string; day: string;
   status: "PRESENT" | "ABSENT"; check_in_at: string | null; check_out_at: string | null;
   marked_absent_at?: string | null;
+  breaks?: Array<{ start_at: string; end_at: string }>;
+  break_started_at?: string | null;
 };
 type AttendanceResponse = { day: string | null; start_date: string; end_date: string; workers: Worker[]; records: Attendance[]; open_shifts: Attendance[] };
 type EmployeeDraft = { first_name: string; last_name: string; phone: string; address: string; salary_amount: string; salary_type: "monthly" | "daily" | "hourly" };
 type WorkersResponse = { workers: Worker[]; total: number };
 type PayrollRow = { worker: Worker; period: string; worked_minutes: number; incomplete_shifts: number; montant_du_travail: string; total_paid: string; total_advances: string; reste_a_payer: string; supported: boolean; final_paid: boolean };
 type PayrollResponse = { period: string; workers: PayrollRow[]; payments: Array<{ id: string; worker_name_snapshot: string; payment_kind: string; amount_tnd: string | number; payment_method: string; account_name_snapshot: string; paid_at: string }>; accounts: Array<{ id: string; name: string; account_type: "CASH" | "BANK" }> };
-type Action = "check-in" | "check-out" | "mark-absent";
+type Action = "check-in" | "check-out" | "break-start" | "break-end" | "mark-absent";
 type Summary = { key: string; minutes: number; shifts: number };
 
 function tunisParts(value: Date) {
@@ -70,7 +72,13 @@ function workedMinutes(record: Attendance): number {
   const elapsed = new Date(record.check_out_at).getTime() - new Date(record.check_in_at).getTime();
   // Invalid, reversed, or over-24-hour shifts are excluded pending manager review.
   if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 24 * 60 * 60 * 1000) return 0;
-  return Math.floor(elapsed / 60000);
+  const recordedBreakMinutes = (record.breaks ?? []).reduce((total, interval) => {
+    const start = new Date(interval.start_at).getTime();
+    const end = new Date(interval.end_at).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && end > start
+      ? total + Math.floor((end - start) / 60000) : total;
+  }, 0);
+  return Math.max(0, Math.floor(elapsed / 60000) - recordedBreakMinutes);
 }
 function workedAmount(worker: Worker, record: Attendance): number | null {
   if (worker.salary_amount == null || !Number.isFinite(worker.salary_amount) || worker.salary_amount < 0) return null;
@@ -159,7 +167,7 @@ function escapeReportHtml(value: string) {
 function printWorkforceReport({ records, workers, startDate, endDate, ar, locale }: { records: Attendance[]; workers: Worker[]; startDate: string; endDate: string; ar: boolean; locale: string }) {
   const days: string[] = []; const cursor = new Date(startDate + "T00:00:00Z"); const last = new Date(endDate + "T00:00:00Z");
   while (cursor <= last) { days.push(cursor.toISOString().slice(0, 10)); cursor.setUTCDate(cursor.getUTCDate() + 1); }
-  const labels = ar ? { title: "تقرير الحضور والانصراف", employee: "العامل", total: "الإجمالي", days: "أيام العمل", hours: "ساعات العمل", absent: "غياب", period: "الفترة", note: "يُحتسب يوم الحضور حتى إن كانت الوردية مفتوحة. تُحتسب ساعات الورديات المكتملة فقط دون خصم الاستراحة. عدم وجود سجل لا يعني الغياب." } : { title: "Rapport des arrivées et départs", employee: "Employé", total: "Total", days: "Jours travaillés", hours: "Heures travaillées", absent: "Absent", period: "Période", note: "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seuls les quarts terminés comptent dans les heures, sans déduction de pause. Aucun pointage ne signifie pas une absence." };
+  const labels = ar ? { title: "تقرير الحضور والانصراف", employee: "العامل", total: "الإجمالي", days: "أيام العمل", hours: "ساعات العمل", absent: "غياب", period: "الفترة", note: "يُحتسب يوم الحضور حتى إن كانت الوردية مفتوحة. تُخصم فترات الراحة المسجلة يدوياً فقط، ولا يُخصم أي وقت تلقائياً. عدم وجود سجل لا يعني الغياب." } : { title: "Rapport des arrivées et départs", employee: "Employé", total: "Total", days: "Jours travaillés", hours: "Heures travaillées", absent: "Absent", period: "Période", note: "Un jour est compté dès qu’un pointage de présence existe, même si le quart est ouvert. Seules les pauses enregistrées manuellement sont déduites; aucune pause automatique. Aucun pointage ne signifie pas une absence." };
   const grouped = new Map<string, Map<string, Attendance>>();
   records.forEach((record) => { const row = grouped.get(record.worker_id) || new Map<string, Attendance>(); row.set(record.day, record); grouped.set(record.worker_id, row); });
   const head = days.map((day) => "<th title=\"" + day + "\">" + Number(day.slice(8, 10)) + "</th>").join("");
@@ -393,7 +401,7 @@ export default function Workforce() {
           <div className="space-y-1"><Label htmlFor="workforce-worker">{ar ? "العامل" : "Employé"}</Label><select id="workforce-worker" data-testid="workforce-worker-filter" value={selectedWorkerId} onChange={(event) => setSelectedWorkerId(event.target.value)} className="h-10 min-w-48 rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="all">{ar ? "الكل" : "Tous les employés"}</option>{workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.full_name}</option>)}</select></div>
           {!validRange && <p className="text-sm text-red-700">{ar ? "تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه." : "La date de début doit précéder ou égaler la date de fin."}</p>}
           <Button type="button" variant="outline" disabled={!validRange || data.isLoading || data.isError} onClick={handlePrintReport} className="gap-2"><Printer className="size-4" />{ar ? "استخراج PDF / طباعة" : "Exporter PDF / Imprimer"}</Button>
-          <div className="ms-auto text-sm text-stone-500">{ar ? "كل الأوقات بتوقيت تونس. لا يتم خصم الاستراحة." : "Heure de Tunisie. Aucune pause n’est déduite."}</div>
+          <div className="ms-auto text-sm text-stone-500">{ar ? "كل الأوقات بتوقيت تونس. تُخصم فترات الراحة المسجلة يدوياً فقط." : "Heure de Tunisie. Seules les pauses enregistrées manuellement sont déduites."}</div>
         </div>
       </section>
       {data.isLoading ? <p className="py-8 text-center text-sm text-stone-500">{ar ? "جارٍ تحميل السجلات..." : "Chargement des pointages…"}</p> :
@@ -420,12 +428,15 @@ export default function Workforce() {
               const record = recordsToday.get(worker.id) ?? openShiftsByWorker.get(worker.id);
               const checkedIn = record?.status === "PRESENT" && !!record.check_in_at;
               const checkedOut = !!record?.check_out_at;
+              const onBreak = !!record?.break_started_at;
               return <tr key={worker.id} className="border-b last:border-0"><td className="px-3 py-3"><div className="font-semibold">{record?.worker_name || worker.full_name}</div><div className="text-xs text-stone-500">{worker.salary_amount == null ? (ar ? "الأجر غير محدد" : "Salaire non renseigné") : `${worker.salary_amount} — ${worker.salary_type === "hourly" ? (ar ? "بالساعة" : "par heure") : worker.salary_type === "daily" ? (ar ? "باليوم" : "par jour") : (ar ? "شهري" : "mensuel")}`}</div>{record && record.day !== today && <div className="text-xs text-amber-700">{ar ? `بدأت الوردية في ${record.day}` : `Quart commencé le ${record.day}`}</div>}</td>
-                <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
+                <td className="px-3 py-3">{record?.status === "ABSENT" ? (ar ? "غياب مؤكد" : "Absent confirmé") : checkedOut ? (ar ? "انصرف" : "Parti") : onBreak ? (ar ? "في راحة" : "En pause") : checkedIn ? (ar ? "حاضر" : "Présent") : (ar ? "لم يسجل — ليس غياباً" : "Non pointé — pas une absence")}</td>
                 <td className="px-3 py-3 font-mono">{displayTime(record?.check_in_at, locale)}</td><td className="px-3 py-3 font-mono">{displayTime(record?.check_out_at, locale)}</td>
                 <td className="px-3 py-3"><div className="flex justify-end gap-2">
                   {worker.active !== false && !checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-in", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "حضور" : "Arrivée"}</Button>}
-                  {checkedIn && !checkedOut && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
+                  {checkedIn && !checkedOut && !onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "break-start", worker_id: worker.id })} className="bg-amber-600 hover:bg-amber-700"><Coffee className="me-1 size-4" />{ar ? "راحة" : "Pause"}</Button>}
+                  {checkedIn && !checkedOut && onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "break-end", worker_id: worker.id })} className="bg-emerald-700 hover:bg-emerald-800"><LogIn className="me-1 size-4" />{ar ? "عودة للعمل" : "Reprendre le travail"}</Button>}
+                  {checkedIn && !checkedOut && !onBreak && <Button size="sm" disabled={action.isPending} onClick={() => action.mutate({ type: "check-out", worker_id: worker.id })} className="bg-indigo-700 hover:bg-indigo-800"><LogOut className="me-1 size-4" />{ar ? "انصراف" : "Départ"}</Button>}
                   {worker.active !== false && !record && <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => { if (window.confirm(ar ? "تأكيد تسجيل غياب هذا العامل؟" : "Confirmer l’absence de cet employé ?")) action.mutate({ type: "mark-absent", worker_id: worker.id }); }} className="border-rose-200 text-rose-700 hover:bg-rose-50"><UserX className="me-1 size-4" />{ar ? "غياب" : "Absent"}</Button>}
                   {record && <Button size="sm" variant="outline" onClick={() => beginEdit(record)}><Pencil className="me-1 size-4" />{ar ? "تصحيح" : "Corriger"}</Button>}
                 </div></td></tr>;
@@ -507,7 +518,7 @@ export default function Workforce() {
           </form>
         </DialogContent>
       </Dialog>
-      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "الحساب لا يخصم الاستراحة. يمكن أن ينتهي العمل في اليوم التالي؛ تُحسب الساعات بين تاريخي الدخول والخروج وتُسجل على يوم الدخول. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Aucune pause n’est déduite. Les quarts ouverts sont exclus du total. Un quart peut se terminer le lendemain : les heures sont calculées entre les deux dates et rattachées au jour d’arrivée. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"><Clock3 className="mt-0.5 size-4 shrink-0" /><p>{ar ? "تُخصم فترات الراحة المسجلة يدوياً فقط. يمكن أن ينتهي العمل في اليوم التالي؛ تُحسب الساعات بين تاريخي الدخول والخروج وتُسجل على يوم الدخول. الوردية المفتوحة لا تدخل في المجموع، والوردية التي تتجاوز 24 ساعة أو بياناتها غير صحيحة تستوجب مراجعة المدير. لا يُسجل الغياب إلا بتأكيد يدوي." : "Seules les pauses enregistrées manuellement sont déduites. Les quarts ouverts sont exclus du total. Un quart peut se terminer le lendemain : les heures sont calculées entre les deux dates et rattachées au jour d’arrivée. Un quart de plus de 24 heures ou des heures incohérentes nécessite une vérification. Une absence doit être confirmée manuellement."}</p></div>
         <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm" data-testid="workforce-monthly-history">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold text-stone-900">{ar ? "سجل الحضور والانصراف حسب الأيام" : "Historique des arrivées et départs — vue par jour"}</h3>
@@ -550,7 +561,7 @@ export default function Workforce() {
               </tr>;
             })}</tbody>
           </table></div>}
-          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب الأجر اليومي بنسبة ساعات العمل من 8 ساعات، والأجر بالساعة حسب الساعات الفعلية. لا يُحسب الأجر الشهري لعدم تحديد طريقة تحويله إلى أجر يومي. الوردية المفتوحة أو ذات التوقيت غير الصحيح لا يظهر لها مبلغ حتى تصحيح الانصراف. لا يُخصم وقت الاستراحة. لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Le salaire journalier est proratisé sur une base de 8 heures; le salaire horaire suit les heures réellement travaillées. Le salaire mensuel n’est pas calculé faute de règle de conversion journalière. Les quarts ouverts ou invalides restent sans montant jusqu’à correction. Aucune pause n’est déduite."}</p>
+          <p className="mt-3 text-xs text-stone-500">{ar ? "يُحتسب الأجر اليومي بنسبة ساعات العمل من 8 ساعات، والأجر بالساعة حسب الساعات الفعلية. لا يُحسب الأجر الشهري لعدم تحديد طريقة تحويله إلى أجر يومي. الوردية المفتوحة أو ذات التوقيت غير الصحيح لا يظهر لها مبلغ حتى تصحيح الانصراف. لا يُخصم وقت الاستراحة. لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." : "Le salaire journalier est proratisé sur une base de 8 heures; le salaire horaire suit les heures réellement travaillées. Le salaire mensuel n’est pas calculé faute de règle de conversion journalière. Les quarts ouverts ou invalides restent sans montant jusqu’à correction. Seules les pauses enregistrées manuellement sont déduites."}</p>
         </section>
       <Dialog open={!!deletingEmployee} onOpenChange={(open) => !open && !removeEmployee.isPending && setDeletingEmployee(null)}>
         <DialogContent data-testid="delete-employee-confirmation">

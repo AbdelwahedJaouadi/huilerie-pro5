@@ -74,7 +74,7 @@ def test_workforce_ui_has_date_range_and_daily_weekly_monthly_summaries():
     assert "weekStart(record.day)" in page
     assert 'record.day.slice(0, 7)' in page
     assert "elapsed > 24 * 60 * 60 * 1000" in page
-    assert "Aucune pause n’est déduite." in page
+    assert "Seules les pauses enregistrées manuellement sont déduites." in page
     assert "لا توجد سجلات في الفترة المختارة. عدم وجود سجل لا يعني الغياب." in page
 
 
@@ -233,7 +233,7 @@ def test_overnight_shift_from_2300_to_0500_is_counted_as_six_hours():
     shift_source = ast.get_source_segment(source, shift)
     assert "(end - start).total_seconds()" in shift_source
     assert "elapsed <= 0 or elapsed > 24 * 60 * 60" in shift_source
-    assert "return int(elapsed // 60)" in shift_source
+    assert "elapsed - break_seconds" in shift_source
     checkout = next(node for node in ast.parse(source).body if isinstance(node, ast.AsyncFunctionDef) and node.name == "check_out")
     checkout_source = ast.get_source_segment(source, checkout)
     assert '"check_out_at": None' in checkout_source
@@ -241,3 +241,27 @@ def test_overnight_shift_from_2300_to_0500_is_counted_as_six_hours():
     assert "displayShiftRange(record, locale)" in page
     assert "displayShiftRange(r, locale)" in page
     assert "تُحسب الساعات بين تاريخي الدخول والخروج وتُسجل على يوم الدخول" in page
+
+
+def test_workforce_break_buttons_start_pause_and_resume_and_only_recorded_breaks_are_deducted():
+    source = (ROOT / "routers" / "workforce.py").read_text(encoding="utf-8")
+    page = (ROOT.parent / "frontend" / "src" / "pages" / "Workforce.tsx").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    routes = {node.name: node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)}
+    assert {"start_break", "end_break"} <= routes.keys()
+    start_source = ast.get_source_segment(source, routes["start_break"])
+    end_source = ast.get_source_segment(source, routes["end_break"])
+    assert '"BREAK_START"' in start_source
+    assert '"BREAK_END_RESUME_WORK"' in end_source
+    checkout = ast.get_source_segment(source, routes["check_out"])
+    assert '"worker_must_resume_before_check_out"' in checkout
+    shift = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "_worker_shift_minutes")
+    shift_source = ast.get_source_segment(source, shift)
+    assert 'record.get("breaks")' in shift_source
+    assert 'break_seconds += (break_end - break_start).total_seconds()' in shift_source
+    assert "elapsed - break_seconds" in shift_source
+    assert 'type: "break-start"' in page
+    assert 'type: "break-end"' in page
+    assert 'ar ? "في راحة" : "En pause"' in page
+    assert 'ar ? "عودة للعمل" : "Reprendre le travail"' in page
+    assert "record.breaks ?? []" in page

@@ -303,7 +303,7 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
                 {"id": existing["id"], "status": "ABSENT", "check_in_at": None},
                 {"$set": {
                     "status": "PRESENT", "check_in_at": now, "check_out_at": None,
-                    "marked_absent_at": None, "updated_at": now,
+                    "marked_absent_at": None, "breaks": [], "break_started_at": None, "updated_at": now,
                 }},
                 session=session,
             )
@@ -323,6 +323,8 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
         "marked_absent_at": None, "created_by": admin.get("id"),
         "created_at": now, "updated_at": now,
     }
+    record["breaks"] = []
+    record["break_started_at"] = None
     async def create_present(session):
         await db["workforce_attendance"].insert_one(record, session=session)
         await _audit(record, "CHECK_IN", admin, session=session)
@@ -332,6 +334,71 @@ async def check_in(body: AttendanceAction, admin: dict = Depends(require_workfor
     except DuplicateKeyError:
         raise HTTPException(409, "attendance_already_exists")
 
+
+
+
+@router.post("/attendance/break-start")
+async def start_break(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
+    _ensure_today(body.day)
+    worker = await db.employees.find_one({"id": body.worker_id}, {"_id": 0, "id": 1})
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
+    record = await db["workforce_attendance"].find_one(
+        {"worker_id": worker["id"], "status": "PRESENT", "check_in_at": {"$ne": None}, "check_out_at": None},
+        {"_id": 0}, sort=[("day", -1)],
+    )
+    if not record:
+        raise HTTPException(409, "worker_not_checked_in")
+    if record.get("break_started_at"):
+        raise HTTPException(409, "worker_already_on_break")
+    now = datetime.now(timezone.utc)
+    async def begin(session):
+        result = await db["workforce_attendance"].update_one(
+            {"id": record["id"], "check_out_at": None,
+             "$or": [{"break_started_at": None}, {"break_started_at": {"$exists": False}}]},
+            {"$set": {"break_started_at": now, "updated_at": now}}, session=session,
+        )
+        if result.modified_count != 1:
+            raise HTTPException(409, "attendance_changed_retry")
+        updated = await db["workforce_attendance"].find_one({"id": record["id"]}, {"_id": 0}, session=session)
+        await _audit(updated, "BREAK_START", admin, session=session)
+        return updated
+    return await run_transaction(begin)
+
+
+@router.post("/attendance/break-end")
+async def end_break(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
+    _ensure_today(body.day)
+    worker = await db.employees.find_one({"id": body.worker_id}, {"_id": 0, "id": 1})
+    if not worker:
+        raise HTTPException(404, "worker_not_found")
+    record = await db["workforce_attendance"].find_one(
+        {"worker_id": worker["id"], "status": "PRESENT", "check_in_at": {"$ne": None}, "check_out_at": None},
+        {"_id": 0}, sort=[("day", -1)],
+    )
+    if not record:
+        raise HTTPException(409, "worker_not_checked_in")
+    break_start = record.get("break_started_at")
+    if not isinstance(break_start, datetime):
+        raise HTTPException(409, "worker_not_on_break")
+    if break_start.tzinfo is None:
+        break_start = break_start.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    if now <= break_start:
+        raise HTTPException(409, "break_end_must_follow_start")
+    interval = {"start_at": break_start, "end_at": now}
+    async def resume(session):
+        result = await db["workforce_attendance"].update_one(
+            {"id": record["id"], "check_out_at": None, "break_started_at": record.get("break_started_at")},
+            {"$push": {"breaks": interval}, "$unset": {"break_started_at": ""},
+             "$set": {"updated_at": now}}, session=session,
+        )
+        if result.modified_count != 1:
+            raise HTTPException(409, "attendance_changed_retry")
+        updated = await db["workforce_attendance"].find_one({"id": record["id"]}, {"_id": 0}, session=session)
+        await _audit(updated, "BREAK_END_RESUME_WORK", admin, session=session)
+        return updated
+    return await run_transaction(resume)
 
 @router.post("/attendance/check-out")
 async def check_out(body: AttendanceAction, admin: dict = Depends(require_workforce_admin)):
@@ -350,6 +417,8 @@ async def check_out(body: AttendanceAction, admin: dict = Depends(require_workfo
         raise HTTPException(409, "worker_not_checked_in")
     if record.get("check_out_at"):
         raise HTTPException(409, "worker_already_checked_out")
+    if record.get("break_started_at"):
+        raise HTTPException(409, "worker_must_resume_before_check_out")
 
     async def close_attendance(session):
         result = await db["workforce_attendance"].update_one(
@@ -528,7 +597,19 @@ def _worker_shift_minutes(record: dict) -> int:
     elapsed = (end - start).total_seconds()
     if elapsed <= 0 or elapsed > 24 * 60 * 60:
         return 0
-    return int(elapsed // 60)
+    break_seconds = 0
+    for interval in record.get("breaks") or []:
+        break_start, break_end = interval.get("start_at"), interval.get("end_at")
+        if not isinstance(break_start, datetime) or not isinstance(break_end, datetime):
+            continue
+        if break_start.tzinfo is None:
+            break_start = break_start.replace(tzinfo=timezone.utc)
+        if break_end.tzinfo is None:
+            break_end = break_end.replace(tzinfo=timezone.utc)
+        if start <= break_start < break_end <= end:
+            break_seconds += (break_end - break_start).total_seconds()
+    # Only explicitly recorded breaks are deducted; no automatic break deduction.
+    return max(0, int((elapsed - break_seconds) // 60))
 
 
 def _worker_money(value: Decimal) -> Decimal:
