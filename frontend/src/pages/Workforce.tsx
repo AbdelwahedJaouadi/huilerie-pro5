@@ -437,8 +437,6 @@ export default function Workforce() {
         </div>
         {payrollWorkerId && payrollQuery.data?.workers?.[0] && (() => {
           const row = payrollQuery.data.workers[0];
-          const endDay = new Date(Date.UTC(Number(payrollPeriod.slice(0,4)), Number(payrollPeriod.slice(5,7)), 0)).toISOString().slice(0,10);
-          const periodEnded = endDay <= today;
           const accounts = (payrollQuery.data.accounts ?? []).filter(a => a.account_type === (payrollMethod === "CASH" ? "CASH" : "BANK"));
           return <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
@@ -454,8 +452,8 @@ export default function Workforce() {
               <div className="space-y-1"><Label>{ar ? (payrollMethod === "CASH" ? "حساب الصندوق" : "الحساب البنكي") : (payrollMethod === "CASH" ? "Compte de caisse" : "Compte bancaire")}</Label><select required value={payrollAccountId} onChange={e=>setPayrollAccountId(e.target.value)} className="h-10 w-full rounded-md border border-stone-300 bg-white px-3 text-sm"><option value="">{ar ? "اختر الحساب" : "Choisir le compte"}</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{accounts.length===0 && <p className="text-xs text-rose-700">{ar ? "لا يوجد حساب نشط مناسب لهذه الطريقة." : "Aucun compte actif compatible."}</p>}{payrollMethod === "CASH" && !accounts.some(a => a.id === payrollAccountId) && accounts.length>0 && <p className="text-xs text-rose-700">{ar ? "لم يتم العثور على حساب Caisse principale. تحقق من اسم الحساب أو حالته." : "Le compte « Caisse principale » est introuvable parmi les caisses actives."}</p>}</div>
               {payrollMethod !== "CASH" && <div className="space-y-1"><Label>{ar ? (payrollMethod === "CHEQUE" ? "مرجع الشيك (اختياري)" : "مرجع التحويل (اختياري)") : (payrollMethod === "CHEQUE" ? "Référence chèque (facultatif)" : "Référence virement (facultatif)")}</Label><Input value={payrollReference} onChange={e=>setPayrollReference(e.target.value)} maxLength={120} /></div>}
               <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-stone-500">{payrollKind === "FINAL" ? (ar ? (periodEnded ? "سيتم دفع كامل الباقي فقط." : "الاستخلاص النهائي متاح بعد نهاية الشهر.") : (periodEnded ? "Le solde restant sera payé, sans dépasser le dû." : "Le solde final est disponible après la fin du mois.")) : (ar ? "لا يمكن أن يتجاوز التسبيق الأجر المكتسب وغير المدفوع حتى الآن." : "L’avance ne peut pas dépasser les salaires acquis et non encore payés.")}</p>
-                <Button type="submit" disabled={workerPayment.isPending || row.incomplete_shifts>0 || !accounts.some(a=>a.id===payrollAccountId) || Number(row.reste_a_payer)<=0 || (payrollKind==="ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))) || (payrollKind==="FINAL" && (!periodEnded || row.final_paid))}>{payrollKind==="FINAL" ? (ar ? "دفع الباقي النهائي" : "Payer le solde final") : (ar ? "تسجيل التسبيق" : "Enregistrer l’avance")}</Button>
+                <p className="text-xs text-stone-500">{payrollKind === "FINAL" ? (ar ? "سيتم دفع كامل الأجر المكتسب وغير المدفوع حتى الآن." : "Tout le salaire acquis et non payé sera réglé, sans dépasser le dû.") : (ar ? "لا يمكن أن يتجاوز التسبيق الأجر المكتسب وغير المدفوع حتى الآن." : "L’avance ne peut pas dépasser les salaires acquis et non encore payés.")}</p>
+                <Button type="submit" disabled={workerPayment.isPending || row.incomplete_shifts>0 || !accounts.some(a=>a.id===payrollAccountId) || Number(row.reste_a_payer)<=0 || (payrollKind==="ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer)))}>{payrollKind==="FINAL" ? (ar ? "دفع الباقي النهائي" : "Payer le solde final") : (ar ? "تسجيل التسبيق" : "Enregistrer l’avance")}</Button>
               </div>
               {(() => {
                 const reason = workerPayment.isPending
@@ -466,11 +464,7 @@ export default function Workforce() {
                       ? (ar ? (payrollMethod === "CASH" ? "تعذر تحديد Caisse principale تلقائياً." : "اختر حساب الدفع المناسب.") : (payrollMethod === "CASH" ? "Le compte Caisse principale n’est pas sélectionné." : "Sélectionnez un compte de paiement."))
                       : Number(row.reste_a_payer) <= 0
                         ? (ar ? "لا يوجد أجر متبقٍ غير مدفوع." : "Aucun salaire restant à payer.")
-                        : payrollKind === "FINAL" && !periodEnded
-                          ? (ar ? "لا يمكن دفع الرصيد النهائي قبل نهاية الشهر المختار." : "Le solde final ne peut être payé qu’après la fin du mois sélectionné.")
-                          : payrollKind === "FINAL" && row.final_paid
-                            ? (ar ? "تم تسجيل الاستخلاص النهائي لهذا الشهر." : "Le solde final de ce mois est déjà enregistré.")
-                            : payrollKind === "ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))
+                        : payrollKind === "ADVANCE" && (!payrollAmount || Number(payrollAmount)<=0 || Number(payrollAmount)>Number(row.reste_a_payer))
                               ? (ar ? "أدخل تسبيقًا صحيحًا لا يتجاوز الباقي." : "Saisissez une avance valide ne dépassant pas le solde.")
                               : "";
                 return reason ? <p className="sm:col-span-2 text-xs text-amber-800" role="status">{reason}</p> : null;

@@ -172,8 +172,8 @@ def test_worker_payments_enforce_account_type_and_accrued_wage_limit():
     assert 'expected_type = "CASH" if body.payment_method == "CASH" else "BANK"' in route_source
     assert '"payment_account_type_mismatch"' in route_source
     assert '"advance_exceeds_accrued_unpaid_wages"' in route_source
-    assert '"final_payment_only_after_period_end"' in route_source
-    assert '"final_payment_already_recorded"' in route_source
+    assert '"final_payment_only_after_period_end"' not in route_source
+    assert '"final_payment_already_recorded"' not in route_source
 
 
 def test_worker_payments_are_reconciled_administratively_without_changing_other_sources():
@@ -186,7 +186,8 @@ def test_worker_payments_are_reconciled_administratively_without_changing_other_
     indexes = (ROOT / "lib" / "db.py").read_text(encoding="utf-8")
     assert '"workforce_worker_payments"' in indexes
     assert '"idempotency_key_unique"' in indexes
-    assert '"worker_period_final_unique"' in indexes
+    assert '"worker_period_final_unique"' not in indexes[:indexes.index("async def ensure_indexes")]
+    assert 'drop_index("worker_period_final_unique")' in indexes
 
 
 def test_worker_with_payment_history_cannot_be_permanently_deleted():

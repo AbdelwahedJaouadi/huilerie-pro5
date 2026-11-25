@@ -43,7 +43,6 @@ INDEXES: dict[str, list[IndexModel]] = {
     "workforce_worker_payments": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
         IndexModel([("idempotency_key", ASCENDING)], name="idempotency_key_unique", unique=True),
-        IndexModel([("worker_id", ASCENDING), ("period", ASCENDING)], name="worker_period_final_unique", unique=True, partialFilterExpression={"payment_kind": "FINAL"}),
         IndexModel([("worker_id", ASCENDING), ("period", ASCENDING), ("paid_at", ASCENDING)], name="worker_period_paid"),
         IndexModel([("period", ASCENDING), ("worker_id", ASCENDING)], name="period_worker"),
     ],
@@ -128,6 +127,13 @@ REQUIRED_IDEMPOTENCY_INDEX_COLLECTIONS = frozenset({
 
 
 async def ensure_indexes() -> None:
+    # A worker may settle the accrued balance more than once in a month as new wages accrue.
+    # Drop the former one-FINAL-payment-per-month index; payment idempotency remains enforced
+    # by the unique idempotency_key index.
+    try:
+        await db.workforce_worker_payments.drop_index("worker_period_final_unique")
+    except Exception:
+        pass
     # Remove the obsolete account-link index from earlier employee-registry drafts.
     try:
         await db.employees.drop_index("user_id")
