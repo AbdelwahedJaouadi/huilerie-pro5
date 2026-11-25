@@ -160,3 +160,51 @@ def test_gs_payment_reversal_cannot_exceed_original_payment():
     reversal=next(x for x in result["candidate_events"] if x["source_type"]=="GS_SALE_PAYMENT_REVERSAL")
     assert reversal["eligibility"]=="BLOCKED"
     assert "REVERSALS_EXCEED_ORIGINAL_PAYMENT" in reversal["blocking_reasons"]
+
+
+
+def test_treasury_preview_recorded_at_accepts_string_and_datetime():
+    from datetime import datetime, timezone
+    from typing import Any
+
+    source_path = Path(__file__).parents[1] / "routers" / "accounting.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    safe_function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_safe"
+    )
+    isolated_module = ast.Module(body=[safe_function], type_ignores=[])
+    namespace = {"Any": Any, "Decimal128": type("Decimal128", (), {})}
+    exec(compile(isolated_module, str(source_path), "exec"), namespace)
+    safe = namespace["_safe"]
+
+    timestamp = datetime(2026, 11, 24, 10, 30, tzinfo=timezone.utc)
+    assert safe(timestamp) == "2026-11-24T10:30:00+00:00"
+    assert safe("2026-11-24T10:30:00") == "2026-11-24T10:30:00"
+    assert safe(None) is None
+
+
+def test_treasury_movement_preview_uses_safe_recorded_at_serialization():
+    source_path = Path(__file__).parents[1] / "routers" / "accounting.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    endpoint = next(
+        node for node in tree.body
+        if isinstance(node, ast.AsyncFunctionDef)
+        and node.name == "treasury_movement_preview"
+    )
+    recorded_at_assignment = next(
+        node for node in ast.walk(endpoint)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "candidate"
+            and isinstance(target.slice, ast.Constant)
+            and target.slice.value == "recorded_at"
+            for target in node.targets
+        )
+    )
+    assert isinstance(recorded_at_assignment.value, ast.IfExp)
+    assert isinstance(recorded_at_assignment.value.body, ast.Call)
+    assert isinstance(recorded_at_assignment.value.body.func, ast.Name)
+    assert recorded_at_assignment.value.body.func.id == "_safe"
