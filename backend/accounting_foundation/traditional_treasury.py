@@ -70,7 +70,7 @@ async def record_traditional_receipt_movement(
         "account_type": account.get("account_type"), "amount_tnd": Decimal128(amount),
         "currency": "TND", "movement_date": payment_date, "payment_method": method,
         "external_reference": payment.get("reference"), "settlement_status": settlement,
-        "reconciliation_status": "UNRECONCILED", "opening_balance_applied": False,
+        "reconciliation_status": "RECONCILED" if method == "CASH" else "UNRECONCILED", "opening_balance_applied": False,
         "gl_posting_status": "NOT_POSTED", "recorded_by": actor_user_id,
         "recorded_at": recorded_at,
     }
@@ -82,6 +82,85 @@ async def record_traditional_receipt_movement(
         "actor_user_id": actor_user_id, "created_at": recorded_at,
         "details": {"direction": "IN", "amount_tnd": Decimal128(amount),
                     "currency": "TND", "payment_method": method,
-                    "settlement_status": settlement},
+                    "settlement_status": settlement,
+                    "reconciliation_status": movement["reconciliation_status"]},
     }, session=session)
     return movement
+
+
+async def confirm_traditional_cheque_encashment(
+    db: Any, *, movement_id: str, season_code: str, encashment_date: str,
+    bank_reference: str, actor_user_id: str, confirmed_at: datetime, session: Any,
+) -> dict:
+    """Confirm a cheque already verified on the bank statement; update its original movement once."""
+    from datetime import date
+    from uuid import uuid4
+
+    try:
+        normalized_date = date.fromisoformat(str(encashment_date)).isoformat()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Invalid cheque encashment date") from exc
+    reference = str(bank_reference or "").strip()
+    if not reference or len(reference) > 120:
+        raise ValueError("A valid bank statement reference is required")
+
+    movement = await db.accounting_treasury_movements.find_one(
+        {"id": movement_id, "season_code": season_code}, {"_id": 0}, session=session,
+    )
+    if not movement:
+        raise LookupError("Treasury movement not found in the active season")
+    if (movement.get("source_type") != "TRADITIONAL_RECEIPT"
+            or movement.get("payment_method") != "CHEQUE"
+            or movement.get("direction") != "IN"
+            or movement.get("account_type") != "BANK"):
+        raise ValueError("Only a traditional cheque receipt linked to a bank account can be confirmed")
+    if movement.get("settlement_status") != "PENDING_CHEQUE_CLEARANCE":
+        if (movement.get("settlement_status") == "CHEQUE_CLEARED"
+                and movement.get("bank_statement_reference") == reference
+                and movement.get("cheque_encashment_date") == normalized_date):
+            return movement
+        raise ValueError("Cheque is not pending clearance or was already confirmed differently")
+
+    update = await db.accounting_treasury_movements.update_one(
+        {"id": movement_id, "season_code": season_code,
+         "source_type": "TRADITIONAL_RECEIPT", "payment_method": "CHEQUE",
+         "settlement_status": "PENDING_CHEQUE_CLEARANCE"},
+        {"$set": {
+            "settlement_status": "CHEQUE_CLEARED",
+            "reconciliation_status": "RECONCILED",
+            "cheque_received_date": movement.get("movement_date"),
+            "movement_date": normalized_date,
+            "cheque_encashment_date": normalized_date,
+            "bank_statement_reference": reference,
+            "cheque_encashment_confirmed_by": actor_user_id,
+            "cheque_encashment_confirmed_at": confirmed_at,
+        }}, session=session,
+    )
+    if update.matched_count != 1:
+        raise ValueError("Cheque status changed concurrently; refresh and verify the movement")
+
+    await db.accounting_treasury_movement_events.insert_one({
+        "id": str(uuid4()), "movement_id": movement_id,
+        "source_type": "TRADITIONAL_RECEIPT", "source_id": movement.get("source_id"),
+        "account_id": movement.get("account_id"),
+        "action": "CHEQUE_ENCASHMENT_CONFIRMED",
+        "actor_user_id": actor_user_id, "created_at": confirmed_at,
+        "details": {
+            "previous_settlement_status": "PENDING_CHEQUE_CLEARANCE",
+            "new_settlement_status": "CHEQUE_CLEARED",
+            "previous_reconciliation_status": movement.get("reconciliation_status", "UNRECONCILED"),
+            "new_reconciliation_status": "RECONCILED",
+            "previous_movement_date": movement.get("movement_date"),
+            "new_movement_date": normalized_date,
+            "cheque_encashment_date": normalized_date,
+            "bank_statement_reference": reference,
+        },
+    }, session=session)
+    return {**movement, "settlement_status": "CHEQUE_CLEARED",
+            "reconciliation_status": "RECONCILED",
+            "cheque_received_date": movement.get("movement_date"),
+            "movement_date": normalized_date,
+            "cheque_encashment_date": normalized_date,
+            "bank_statement_reference": reference,
+            "cheque_encashment_confirmed_by": actor_user_id,
+            "cheque_encashment_confirmed_at": confirmed_at}

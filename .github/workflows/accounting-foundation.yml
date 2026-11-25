@@ -8,6 +8,10 @@ on:
       - "backend/tests/test_traditional_accounting_adapter.py"
       - "backend/tests/test_commercial_accounting_adapter.py"
       - "backend/tests/test_accounting_reconciliation_preview.py"
+      - "backend/tests/test_traditional_treasury.py"
+      - "backend/tests/test_treasury_register.py"
+      - "backend/tests/test_treasury_movement_recording.py"
+      - "backend/tests/test_treasury_accounts.py"
       - ".github/workflows/accounting-foundation.yml"
   push:
     branches:
@@ -38,7 +42,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install focused test dependencies
-        run: python -m pip install pytest pytest-xdist httpx pytest-asyncio
+        run: python -m pip install pytest pytest-xdist httpx pytest-asyncio pymongo
       - name: Run accounting foundation and source adapter tests
         run: >-
           python -m pytest
@@ -46,4 +50,8 @@ jobs:
           tests/test_traditional_accounting_adapter.py
           tests/test_commercial_accounting_adapter.py
           tests/test_accounting_reconciliation_preview.py
+          tests/test_traditional_treasury.py
+          tests/test_treasury_register.py
+          tests/test_treasury_movement_recording.py
+          tests/test_treasury_accounts.py
           -q
