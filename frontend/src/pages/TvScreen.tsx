@@ -125,9 +125,8 @@ export default function TvScreen() {
     return () => clearInterval(i);
   }, []);
 
-  // Flash tiles that just appeared.
+  // Track arrivals so the TV can play a sound when new tiles appear.
   const seen = useRef<Set<string> | null>(null);
-  const [fresh, setFresh] = useState<Set<string>>(new Set());
   const audioContext = useRef<AudioContext | null>(null);
   const youtubeHost = useRef<HTMLDivElement | null>(null);
   const directVideo = useRef<HTMLVideoElement | null>(null);
@@ -204,13 +203,7 @@ export default function TvScreen() {
     const cur = new Set(ids ? ids.split(",") : []);
     if (seen.current) {
       const added = [...cur].filter((x) => !seen.current!.has(x));
-      if (added.length) {
-        if (soundEnabled) playNewItemSound();
-        setFresh(new Set(added));
-        const tm = setTimeout(() => setFresh(new Set()), 6000);
-        seen.current = cur;
-        return () => clearTimeout(tm);
-      }
+      if (added.length && soundEnabled) playNewItemSound();
     }
     seen.current = cur;
   }, [ids, soundEnabled]);
@@ -419,7 +412,7 @@ export default function TvScreen() {
                 data-testid={`tv-item-${i.id}`}
                 className={
                   "rounded-3xl border p-[2vw] backdrop-blur " +
-                  (fresh.has(i.id) || i.code?.trim().toLocaleLowerCase() === "fin de pression" ? "tv-pop border-amber-300 bg-amber-400/20 shadow-[0_0_60px_rgba(251,191,36,0.35)]" : "border-white/10 bg-white/[0.06]")
+                  "tv-pop border-amber-300 bg-amber-400/20 shadow-[0_0_60px_rgba(251,191,36,0.35)]"
                 }
               >
                 {i.code ? (
