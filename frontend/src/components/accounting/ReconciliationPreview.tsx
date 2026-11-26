@@ -166,8 +166,8 @@ export default function ReconciliationPreview() {
       <CardContent>
         {data.unresolved_items.length === 0 ? <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800"><CheckCircle2 className="size-4" />{ar ? "لا توجد عناصر غير محسومة ضمن النطاق الحالي." : "Aucun élément non résolu dans le périmètre actuel."}</div> :
         <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm">
-          <thead><tr className="border-b text-left text-xs text-stone-500"><th className="px-3 py-2">{ar ? "المصدر" : "Source"}</th><th className="px-3 py-2">{ar ? "معرّف المصدر" : "ID source"}</th><th className="px-3 py-2">{ar ? "سبب عدم الحسم" : "Motif"}</th><th className="px-3 py-2">{ar ? "العدد" : "Nombre"}</th></tr></thead>
-          <tbody>{data.unresolved_items.map((row, index) => <tr key={`${row.source_type}-${row.source_id}-${row.reason}-${index}`} className="border-b last:border-0"><td className="px-3 py-2">{sourceName(row.source_type || "—")}</td><td className="px-3 py-2 font-mono text-xs">{row.source_id || row.candidate_key || "—"}</td><td className="px-3 py-2 text-xs">{reasonName(row.reason)}</td><td className="px-3 py-2 tabular-nums">{row.observed_count ?? 1}</td></tr>)}</tbody>
+          <thead><tr className="border-b text-left text-xs text-stone-500"><th className="px-3 py-2">{ar ? "المصدر / رقم الوثيقة" : "Source / N° de pièce"}</th><th className="px-3 py-2">{ar ? "سبب عدم الحسم" : "Motif"}</th><th className="px-3 py-2">{ar ? "العدد" : "Nombre"}</th></tr></thead>
+          <tbody>{data.unresolved_items.map((row, index) => <tr key={`${row.source_type}-${row.source_id}-${row.reason}-${index}`} className="border-b last:border-0"><td className="px-3 py-2"><div className="font-medium">{sourceName(row.source_type || "—")}</div><div className="font-mono text-xs text-stone-600">{row.source_document_number || (ar ? "رقم الوثيقة غير متوفر" : "Référence non disponible")}</div></td><td className="px-3 py-2 text-xs">{reasonName(row.reason)}</td><td className="px-3 py-2 tabular-nums">{row.observed_count ?? 1}</td></tr>)}</tbody>
         </table></div>}
       </CardContent>
     </Card>
