@@ -24,8 +24,8 @@ import { QRCodeSVG } from "qrcode.react";
 type AnyRecord = Record<string, any>;
 
 function parseMillimesInteger(value: string): number {
-  const raw = String(value ?? "").trim().replace(/[\\s\\u00a0\\u202f]/g, "");
-  if (!/^\\d+$/.test(raw)) return Number.NaN;
+  const raw = String(value ?? "").trim().replace(/[\s\u00a0\u202f]/g, "");
+  if (!/^\d+$/.test(raw)) return Number.NaN;
   const amount = Number(raw);
   return Number.isSafeInteger(amount) ? amount : Number.NaN;
 }
