@@ -1,7 +1,8 @@
 import ast
+from datetime import datetime, timezone
 from pathlib import Path
 
-from accounting_foundation import build_reconciliation_preview
+from accounting_foundation import build_reconciliation_preview, source_fingerprint
 
 
 def test_preview_composes_traditional_invoice_and_itemized_receipt_candidates():
@@ -208,3 +209,16 @@ def test_treasury_movement_preview_uses_safe_recorded_at_serialization():
     assert isinstance(recorded_at_assignment.value.body, ast.Call)
     assert isinstance(recorded_at_assignment.value.body.func, ast.Name)
     assert recorded_at_assignment.value.body.func.id == "_safe"
+
+
+
+def test_source_fingerprint_accepts_naive_datetime_without_assuming_timezone():
+    naive = datetime(2026, 11, 26, 10, 30, 0)
+    aware = naive.replace(tzinfo=timezone.utc)
+
+    naive_fingerprint = source_fingerprint({"recorded_at": naive})
+    assert naive_fingerprint == source_fingerprint({"recorded_at": naive})
+    assert naive_fingerprint != source_fingerprint({"recorded_at": aware})
+    assert naive_fingerprint != source_fingerprint({
+        "recorded_at": naive.isoformat()
+    })
