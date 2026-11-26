@@ -1894,7 +1894,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     <div className={`commercial-workspace mx-auto max-w-7xl space-y-6 ${embeddedStockView ? "commercial-embedded-stock" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "purchases" ? (lang === "ar" ? "شراء الزيتون من المزوّدين" : "Achat d’olives auprès des fournisseurs") : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء الزيتون من الحرفاء" : "Achat auprès des Clients") : tab === "procurement" && procurementView === "supplier-oil-purchases" ? (lang === "ar" ? "شراء زيت من المزوّدين" : "Achat d’huile auprès des fournisseurs") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "purchases" ? (lang === "ar" ? "شراء الزيتون من المزوّدين" : "Achat d’olives auprès des fournisseurs") : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء الزيتون من الحرفاء" : "Achat d’olives auprès des Clients") : tab === "procurement" && procurementView === "supplier-oil-purchases" ? (lang === "ar" ? "شراء زيت من المزوّدين" : "Achat d’huile auprès des fournisseurs") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
           {tab === "overview" && <p className="mt-2 max-w-3xl text-sm text-stone-500 md:text-base">{l.subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
@@ -1907,7 +1907,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         <Button type="button" size="sm" variant={procurementView === "suppliers" ? "default" : "outline"} role="tab" aria-selected={procurementView === "suppliers"} onClick={() => selectTab("suppliers")}><Truck className="mr-2 size-4" />{l.suppliers}</Button>
         <Button type="button" size="sm" variant={procurementView === "purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "purchases"} onClick={() => selectTab("purchases")}><ShoppingBasket className="mr-2 size-4" />{l.purchasesTab}</Button>
         {isAdmin && <Button type="button" size="sm" variant={procurementView === "supplier-oil-purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "supplier-oil-purchases"} onClick={() => selectTab("supplier-oil-purchases")}><Droplet className="mr-2 size-4" />{lang === "ar" ? "شراء زيت" : "Achat d’huile"}</Button>}
-        <Button type="button" size="sm" variant={procurementView === "customer-purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "customer-purchases"} onClick={() => selectTab("customer-purchases")}><ShoppingCart className="mr-2 size-4" />{lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients"}</Button>
+        <Button type="button" size="sm" variant={procurementView === "customer-purchases" ? "default" : "outline"} role="tab" aria-selected={procurementView === "customer-purchases"} onClick={() => selectTab("customer-purchases")}><ShoppingCart className="mr-2 size-4" />{lang === "ar" ? "شراء من الحرفاء" : "Achat auprès des Clients"}</Button>
       </div>}
 
       {status.isError && (
