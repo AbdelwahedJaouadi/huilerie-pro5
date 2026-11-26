@@ -52,8 +52,11 @@ def _canonical_value(value: Any) -> Any:
     if isinstance(value, Decimal):
         return {"$decimal": canonical_decimal(value)}
     if isinstance(value, datetime):
-        if value.tzinfo is None:
-            raise ValueError("Naive datetimes are not valid fingerprint inputs")
+        # Preserve the source's exact wall-clock representation when no
+        # timezone is present. Do not guess UTC or local time: naive and
+        # timezone-aware values must remain distinct fingerprint inputs.
+        if value.tzinfo is None or value.utcoffset() is None:
+            return {"$datetime_naive": value.isoformat()}
         return {"$datetime": value.isoformat()}
     if isinstance(value, date):
         return {"$date": value.isoformat()}
