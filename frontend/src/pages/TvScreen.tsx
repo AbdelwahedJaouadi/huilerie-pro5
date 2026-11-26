@@ -198,6 +198,8 @@ export default function TvScreen() {
   };
 
   const ids = (board?.items ?? []).map((i) => i.id).join(",");
+  // Keep a separate snapshot of board item IDs so new arrivals still trigger the sound.
+  const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     const cur = new Set(ids ? ids.split(",") : []);
     if (seen.current) {
