@@ -45,11 +45,15 @@ def test_source_fingerprint_ignores_mapping_order_but_not_values():
     assert source_fingerprint(left) != source_fingerprint(changed)
 
 
-def test_source_fingerprint_requires_timezone_aware_datetime():
-    with pytest.raises(ValueError):
-        source_fingerprint({"created_at": datetime(2026, 11, 20)})
-    assert source_fingerprint({
-        "created_at": datetime(2026, 11, 20, tzinfo=timezone.utc)
+def test_source_fingerprint_accepts_naive_and_aware_datetimes_distinctly():
+    naive = datetime(2026, 11, 20)
+    aware = datetime(2026, 11, 20, tzinfo=timezone.utc)
+
+    naive_fingerprint = source_fingerprint({"created_at": naive})
+    assert naive_fingerprint == source_fingerprint({"created_at": naive})
+    assert naive_fingerprint != source_fingerprint({"created_at": aware})
+    assert naive_fingerprint != source_fingerprint({
+        "created_at": naive.isoformat()
     })
 
 
