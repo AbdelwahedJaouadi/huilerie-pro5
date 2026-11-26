@@ -419,7 +419,7 @@ export default function TvScreen() {
                 data-testid={`tv-item-${i.id}`}
                 className={
                   "rounded-3xl border p-[2vw] backdrop-blur " +
-                  (fresh.has(i.id) ? "tv-pop border-amber-300 bg-amber-400/20 shadow-[0_0_60px_rgba(251,191,36,0.35)]" : "border-white/10 bg-white/[0.06]")
+                  (fresh.has(i.id) || i.code?.trim().toLocaleLowerCase() === "fin de pression" ? "tv-pop border-amber-300 bg-amber-400/20 shadow-[0_0_60px_rgba(251,191,36,0.35)]" : "border-white/10 bg-white/[0.06]")
                 }
               >
                 {i.code ? (
