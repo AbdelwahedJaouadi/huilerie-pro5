@@ -22,6 +22,7 @@ type Candidate = {
 type Finding = {
   source_type?: string;
   source_id?: string;
+  source_document_number?: string | null;
   reason: string;
   candidate_key?: string;
   observed_count?: number;
@@ -100,7 +101,20 @@ export default function ReconciliationPreview() {
     GS_SALE_PAYMENT: ar ? "قبض مبيعات GS" : "Encaissement vente GS",
     GS_SALE_PAYMENT_REVERSAL: ar ? "عكس قبض GS" : "Annulation d’encaissement GS",
   } as Record<string, string>)[value] || value;
-  const reasonName = (value: string) => value.toLowerCase().replaceAll("_", " ");
+  const reasonName = (value: string) => {
+    const labels: Record<string, string> = {
+      INVOICE_HISTORY_IS_AUDIT_EVIDENCE_NOT_RECEIPTS: ar
+        ? "سجل الفاتورة للتتبع والتدقيق، وليس إثباتاً للدفع"
+        : "Historique de facture : élément de traçabilité, pas un justificatif de paiement",
+      LEGACY_PAID_AGGREGATE_WITHOUT_ITEMIZED_RECEIPTS: ar
+        ? "مبلغ مدفوع قديم دون وصولات دفع مفصلة"
+        : "Montant payé historique sans justificatifs de paiement détaillés",
+      ITEMIZED_PAYMENTS_DO_NOT_RECONCILE_TO_PAID_SNAPSHOT: ar
+        ? "مجموع الدفعات لا يطابق المبلغ المدفوع المسجل"
+        : "Le total des paiements ne correspond pas au montant payé enregistré",
+    };
+    return labels[value] || value.toLowerCase().replaceAll("_", " ");
+  };
 
   return <div className="space-y-5" data-testid="accounting-reconciliation-preview">
     <div className="flex flex-wrap items-start justify-between gap-3">
