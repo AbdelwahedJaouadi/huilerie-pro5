@@ -1894,7 +1894,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
     <div className={`commercial-workspace mx-auto max-w-7xl space-y-6 ${embeddedStockView ? "commercial-embedded-stock" : ""}`} dir={lang === "ar" ? "rtl" : "ltr"}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء من الحرفاء" : "Achat depuis clients") : tab === "procurement" && procurementView === "supplier-oil-purchases" ? (lang === "ar" ? "شراء زيت من المزوّدين" : "Achat d’huile auprès des fournisseurs") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
+          <h1 className="font-heading text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">{tab === "overview" ? l.title : tab === "procurement" && procurementView === "purchases" ? (lang === "ar" ? "شراء الزيتون من المزوّدين" : "Achat d’olives auprès des fournisseurs") : tab === "procurement" && procurementView === "customer-purchases" ? (lang === "ar" ? "شراء الزيتون من الحرفاء" : "Achat d’olives auprès des Clients") : tab === "procurement" && procurementView === "supplier-oil-purchases" ? (lang === "ar" ? "شراء زيت من المزوّدين" : "Achat d’huile auprès des fournisseurs") : (tabs.find((item) => item.id === tab)?.label ?? l.title)}</h1>
           {tab === "overview" && <p className="mt-2 max-w-3xl text-sm text-stone-500 md:text-base">{l.subtitle}</p>}
         </div>
         <div className="flex items-center gap-2">
