@@ -104,6 +104,43 @@ def build_reconciliation_preview(
     candidate_events.extend(sales_result["candidate_events"])
     unresolved_items.extend(sales_result["unresolved_items"])
 
+    # Attach human-readable document references to unresolved findings while
+    # retaining immutable source IDs internally for stable source linkage.
+    document_references: dict[tuple[str, str], str] = {}
+
+    def remember_reference(source_type: str, document: dict[str, Any], number_field: str) -> None:
+        source_id = str(document.get("_id") or document.get("id") or "")
+        number = document.get(number_field)
+        if source_id and number is not None and str(number).strip():
+            document_references[(source_type, source_id)] = str(number)
+
+    for invoice in invoices:
+        remember_reference("TRADITIONAL_INVOICE", invoice, "number")
+        remember_reference("TRADITIONAL_RECEIPT", invoice, "number")
+    for purchase in purchases:
+        remember_reference("GS_OLIVE_PURCHASE", purchase, "document_number")
+    for payment in payments:
+        remember_reference("GS_SUPPLIER_PAYMENT", payment, "document_number")
+    for invoice in sale_invoices:
+        remember_reference("GS_SALE_INVOICE", invoice, "document_number")
+    for payment in sale_payments:
+        remember_reference("GS_SALE_PAYMENT", payment, "document_number")
+    for reversal in sale_reversals:
+        remember_reference("GS_SALE_PAYMENT_REVERSAL", reversal, "document_number")
+
+    for finding in unresolved_items:
+        if finding.get("source_document_number"):
+            continue
+        source_type = str(finding.get("source_type") or "")
+        source_id = str(finding.get("source_id") or "")
+        reference = document_references.get((source_type, source_id))
+        if reference is None and source_type == "GS_SUPPLIER_PAYMENT":
+            reference = document_references.get(("GS_OLIVE_PURCHASE", source_id))
+        if reference is None and source_type == "GS_SALE_PAYMENT":
+            reference = document_references.get(("GS_SALE_INVOICE", source_id))
+        if reference is not None:
+            finding["source_document_number"] = reference
+
     source_counts = Counter(event.get("source_type", "UNKNOWN") for event in candidate_events)
     candidate_keys = [
         event.get("candidate_key") for event in candidate_events

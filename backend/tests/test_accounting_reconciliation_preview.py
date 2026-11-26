@@ -84,6 +84,38 @@ def test_preview_composes_approved_gs_purchase_and_supplier_payment():
     assert result["summary"]["unresolved_item_count"] == 0
 
 
+
+def test_preview_attaches_document_number_to_unresolved_supplier_purchase_finding():
+    purchase = {
+        "id": "purchase-2",
+        "document_number": "ACH-0002",
+        "status": "APPROVED",
+        "supplier_id": "supplier-2",
+        "purchase_date": "2026-11-21",
+        "lines": [],
+        "total_quantity_kg": "0",
+        "total_amount_dt": "100.000",
+        "lot_ids": [],
+        "receipt_movement_ids": [],
+        "paid_amount_dt": "20.000",
+        "outstanding_amount_dt": "80.000",
+    }
+    payments = [{
+        "id": "payment-2",
+        "purchase_id": "purchase-2",
+        "supplier_id": "supplier-2",
+        "amount_tnd": "10.000",
+        "payment_date": "2026-11-21",
+        "currency": "TND",
+    }]
+    result = build_reconciliation_preview(gs_purchases=[purchase], supplier_payments=payments)
+    finding = next(
+        item for item in result["unresolved_items"]
+        if item["reason"] == "SUPPLIER_PAYMENT_LEDGER_DOES_NOT_MATCH_PAID_SNAPSHOT"
+    )
+    assert finding["source_document_number"] == "ACH-0002"
+
+
 def test_preview_reports_duplicate_candidate_identity_without_posting():
     invoice = {
         "id": "invoice-1",
@@ -105,6 +137,7 @@ def test_preview_preserves_unresolved_legacy_paid_aggregate():
     result = build_reconciliation_preview(
         traditional_invoices=[{
             "id": "invoice-1",
+            "number": "FAC-HUI-0091",
             "payments": [],
             "paid_amount": "90.000",
             "history": [{"action": "updated", "at": "2026-11-20"}],
@@ -113,6 +146,8 @@ def test_preview_preserves_unresolved_legacy_paid_aggregate():
     reasons = {item["reason"] for item in result["unresolved_items"]}
     assert "LEGACY_PAID_AGGREGATE_WITHOUT_ITEMIZED_RECEIPTS" in reasons
     assert "INVOICE_HISTORY_IS_AUDIT_EVIDENCE_NOT_RECEIPTS" in reasons
+    history_finding = next(item for item in result["unresolved_items"] if item["reason"] == "INVOICE_HISTORY_IS_AUDIT_EVIDENCE_NOT_RECEIPTS")
+    assert history_finding["source_document_number"] == "FAC-HUI-0091"
     assert result["candidate_events"][0]["event_type"] == "INVOICE_RECOGNIZED"
 
 
