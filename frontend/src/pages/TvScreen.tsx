@@ -330,7 +330,7 @@ export default function TvScreen() {
     return () => window.clearTimeout(timer);
   }, [arrivalNotice, mill?.tv_receipt_duration]);
   return (
-    <div className="tv-screen relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top_left,rgba(132,153,42,0.18),transparent_44%),radial-gradient(ellipse_at_bottom_right,rgba(61,91,40,0.24),transparent_46%),linear-gradient(135deg,#0B1710_0%,#142A1B_52%,#20351F_100%)] bg-cover bg-center text-white" style={mill?.tv_image ? { backgroundImage: `linear-gradient(rgba(8,18,12,0.10), rgba(8,18,12,0.14)), url("${mill.tv_image}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} data-testid="tv-screen">
+    <div className="tv-screen relative min-h-screen overflow-hidden bg-[radial-gradient(ellipse_at_top_left,rgba(132,153,42,0.18),transparent_44%),radial-gradient(ellipse_at_bottom_right,rgba(61,91,40,0.24),transparent_46%),linear-gradient(135deg,#0B1710_0%,#142A1B_52%,#20351F_100%)] bg-cover bg-center text-white" style={mill?.tv_image ? { backgroundImage: `linear-gradient(rgba(8,18,12,0.16), rgba(8,18,12,0.20)), url("${mill.tv_image}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined} data-testid="tv-screen">
       {mill?.tv_music_url ? <audio ref={musicAudio} src={`${API_ORIGIN}${mill.tv_music_url}`} preload="auto" loop /> : null}
       {musicEnabled && musicNeedsGesture ? <button type="button" onClick={enableBackgroundMusic} className="fixed right-5 top-5 z-30 rounded-lg border border-emerald-300/50 bg-emerald-900/90 px-4 py-2 text-sm font-semibold text-white shadow-lg" data-testid="tv-music-unlock">🎵 Activer la musique</button> : null}
       {mill?.tv_video_enabled !== false && (videoId || directVideoUrl) ? (
@@ -351,7 +351,7 @@ export default function TvScreen() {
           )}
         </div>
       ) : null}
-      <div className={"pointer-events-none fixed z-0 bg-black/10 " + (displayMode === "split" ? "inset-y-0 left-0 w-1/2" : "inset-0")} />
+      <div className={"pointer-events-none fixed z-0 bg-black/20 " + (displayMode === "split" ? "inset-y-0 left-0 w-1/2" : "inset-0")} />
       {arrivalNotice ? (
         <div key={arrivalNotice.id} className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-black/35 px-4" data-testid="tv-new-arrival-notice">
           <div className="rounded-[2rem] border-4 border-amber-300 bg-[#142A1B]/95 px-12 py-10 text-center shadow-2xl">
