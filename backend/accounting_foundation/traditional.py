@@ -150,6 +150,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             unresolved.append({
                 "source_type": "TRADITIONAL_RECEIPT",
                 "source_id": invoice_id,
+                "source_document_number": str(invoice.get("number")) if invoice.get("number") is not None else None,
                 "reason": "PAYMENT_CHILD_NOT_AN_OBJECT",
                 "source_fingerprint": source_fingerprint({"value": str(payment)}),
             })
@@ -188,6 +189,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             unresolved.append({
                 "source_type": "TRADITIONAL_RECEIPT",
                 "source_id": invoice_id,
+                "source_document_number": str(invoice.get("number")) if invoice.get("number") is not None else None,
                 "reason": "PAYMENT_CHILD_ID_MISSING",
                 "observed_index": index,
                 "source_fingerprint": source_fingerprint({
@@ -239,6 +241,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             unresolved.append({
                 "source_type": "TRADITIONAL_INVOICE",
                 "source_id": invoice_id,
+                "source_document_number": str(invoice.get("number")) if invoice.get("number") is not None else None,
                 "reason": "PAID_AMOUNT_SNAPSHOT_INVALID",
                 "source_fingerprint": source_fingerprint({"paid_amount": str(invoice.get("paid_amount"))}),
             })
@@ -261,6 +264,7 @@ def adapt_traditional_invoice_payments(invoice: dict[str, Any]) -> dict[str, Any
             unresolved.append({
                 "source_type": "TRADITIONAL_INVOICE",
                 "source_id": invoice_id,
+                "source_document_number": str(invoice.get("number")) if invoice.get("number") is not None else None,
                 "reason": "ITEMIZED_PAYMENTS_DO_NOT_RECONCILE_TO_PAID_SNAPSHOT",
                 "observed_amount": canonical_decimal(difference),
                 "source_fingerprint": source_fingerprint({
