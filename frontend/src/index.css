@@ -518,16 +518,16 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
 }
 
 
-/* Long shared tables: keep the first seven data rows in view and scroll vertically.
+/* Long shared tables: keep the first ten data rows in view and scroll vertically.
    The horizontal overflow remains available for wide tables. */
-.data-table-scroll:has(> table tbody tr:nth-child(8)) {
+.data-table-scroll:has(> table tbody tr:nth-child(11)) {
   max-height: 22rem;
   overflow-y: auto;
   overflow-x: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
-.data-table-scroll:has(> table tbody tr:nth-child(8)) > table thead th {
+.data-table-scroll:has(> table tbody tr:nth-child(11)) > table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -535,39 +535,39 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
 }
 @media print {
   .data-table-scroll,
-  .data-table-scroll:has(> table tbody tr:nth-child(8)) {
+  .data-table-scroll:has(> table tbody tr:nth-child(11)) {
     max-height: none !important;
     overflow: visible !important;
   }
-  .data-table-scroll:has(> table tbody tr:nth-child(8)) > table thead th {
+  .data-table-scroll:has(> table tbody tr:nth-child(11)) > table thead th {
     position: static;
   }
 }
 
 
-/* Extend the same seven-row rule to native HTML tables that use the
+/* Extend the same ten-row rule to native HTML tables that use the
    application's standard horizontal-scroll wrapper. */
-.overflow-x-auto:has(> table tbody tr:nth-child(8)) {
+.overflow-x-auto:has(> table tbody tr:nth-child(11)) {
   max-height: 22rem;
   overflow-y: auto;
   overflow-x: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
-.overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead {
+.overflow-x-auto:has(> table tbody tr:nth-child(11)) > table thead {
   position: sticky;
   top: 0;
   z-index: 3;
 }
-.overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead th {
+.overflow-x-auto:has(> table tbody tr:nth-child(11)) > table thead th {
   background: inherit;
 }
 @media print {
-  .overflow-x-auto:has(> table tbody tr:nth-child(8)) {
+  .overflow-x-auto:has(> table tbody tr:nth-child(11)) {
     max-height: none !important;
     overflow: visible !important;
   }
-  .overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead {
+  .overflow-x-auto:has(> table tbody tr:nth-child(11)) > table thead {
     position: static;
   }
 }
