@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound } from "lucide-react";
+import { History, Printer, Plus, Sprout, UserPlus, Truck, UserRound, Scale } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -236,6 +236,14 @@ export default function IntakePanel({ stacked = false }: { stacked?: boolean }) 
         <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-stone-200 bg-white p-1.5">
           <button type="button" onClick={() => setReceptionType("client")} className={receptionType === "client" ? "flex items-center justify-center gap-2 rounded-xl bg-lime-700 px-3 py-3 text-sm font-semibold text-white" : "flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-stone-600 hover:bg-stone-50"}><UserRound className="size-4" /> {ar ? "حريف · Oro Verde" : "Client · Oro Verde"}</button>
           <button type="button" onClick={() => setReceptionType("supplier")} className={receptionType === "supplier" ? "flex items-center justify-center gap-2 rounded-xl bg-blue-700 px-3 py-3 text-sm font-semibold text-white" : "flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-stone-600 hover:bg-stone-50"}><Truck className="size-4" /> {ar ? "مزوّد · GS" : "Fournisseur · GS"}</button>
+        </div>
+        <div role="status" data-testid="scale-connection-status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-800"><Scale className="size-5" /></div>
+          <div className="min-w-0 space-y-1">
+            <div className="text-sm font-semibold text-amber-950">{ar ? "حالة الميزان الإلكتروني" : "Balance électronique"}</div>
+            <div className="text-xs font-semibold text-amber-800">{ar ? "التكامل غير مهيّأ" : "Intégration non installée"}</div>
+            <p className="text-xs leading-relaxed text-amber-900">{ar ? "التطبيق لا يحتوي حالياً على برنامج اتصال يكتشف الميزان أو يقرأ وزنه. يبقى إدخال الوزن يدوياً متاحاً." : "L’application ne dispose pas encore d’un pilote ou d’un pont local pour détecter le pont-bascule et lire son poids. La saisie manuelle reste disponible."}</p>
+          </div>
         </div>
       {receptionType === "client" ? <form
         onSubmit={(e) => {
