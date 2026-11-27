@@ -573,12 +573,12 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
 }
 
 
-/* Audit journal: override the shared scroll on the actual inner table wrapper.
-   The Audit page adds an outer wrapper around the Table component's own container. */
-.audit-table-no-vertical-scroll .data-table-scroll:has(> table tbody tr:nth-child(11)) {
+/* Audit journal: render the table in normal document flow.
+   Disable both the shared inner table scroll and sticky header on this page only. */
+.audit-table-page-scroll .data-table-scroll {
   max-height: none !important;
-  overflow-y: visible !important;
+  overflow: visible !important;
 }
-.audit-table-no-vertical-scroll .data-table-scroll:has(> table tbody tr:nth-child(11)) > table thead th {
+.audit-table-page-scroll .data-table-scroll > table thead th {
   position: static !important;
 }
