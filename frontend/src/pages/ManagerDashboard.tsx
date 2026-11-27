@@ -4,10 +4,11 @@ import { apiGet } from "@/lib/api";
 import { fmtMoney, fmtNum, useI18n } from "@/lib/i18n";
 import { useMe } from "@/lib/useMe";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 type Row = Record<string, any>;
 type WorkforceWorkersResponse = { workers: Row[]; total: number };
+type WorkforceAttendance = { records: Array<{ worker_id: string; status: string; check_in_at: string | null; check_out_at: string | null; breaks?: Array<{ start_at: string; end_at: string }> }> };
 type Overview = {
   active_season: string;
   supplier_olive_purchases: Row[];
@@ -80,14 +81,57 @@ function SummaryPanel({ title, icon: Icon, total, paid, remaining, labels, tone,
   </Link>;
 }
 
+function tunisDateParts(value: Date) {
+  return Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Tunis", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(value).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
+function tunisMonthRange() {
+  const parts = tunisDateParts(new Date());
+  const first = `${parts.year}-${parts.month}-01`;
+  const lastDay = new Date(Date.UTC(Number(parts.year), Number(parts.month), 0)).getUTCDate();
+  return { first, last: `${parts.year}-${parts.month}-${String(lastDay).padStart(2, "0")}` };
+}
+function attendanceWorkedMinutes(record: WorkforceAttendance["records"][number]) {
+  if (record.status !== "PRESENT" || !record.check_in_at || !record.check_out_at) return 0;
+  const start = new Date(record.check_in_at).getTime();
+  const end = new Date(record.check_out_at).getTime();
+  const elapsed = end - start;
+  if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 24 * 60 * 60 * 1000) return 0;
+  const breaks = (record.breaks ?? []).reduce((total, item) => {
+    const breakStart = new Date(item.start_at).getTime();
+    const breakEnd = new Date(item.end_at).getTime();
+    return Number.isFinite(breakStart) && Number.isFinite(breakEnd) && breakEnd > breakStart
+      ? total + Math.floor((breakEnd - breakStart) / 60000) : total;
+  }, 0);
+  return Math.max(0, Math.floor(elapsed / 60000) - breaks);
+}
+function formatWorkedHours(minutes: number) {
+  const hours = minutes / 60;
+  return `${new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(hours)} h`;
+}
+
 export default function ManagerDashboard() {
   const { lang } = useI18n();
   const ar = lang === "ar";
   const me = useMe();
+  const navigate = useNavigate();
   const isAdmin = me.data?.role === "admin";
   const stats = useQuery({ queryKey: ["manager-dashboard", "stats"], queryFn: () => apiGet<Stats>("/stats"), enabled: !!isAdmin, refetchInterval: 15_000 });
   const accounting = useQuery({ queryKey: ["manager-dashboard", "accounting"], queryFn: () => apiGet<Overview>("/accounting/overview"), enabled: !!isAdmin, refetchInterval: 30_000, retry: false });
   const workers = useQuery({ queryKey: ["manager-dashboard", "workers"], queryFn: () => apiGet<WorkforceWorkersResponse>("/workforce/workers"), enabled: !!isAdmin, refetchInterval: 30_000 });
+  const monthRange = tunisMonthRange();
+  const attendance = useQuery({
+    queryKey: ["manager-dashboard", "workforce-attendance", monthRange.first, monthRange.last],
+    queryFn: () => apiGet<WorkforceAttendance>(`/workforce/attendance?start_date=${monthRange.first}&end_date=${monthRange.last}`),
+    enabled: !!isAdmin,
+    refetchInterval: 30_000,
+  });
+  const workedMinutesByWorker = new Map<string, number>();
+  for (const record of attendance.data?.records ?? []) {
+    const minutes = attendanceWorkedMinutes(record);
+    if (minutes > 0) workedMinutesByWorker.set(record.worker_id, (workedMinutesByWorker.get(record.worker_id) ?? 0) + minutes);
+  }
 
   if (me.isPending) return <div className="p-6 text-stone-500">{ar ? "جارٍ التحقق من الصلاحيات…" : "Vérification des autorisations…"}</div>;
   if (!isAdmin) return <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800">{ar ? "هذه اللوحة متاحة للمدير فقط." : "Ce tableau de bord est réservé à l’administrateur."}</div>;
@@ -226,24 +270,45 @@ export default function ManagerDashboard() {
       </div>
     </section>
 
-    <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 shadow-sm md:col-span-3">
+    <section
+      className="rounded-2xl border border-teal-200 bg-teal-50 p-4 shadow-sm md:col-span-3 cursor-pointer outline-none transition hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500"
+      role="link"
+      tabIndex={0}
+      aria-label={ar ? "فتح صفحة العمال" : "Ouvrir la page des employés"}
+      onClick={() => navigate("/workforce")}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); navigate("/workforce"); } }}
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-bold text-teal-950">{ar ? "العمال" : "Employés"}</h2>
         <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-teal-800">{workers.data ? workers.data.workers.length : "—"}</span>
       </div>
-      {workers.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل قائمة العمال." : "Impossible de charger la liste des employés."}</p> :
-        workers.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال…" : "Chargement des employés…"}</p> :
+      {workers.isError || attendance.isError ? <p className="text-sm text-amber-700">{ar ? "تعذر تحميل بيانات العمال أو ساعات العمل." : "Impossible de charger les employés ou leurs heures travaillées."}</p> :
+        workers.isPending || attendance.isPending ? <p className="text-sm text-stone-500">{ar ? "جارٍ تحميل العمال وساعات العمل…" : "Chargement des employés et des heures…"}</p> :
         workers.data.workers.length === 0
           ? <p className="text-sm text-stone-500">{ar ? "لا يوجد عمال مسجلون." : "Aucun employé enregistré."}</p>
-          : <div className="flex flex-col gap-2">
-              {workers.data.workers.map((worker) => (
-                <div key={String(worker.id ?? worker._id ?? worker.username)} className="flex w-full items-center justify-between gap-3 rounded-xl border border-teal-100 bg-white/80 px-3 py-3">
-                  <span className="min-w-0 truncate font-medium text-stone-800">{worker.full_name || worker.username || "—"}</span>
-                  <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
-                </div>
-              ))}
+          : <div className="overflow-x-auto rounded-xl border border-teal-100 bg-white/80">
+              <table className="w-full min-w-[360px] text-sm">
+                <thead className="bg-teal-100/70 text-teal-950">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-start font-semibold">{ar ? "العامل" : "Employé"}</th>
+                    <th scope="col" className="px-3 py-2 text-start font-semibold">{ar ? "الحالة" : "Statut"}</th>
+                    <th scope="col" className="px-3 py-2 text-end font-semibold">{ar ? "Total" : "Total"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workers.data.workers.map((worker) => (
+                    <tr key={String(worker.id ?? worker._id ?? worker.username)} className="border-t border-teal-100">
+                      <td className="px-3 py-2 font-medium text-stone-800">{worker.full_name || worker.username || "—"}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${worker.archived === true ? "bg-stone-100 text-stone-700" : worker.active === true ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>{worker.archived === true ? (ar ? "مؤرشف" : "Archivé") : worker.active === true ? (ar ? "نشط" : "Actif") : (ar ? "غير نشط" : "Inactif")}</span>
+                      </td>
+                      <td className="px-3 py-2 text-end font-semibold tabular-nums text-teal-900" dir="ltr">{formatWorkedHours(workedMinutesByWorker.get(String(worker.id)) ?? 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>}
-      <p className="mt-3 text-xs text-teal-900/70">{ar ? "تعرض هذه القائمة جميع العمال وحالتهم الحالية؛ وتُتابع أوقات الحضور والانصراف في صفحة Travail." : "Liste complète du registre des employés avec leur statut actuel ; les heures de présence et de départ sont suivies dans la page Travail."}</p>
+      <p className="mt-3 text-xs text-teal-900/70">{ar ? `مجموع ساعات العمل خلال الشهر الحالي (${monthRange.first.slice(0, 7)})؛ انقر لفتح صفحة العمال.` : `Total des heures travaillées pendant le mois en cours (${monthRange.first.slice(0, 7)}). Cliquez pour ouvrir la page des employés.`}</p>
     </section>
     {loading && <p className="text-xs text-stone-500">{ar ? "جارٍ تحميل البيانات…" : "Chargement des données…"}</p>}
   </div>;
