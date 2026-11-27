@@ -516,3 +516,30 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
  .home-chart-content { grid-template-columns:1fr; }.home-bar-chart { border-right:0;border-bottom:1px solid #eee9dc; }.home-season-summary { display:grid;grid-template-columns:1fr 120px;align-items:center; }.home-season-summary h3 { grid-column:1/-1; }.home-donut { width:112px;height:112px; }.home-donut:before { width:72px;height:72px; }
  body:has(.home-redesign) [data-testid="bottom-nav"] a { min-width:65px; }
 }
+
+
+/* Long shared tables: keep the first seven data rows in view and scroll vertically.
+   The horizontal overflow remains available for wide tables. */
+.data-table-scroll:has(> table tbody tr:nth-child(8)) {
+  max-height: 22rem;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.data-table-scroll:has(> table tbody tr:nth-child(8)) > table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--card, #fff);
+}
+@media print {
+  .data-table-scroll,
+  .data-table-scroll:has(> table tbody tr:nth-child(8)) {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .data-table-scroll:has(> table tbody tr:nth-child(8)) > table thead th {
+    position: static;
+  }
+}
