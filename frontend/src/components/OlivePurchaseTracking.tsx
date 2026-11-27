@@ -36,12 +36,14 @@ export default function OlivePurchaseTracking() {
   const lots = useQuery({ queryKey: ["commercial", "lots"], queryFn: () => getAllPages<Row>("/commercial/v1/lots", 500), enabled: ready });
   const balances = useQuery({ queryKey: ["commercial", "balances"], queryFn: () => getAllPages<Row>("/commercial/v1/stock-balances", 1000), enabled: ready });
   const productionRuns = useQuery({ queryKey: ["commercial", "production-runs"], queryFn: () => getAllPages<Row>("/commercial/v1/production-runs", 500), enabled: ready });
+  const stockMovements = useQuery({ queryKey: ["commercial", "stock-movements"], queryFn: () => getAllPages<Row>("/commercial/v1/stock-movements", 500), enabled: ready });
+  const internalMovements = useQuery({ queryKey: ["commercial", "internal-movements"], queryFn: () => getAllPages<Row>("/commercial/v1/internal-movements", 500), enabled: ready });
 
   const rows = [...(purchases.data ?? [])].sort((a, b) =>
     String(b.purchase_date ?? b.created_at ?? "").localeCompare(String(a.purchase_date ?? a.created_at ?? "")),
   );
-  const loading = status.isLoading || (ready && (purchases.isLoading || suppliers.isLoading || varieties.isLoading || lots.isLoading || balances.isLoading || productionRuns.isLoading));
-  const failed = status.isError || (ready && (purchases.isError || suppliers.isError || varieties.isError || lots.isError || balances.isError || productionRuns.isError));
+  const loading = status.isLoading || (ready && (purchases.isLoading || suppliers.isLoading || varieties.isLoading || lots.isLoading || balances.isLoading || productionRuns.isLoading || stockMovements.isLoading || internalMovements.isLoading));
+  const failed = status.isError || (ready && (purchases.isError || suppliers.isError || varieties.isError || lots.isError || balances.isError || productionRuns.isError || stockMovements.isError || internalMovements.isError));
 
   const text = {
     title: ar ? "متابعة عمليات شراء الزيتون" : "Suivi des achats d’olives",
@@ -67,6 +69,41 @@ export default function OlivePurchaseTracking() {
       ...(Array.isArray(purchase.lines) ? purchase.lines.map((line: Row) => line.batch_code ?? line.traceability_code) : []),
     ].filter(Boolean).map(String);
     return Array.from(new Set([...linked, ...stored])).join(", ") || value(purchase.document_number);
+  };
+
+
+  const openStatus = (purchase: Row, clickedCode: string) => {
+    const linkedLots = (lots.data ?? []).filter((lot) =>
+      lot.source_purchase_id === purchase.id ||
+      (purchase.batch_codes ?? [purchase.batch_code]).filter(Boolean).includes(lot.batch_code),
+    );
+    const lot = linkedLots.find((item) => String(item.batch_code) === clickedCode) ?? linkedLots[0];
+    const code = String(lot?.batch_code ?? clickedCode);
+    const params = new URLSearchParams();
+    params.set("batch", code);
+    params.set("purchase_id", String(purchase.id));
+
+    const hasProduction = (productionRuns.data ?? []).some((run) =>
+      linkedLots.some((item) => item.id === run.input_lot_id || item.id === run.source_lot_id),
+    );
+    const hasInternalMovement = (internalMovements.data ?? []).some((movement) =>
+      linkedLots.some((item) => item.id === movement.lot_id),
+    );
+    const hasStockMovement = (stockMovements.data ?? []).some((movement) =>
+      linkedLots.some((item) => item.id === movement.lot_id),
+    );
+
+    if (hasProduction) params.set("tab", "production");
+    else if (hasInternalMovement) params.set("tab", "transfers");
+    else if (hasStockMovement) params.set("tab", "movements");
+    else if (linkedLots.length) params.set("tab", "stock");
+    else {
+      params.set("tab", "purchases");
+      if (purchase.status === "DRAFT") params.set("purchase_action", "edit");
+      else if (purchase.status === "APPROVED") params.set("purchase_action", "receipt");
+      else params.set("purchase_action", "view");
+    }
+    navigate(`/commercial?${params.toString()}`);
   };
 
   const stageFor = (purchase: Row) => {
@@ -110,7 +147,7 @@ export default function OlivePurchaseTracking() {
                   }).filter(Boolean);
                   const supplier = (suppliers.data ?? []).find((item) => item.id === purchase.supplier_id);
                   return <TableRow key={purchase.id}>
-                    <TableCell className="font-mono font-bold text-stone-900">{codeFor(purchase).split(", ").map((code, index) => <button key={`${purchase.id}-${index}-${code}`} type="button" onClick={() => navigate(`/search?q=${encodeURIComponent(code)}`)} className="mr-2 inline-block cursor-pointer text-emerald-800 underline decoration-dotted underline-offset-4 hover:text-emerald-950" title={ar ? "انقر للبحث عن هذا الكود" : "Cliquer pour rechercher ce code"}>{code}</button>)}</TableCell>
+                    <TableCell className="font-mono font-bold text-stone-900">{codeFor(purchase).split(", ").map((code, index) => <button key={`${purchase.id}-${index}-${code}`} type="button" onClick={() => openStatus(purchase, code)} className="mr-2 inline-block cursor-pointer text-emerald-800 underline decoration-dotted underline-offset-4 hover:text-emerald-950" title={ar ? "انقر للبحث عن هذا الكود" : "Cliquer pour rechercher ce code"}>{code}</button>)}</TableCell>
                     <TableCell>{displayDate(purchase.purchase_date ?? purchase.created_at, lang)}</TableCell>
                     <TableCell>{value(supplier?.name)}</TableCell>
                     <TableCell>{varietyNames.join(" / ") || "—"}</TableCell>
