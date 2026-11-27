@@ -543,3 +543,31 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
     position: static;
   }
 }
+
+
+/* Extend the same seven-row rule to native HTML tables that use the
+   application's standard horizontal-scroll wrapper. */
+.overflow-x-auto:has(> table tbody tr:nth-child(8)) {
+  max-height: 22rem;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead th {
+  background: inherit;
+}
+@media print {
+  .overflow-x-auto:has(> table tbody tr:nth-child(8)) {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .overflow-x-auto:has(> table tbody tr:nth-child(8)) > table thead {
+    position: static;
+  }
+}
