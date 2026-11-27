@@ -198,7 +198,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
   const [searchParams, setSearchParams] = useSearchParams();
   const qrBatchCode = searchParams.get("batch") || "";
   const requestedTab = searchParams.get("tab") as (TabKey | "quality") | null;
-  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "production", "movements", "transfers", "buyers", "sales", "accounting", "chargement"];
+  const validTabs: TabKey[] = ["factures", "procurement", "suppliers", "purchases", "supplier-oil-purchases", "customer-purchases", "production", "stock", "movements", "transfers", "buyers", "sales", "accounting", "chargement"];
   const initialTab: TabKey = requestedTab && validTabs.includes(requestedTab as TabKey) ? (requestedTab === "suppliers" || requestedTab === "purchases" || requestedTab === "supplier-oil-purchases" || requestedTab === "customer-purchases" ? "procurement" : requestedTab === "buyers" ? "sales" : requestedTab === "movements" || requestedTab === "chargement" ? "stock" : requestedTab as TabKey) : "procurement";
   const isAdmin = me.data?.role === "admin";
   const queryClient = useQueryClient();
@@ -826,6 +826,9 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
       setSelectedPurchaseReceipt(null);
       startPurchaseEdit(purchase);
     } else if (action === "receipt" && purchase.status === "APPROVED") {
+      setEditingPurchase(null);
+      setSelectedPurchaseReceipt(purchase);
+    } else if (action === "view") {
       setEditingPurchase(null);
       setSelectedPurchaseReceipt(purchase);
     }
@@ -2342,10 +2345,11 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
           <CardHeader><CardTitle>{l.internalMovementHistory}</CardTitle></CardHeader>
           <CardContent><Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.movement}</TableHead><TableHead>{l.product}</TableHead><TableHead>{lang === "ar" ? "الكمية (كغ / لتر)" : "Quantité (kg / L)"}</TableHead><TableHead>{l.source}</TableHead><TableHead>{l.destination}</TableHead><TableHead>{l.owner}</TableHead><TableHead>{l.ownershipEvidenceHistory}</TableHead><TableHead>{l.created}</TableHead></TableRow></TableHeader>
             <TableBody>{(internalMovementDocuments.data ?? []).map((movement) => {
+              const movementLot = (lots.data ?? []).find((lot) => lot.id === movement.lot_id);
               const evidence = movement.consent_evidence;
               const consideration = movement.consideration;
-              return <TableRow key={movement.id}>
-                <TableCell className="font-mono font-bold text-stone-900">{lotCode((lots.data ?? []).find((lot) => lot.id === movement.lot_id), movement.document_number)}</TableCell>
+              return <TableRow key={movement.id} className={qrBatchCode && movementLot?.batch_code === qrBatchCode ? "bg-amber-100 ring-2 ring-inset ring-amber-500" : undefined}>
+                <TableCell className="font-mono font-bold text-stone-900">{lotCode(movementLot, movement.document_number)}</TableCell>
                 <TableCell>{value(movement.movement_kind)}</TableCell>
                 <TableCell>{movement.product_kind === "OLIVE" ? l.olive : l.oil}</TableCell>
                 <TableCell>{number(movement.quantity_kg)}</TableCell>
@@ -2361,7 +2365,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
 
       </div>}
 
-      {tab === "stock" && stockView === "movements" && (!embeddedStockView || embeddedStockView === "movements") && <Card data-embedded-stock-section><CardHeader><CardTitle>{l.movements}</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.movement}</TableHead><TableHead>{l.product}</TableHead><TableHead>{l.quantity}</TableHead><TableHead>{l.source}</TableHead><TableHead>{l.destination}</TableHead><TableHead>{l.created}</TableHead></TableRow></TableHeader><TableBody>{(movements.data ?? []).map((m) => <TableRow key={m.id}><TableCell className="font-mono font-bold text-stone-900">{lotCode((lots.data ?? []).find((lot) => lot.id === m.lot_id), m.document_number)}</TableCell><TableCell>{value(m.movement_kind)}</TableCell><TableCell>{m.product_kind === "OLIVE" ? l.olive : l.oil}</TableCell><TableCell>{number(m.quantity_kg)} {m.product_kind === "OIL" ? "L" : "kg"}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.name, "—")}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.name, "—")}</TableCell><TableCell>{date(m.created_at)}</TableCell></TableRow>)}{(!movements.isLoading && !(movements.data?.length)) && <EmptyRow colSpan={7} text={l.noRows} />}</TableBody></Table></CardContent></Card>}
+      {tab === "stock" && stockView === "movements" && (!embeddedStockView || embeddedStockView === "movements") && <Card data-embedded-stock-section><CardHeader><CardTitle>{l.movements}</CardTitle></CardHeader><CardContent><Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.movement}</TableHead><TableHead>{l.product}</TableHead><TableHead>{l.quantity}</TableHead><TableHead>{l.source}</TableHead><TableHead>{l.destination}</TableHead><TableHead>{l.created}</TableHead></TableRow></TableHeader><TableBody>{(movements.data ?? []).map((m) => <TableRow key={m.id} className={qrBatchCode && (lots.data ?? []).find((lot) => lot.id === m.lot_id)?.batch_code === qrBatchCode ? "bg-amber-100 ring-2 ring-inset ring-amber-500" : undefined}><TableCell className="font-mono font-bold text-stone-900">{lotCode((lots.data ?? []).find((lot) => lot.id === m.lot_id), m.document_number)}</TableCell><TableCell>{value(m.movement_kind)}</TableCell><TableCell>{m.product_kind === "OLIVE" ? l.olive : l.oil}</TableCell><TableCell>{number(m.quantity_kg)} {m.product_kind === "OIL" ? "L" : "kg"}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.source_location_id)?.name, "—")}</TableCell><TableCell>{value((m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.code ?? (m.product_kind === "OIL" ? (tanks.data ?? []) : (locations.data ?? [])).find((item) => item.id === m.destination_location_id)?.name, "—")}</TableCell><TableCell>{date(m.created_at)}</TableCell></TableRow>)}{(!movements.isLoading && !(movements.data?.length)) && <EmptyRow colSpan={7} text={l.noRows} />}</TableBody></Table></CardContent></Card>}
 
 
       {tab === "laboratory" && <div className="space-y-4">
@@ -2977,7 +2981,7 @@ export default function Commercial({ embeddedStockView }: { embeddedStockView?: 
         </Card>
         <Card><CardHeader><CardTitle>{l.productionHistory}</CardTitle></CardHeader><CardContent>
           <Table><TableHeader><TableRow><TableHead>{l.document}</TableHead><TableHead>{l.productionDate}</TableHead><TableHead>{l.owner}</TableHead><TableHead>{l.totalInput}</TableHead><TableHead>{l.outputQuantity}</TableHead><TableHead>{l.extractionRate} (%)</TableHead><TableHead>{l.outputTank}</TableHead></TableRow></TableHeader>
-            <TableBody>{(productionRuns.data ?? []).map((run) => <TableRow key={run.id}>
+            <TableBody>{(productionRuns.data ?? []).map((run) => <TableRow key={run.id} className={qrBatchCode && run.batch_code === qrBatchCode ? "bg-amber-100 ring-2 ring-inset ring-amber-500" : undefined}>
               <TableCell className="font-mono font-bold text-stone-900">{purchaseCodeDisplay(run.batch_code)}</TableCell>
               <TableCell>{date(run.production_date)}</TableCell>
               <TableCell>{ownerLabel(run.owner, l)}</TableCell>
