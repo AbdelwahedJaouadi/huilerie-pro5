@@ -67,6 +67,45 @@ const ACTION_LABELS: Record<string, { ar: string; fr: string }> = {
   INVOICE_LEGACY_REPAIRED: { ar: "استكمال بيانات فاتورة قديمة", fr: "Ancienne facture régularisée" },
 };
 
+const DETAIL_LABELS: Record<string, string> = {
+  document_number: "Numéro du document", invoice_number: "Numéro de facture",
+  batch_code: "Code du lot", traceability_code: "Code de traçabilité",
+  lot_code: "Code du lot", sample_reference: "Référence de l’échantillon",
+  payment_number: "Numéro du paiement", reversal_number: "Numéro d’annulation",
+  source_load_code: "Code de réception", amount: "Montant", quantity: "Quantité",
+  status: "Statut", old_status: "Ancien statut", new_status: "Nouveau statut",
+  name: "Nom", full_name: "Nom complet", supplier_name: "Nom du fournisseur",
+  buyer_name: "Nom de l’acheteur", reason: "Motif", notes: "Remarque",
+  date: "Date", payment_method: "Mode de paiement", reference: "Référence",
+  tank_name: "Nom de la cuve", capacity: "Capacité", role: "Type",
+  before: "Avant", after: "Après", old_value: "Ancienne valeur", new_value: "Nouvelle valeur",
+};
+
+function humanizeCode(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .toLocaleLowerCase("fr-FR")
+    .replace(/^./, (letter) => letter.toLocaleUpperCase("fr-FR"));
+}
+
+function detailLabel(key: string) {
+  return DETAIL_LABELS[key] ?? humanizeCode(key);
+}
+
+function detailValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Non renseigné";
+  if (typeof value === "boolean") return value ? "Oui" : "Non";
+  if (Array.isArray(value)) return value.map(detailValue).join(", ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nested]) => `${detailLabel(key)} : ${detailValue(nested)}`)
+      .join(" · ");
+  }
+  if (typeof value === "string" && /^[A-Z][A-Z0-9_-]+$/.test(value)) return humanizeCode(value);
+  return String(value);
+}
+
 const ENTITY_LABELS: Record<string, { ar: string; fr: string }> = {
   commercial_supplier: { ar: "مورد", fr: "Fournisseur" },
   commercial_buyer: { ar: "مشتري", fr: "Acheteur" },
@@ -108,11 +147,11 @@ export default function Audit() {
       : "Journal en lecture seule des changements de stock, opérations financières, fournisseurs et acheteurs.",
     search: isArabic ? "ابحث بالعملية أو المستند أو الموظف…" : "Rechercher une action, un document ou un employé…",
     date: isArabic ? "التاريخ والوقت" : "Date et heure",
-    actor: isArabic ? "منفّذ العملية" : "Effectué par",
-    action: isArabic ? "العملية" : "Action",
-    entity: isArabic ? "نوع السجل" : "Type d’enregistrement",
-    reference: isArabic ? "مرجع السجل" : "Référence",
-    details: isArabic ? "تفاصيل التغيير" : "Détails du changement",
+    actor: isArabic ? "منفّذ العملية" : "Personne",
+    action: isArabic ? "العملية" : "Action réalisée",
+    entity: isArabic ? "نوع السجل" : "Élément concerné",
+    reference: isArabic ? "مرجع السجل" : "N° de référence",
+    details: isArabic ? "تفاصيل التغيير" : "Ce qui a changé",
     all: isArabic ? "الكل" : "Tous",
     refresh: isArabic ? "تحديث" : "Actualiser",
     loading: isArabic ? "جار تحميل سجل التدقيق…" : "Chargement du journal…",
@@ -151,8 +190,8 @@ export default function Audit() {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString(isArabic ? "ar-TN" : "fr-FR");
   };
-  const entityName = (value?: string) => value ? (ENTITY_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? value) : "—";
-  const actionName = (value?: string) => value ? (ACTION_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? value) : "—";
+  const entityName = (value?: string) => value ? (ENTITY_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? (isArabic ? value : humanizeCode(value))) : "—";
+  const actionName = (value?: string) => value ? (ACTION_LABELS[value]?.[isArabic ? "ar" : "fr"] ?? (isArabic ? value : humanizeCode(value))) : "—";
   const operationReference = (item: AuditEvent) => {
     const preferredKeys = [
       "document_number", "invoice_number", "batch_code", "traceability_code",
@@ -211,7 +250,7 @@ export default function Audit() {
             <label className="grid gap-1 text-sm font-medium">{labels.action}
               <select value={action} onChange={(event) => setAction(event.target.value)} className="h-10 rounded-lg border bg-background px-3 font-normal">
                 <option value="all">{labels.all}</option>
-                {actionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                {actionOptions.map((value) => <option key={value} value={value}>{actionName(value)}</option>)}
               </select>
             </label>
           </div>
@@ -223,13 +262,13 @@ export default function Audit() {
               <TableBody>
                 {filtered.map((item) => <TableRow key={item.id}>
                   <TableCell className="min-w-44 whitespace-nowrap text-xs">{formatDate(item.created_at)}</TableCell>
-                  <TableCell className="min-w-36 font-medium">{item.actor_name || item.actor_user_id || "system"}</TableCell>
+                  <TableCell className="min-w-36 font-medium">{item.actor_name || (isArabic ? "مستخدم النظام" : "Utilisateur du système")}</TableCell>
                   <TableCell className="min-w-48 font-semibold">{actionName(item.action)}</TableCell>
                   <TableCell className="min-w-32">{entityName(item.entity_type)}</TableCell>
                   <TableCell className="min-w-36 font-mono text-xs">{operationReference(item)}</TableCell>
                   <TableCell className="min-w-64">
                     {item.details && Object.keys(item.details).length > 0
-                      ? <details className="max-w-md"><summary className="cursor-pointer text-sm font-medium text-emerald-800">{isArabic ? "عرض التفاصيل" : "Afficher"}</summary><pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-2 text-xs">{JSON.stringify(item.details, null, 2)}</pre></details>
+                      ? <details className="max-w-md"><summary className="cursor-pointer text-sm font-medium text-emerald-800">{isArabic ? "عرض التفاصيل" : "Voir les changements"}</summary><dl className="mt-2 max-h-56 space-y-2 overflow-auto rounded-md bg-muted p-3 text-xs">{Object.entries(item.details).map(([key, value]) => <div key={key} className="grid grid-cols-[minmax(90px,0.8fr)_minmax(0,1.2fr)] gap-2 border-b border-border/60 pb-2 last:border-0 last:pb-0"><dt className="font-semibold text-muted-foreground">{detailLabel(key)}</dt><dd className="break-words font-medium text-foreground">{detailValue(value)}</dd></div>)}</dl></details>
                       : <span className="text-sm text-muted-foreground">{labels.noDetails}</span>}
                   </TableCell>
                 </TableRow>)}
