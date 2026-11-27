@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { apiGet } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ function displayDate(value: unknown, lang: string) {
 
 export default function OlivePurchaseTracking() {
   const { lang } = useI18n();
+  const navigate = useNavigate();
   const ar = lang === "ar";
   const status = useQuery({ queryKey: ["commercial", "status"], queryFn: () => apiGet<Status>("/commercial/v1/status"), refetchInterval: 30_000 });
   const ready = status.data?.ready === true;
@@ -108,7 +110,7 @@ export default function OlivePurchaseTracking() {
                   }).filter(Boolean);
                   const supplier = (suppliers.data ?? []).find((item) => item.id === purchase.supplier_id);
                   return <TableRow key={purchase.id}>
-                    <TableCell className="font-mono font-bold text-stone-900">{codeFor(purchase)}</TableCell>
+                    <TableCell className="font-mono font-bold text-stone-900">{codeFor(purchase).split(", ").map((code, index) => <button key={`${purchase.id}-${index}-${code}`} type="button" onClick={() => navigate(`/search?q=${encodeURIComponent(code)}`)} className="mr-2 inline-block cursor-pointer text-emerald-800 underline decoration-dotted underline-offset-4 hover:text-emerald-950" title={ar ? "انقر للبحث عن هذا الكود" : "Cliquer pour rechercher ce code"}>{code}</button>)}</TableCell>
                     <TableCell>{displayDate(purchase.purchase_date ?? purchase.created_at, lang)}</TableCell>
                     <TableCell>{value(supplier?.name)}</TableCell>
                     <TableCell>{varietyNames.join(" / ") || "—"}</TableCell>
