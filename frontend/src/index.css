@@ -571,3 +571,13 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
     position: static;
   }
 }
+
+
+/* Audit journal: preserve horizontal overflow without the shared vertical table scroll. */
+.audit-table-no-vertical-scroll:has(> table tbody tr:nth-child(11)) {
+  max-height: none !important;
+  overflow-y: clip !important;
+}
+.audit-table-no-vertical-scroll:has(> table tbody tr:nth-child(11)) > table thead {
+  position: static;
+}
