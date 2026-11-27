@@ -573,11 +573,12 @@ body:has(.home-redesign) [data-testid="bottom-nav"] a svg { color:currentColor!i
 }
 
 
-/* Audit journal: preserve horizontal overflow without the shared vertical table scroll. */
-.audit-table-no-vertical-scroll:has(> table tbody tr:nth-child(11)) {
+/* Audit journal: override the shared scroll on the actual inner table wrapper.
+   The Audit page adds an outer wrapper around the Table component's own container. */
+.audit-table-no-vertical-scroll .data-table-scroll:has(> table tbody tr:nth-child(11)) {
   max-height: none !important;
-  overflow-y: clip !important;
+  overflow-y: visible !important;
 }
-.audit-table-no-vertical-scroll:has(> table tbody tr:nth-child(11)) > table thead {
-  position: static;
+.audit-table-no-vertical-scroll .data-table-scroll:has(> table tbody tr:nth-child(11)) > table thead th {
+  position: static !important;
 }
