@@ -469,7 +469,7 @@ export default function AppShell() {
               {user && (
                 <div className="hidden text-end leading-tight sm:block" data-testid="user-role-badge">
                   <div className="font-semibold text-stone-900">{user.full_name}</div>
-                  <div className="text-sm text-stone-500">{isAdmin ? t("admin") : t("worker")} · <span dir="ltr">@{user.username}</span></div>
+                  <div className="text-sm text-stone-500">{!isAdmin && <>{t("worker")} · </>}<span dir="ltr">@{user.username}</span></div>
                 </div>
               )}
               <HeaderAppearanceMenu />
