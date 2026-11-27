@@ -254,7 +254,7 @@ export default function Audit() {
               </select>
             </label>
           </div>
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="overflow-x-auto audit-table-no-vertical-scroll rounded-lg border">
             <Table>
               <TableHeader><TableRow>
                 <TableHead>{labels.date}</TableHead><TableHead>{labels.actor}</TableHead><TableHead>{labels.action}</TableHead><TableHead>{labels.entity}</TableHead><TableHead>{labels.reference}</TableHead><TableHead>{labels.details}</TableHead>
